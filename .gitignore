@@ -1,0 +1,20 @@
+# Dependencies
+node_modules/
+
+# Wrangler & Cloudflare build/dev cache
+.wrangler/
+.dev.vars
+.dev.vars.*
+dist/
+
+# Instance-specific config (use wrangler.example.toml for open-source sharing)
+wrangler.toml
+
+# Local personal/scratch planning notes
+NEXT_PROJECT_WEBHOOK_TESTER.md
+
+# Logs & OS files
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db

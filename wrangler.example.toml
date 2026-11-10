@@ -1,0 +1,14 @@
+name = "url-shortener"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# Copy this file to wrangler.toml and replace the KV namespace ID:
+#   npx wrangler kv namespace create URL_KV
+#
+# Then set a strong admin secret before deploying:
+#   npx wrangler secret put ADMIN_TOKEN
+
+[[kv_namespaces]]
+binding = "URL_KV"
+id = "your-kv-namespace-id"
