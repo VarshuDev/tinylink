@@ -1080,6 +1080,219 @@ export function renderDashboardHtml(authRequired: boolean): string {
   .danger-zone-text { font-size: 0.84rem; color: var(--text-muted); }
   .danger-zone-btns { display: flex; gap: 8px; align-items: center; }
 
+  /* ── Duplicate Hint & Advanced Options Drawer ── */
+  .dup-hint {
+    margin-bottom: 12px;
+    padding: 9px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--link-soft);
+    border: 1px solid color-mix(in srgb, var(--link) 35%, transparent);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 0.82rem;
+    color: var(--text);
+  }
+  .dup-hint-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+  .dup-hint-slug { font-family: var(--font-mono); font-weight: 600; color: var(--link); }
+  .dup-hint-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  .adv-toggle-row {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .adv-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-weight: 600;
+    padding: 4px 2px;
+    min-height: 32px;
+  }
+  .adv-toggle-btn:hover { color: var(--text); }
+  .adv-toggle-btn svg { transition: transform 150ms ease; }
+  .adv-toggle-btn[aria-expanded="true"] svg { transform: rotate(180deg); }
+  .adv-active-count {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    padding: 1px 6px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  .adv-panel {
+    margin-top: 10px;
+    padding: 16px;
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    animation: fadeSlideIn 150ms ease;
+  }
+  .adv-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  .adv-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .adv-label {
+    font-size: 0.73rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .adv-input {
+    width: 100%;
+    min-height: 38px;
+    padding: 7px 11px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-size: 0.84rem;
+  }
+  .adv-input:focus {
+    outline: none;
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 20%, transparent);
+  }
+  .adv-subhead {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .utm-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+  .check-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.83rem;
+    color: var(--text);
+    cursor: pointer;
+    min-height: 32px;
+  }
+  .check-row input[type="checkbox"],
+  .row-check {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  /* ── Tag Filter & Bulk Action Bars ── */
+  .tag-filter-bar {
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    background: color-mix(in srgb, var(--surface-2) 45%, transparent);
+  }
+  .tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 500;
+    padding: 4px 9px;
+    border-radius: 999px;
+    min-height: 28px;
+    transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+  }
+  .tag-chip:hover { color: var(--text); border-color: var(--link); }
+  .tag-chip[aria-pressed="true"] {
+    background: var(--link-soft);
+    border-color: var(--link);
+    color: var(--link);
+    font-weight: 600;
+  }
+
+  .bulk-bar {
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 0.82rem;
+  }
+  .bulk-bar-left { display: flex; align-items: center; gap: 10px; font-weight: 600; }
+  .bulk-bar-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+  .link-label-line {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 280px;
+  }
+  .meta-chips {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+  }
+  .meta-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    padding: 1px 6px;
+    border-radius: 5px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+  }
+  .meta-chip.lock { background: var(--link-soft); border-color: transparent; color: var(--link); }
+  .meta-chip.limit { background: var(--warning-soft); border-color: transparent; color: var(--warning); }
+  .meta-chip.stats { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
+  .status-pill.exhausted { background: var(--warning-soft); color: var(--warning); }
+  .status-pill.exhausted .status-dot { background: var(--warning); }
+  .mobile-item-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .breakdown-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+
   /* ── Toast ── */
   .toast {
     position: fixed;
@@ -1129,7 +1342,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
 
   @media (max-width: 900px) {
     .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-    .breakdown-grid { grid-template-columns: 1fr; }
+    .breakdown-grid, .breakdown-grid-3 { grid-template-columns: 1fr; }
   }
 
   @media (max-width: 767px) {
@@ -1137,10 +1350,12 @@ export function renderDashboardHtml(authRequired: boolean): string {
     .shorten-primary-row .btn-primary { width: 100%; }
     .studio-options-row { flex-direction: column; align-items: stretch; }
     .slug-prefix { max-width: 140px; }
+    .adv-grid, .utm-grid { grid-template-columns: 1fr; }
     .modal-stats-grid { grid-template-columns: 1fr; }
     .toolbar-controls { width: 100%; justify-content: flex-start; }
     .search-box { max-width: none; width: 100%; flex-basis: 100%; }
     .edit-row { flex-direction: column; }
+    .tag-filter-bar, .bulk-bar { padding-left: 14px; padding-right: 14px; }
   }
 
   @media (max-width: 480px) {
@@ -1264,6 +1479,17 @@ export function renderDashboardHtml(authRequired: boolean): string {
           </button>
         </div>
 
+        <div class="dup-hint" id="duplicateHint" hidden aria-live="polite">
+          <div class="dup-hint-left">
+            <span>Already shortened as</span>
+            <span class="dup-hint-slug" id="duplicateSlugText"></span>
+          </div>
+          <div class="dup-hint-actions">
+            <button type="button" class="btn btn-secondary btn-sm" id="copyDupBtn">Copy Existing</button>
+            <button type="button" class="btn btn-ghost btn-sm" id="inspectDupBtn">Inspect</button>
+          </div>
+        </div>
+
         <div class="studio-options-row">
           <div class="slug-group">
             <span class="slug-prefix" id="slugPrefix">/</span>
@@ -1291,6 +1517,74 @@ export function renderDashboardHtml(authRequired: boolean): string {
             </div>
             <input type="hidden" id="expiresValue" name="expiresIn" value="never">
           </div>
+        </div>
+
+        <div class="adv-toggle-row">
+          <button type="button" class="adv-toggle-btn" id="advancedToggleBtn" aria-expanded="false" aria-controls="advancedPanel">
+            <svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="64 96 128 160 192 96"/></svg>
+            <span>Advanced Options (Tags, Click Limits, Password, UTM &amp; OG)</span>
+            <span class="adv-active-count" id="advActiveCount" hidden>0 set</span>
+          </button>
+        </div>
+
+        <div class="adv-panel" id="advancedPanel" hidden>
+          <div class="adv-grid">
+            <div class="adv-field">
+              <label for="labelInput" class="adv-label">Label / Note</label>
+              <input type="text" id="labelInput" class="adv-input" maxlength="60" placeholder="Optional title or note">
+            </div>
+            <div class="adv-field">
+              <label for="tagsInput" class="adv-label">Tags (comma-separated)</label>
+              <input type="text" id="tagsInput" class="adv-input mono" placeholder="work, docs, social">
+            </div>
+            <div class="adv-field">
+              <label for="maxClicksSelect" class="adv-label">Click Limit (Burn-after-read)</label>
+              <div style="display:flex;gap:8px;">
+                <select id="maxClicksSelect" class="sort-select" style="flex:1;min-height:38px;">
+                  <option value="">Unlimited</option>
+                  <option value="1">1 click (Burn after read)</option>
+                  <option value="5">5 clicks</option>
+                  <option value="10">10 clicks</option>
+                  <option value="50">50 clicks</option>
+                  <option value="100">100 clicks</option>
+                  <option value="custom">Custom count...</option>
+                </select>
+                <input type="number" id="maxClicksCustom" class="adv-input mono" min="1" max="1000000" placeholder="Count" hidden style="width:110px;">
+              </div>
+            </div>
+            <div class="adv-field">
+              <label for="linkPasswordInput" class="adv-label">Link Password (optional)</label>
+              <input type="password" id="linkPasswordInput" class="adv-input mono" maxlength="128" placeholder="Require password before redirect" autocomplete="new-password">
+            </div>
+          </div>
+
+          <div>
+            <div class="adv-subhead" style="margin-bottom:6px;">
+              <span>UTM Builder</span>
+              <button type="button" class="btn btn-secondary btn-sm" id="applyUtmBtn" style="min-height:28px;font-size:0.74rem;">Apply UTM to URL</button>
+            </div>
+            <div class="utm-grid">
+              <input type="text" id="utmSource" class="adv-input" placeholder="utm_source (e.g. github)" aria-label="UTM Source">
+              <input type="text" id="utmMedium" class="adv-input" placeholder="utm_medium (e.g. social)" aria-label="UTM Medium">
+              <input type="text" id="utmCampaign" class="adv-input" placeholder="utm_campaign (e.g. launch)" aria-label="UTM Campaign">
+            </div>
+          </div>
+
+          <div class="adv-grid">
+            <div class="adv-field">
+              <label for="ogTitleInput" class="adv-label">Social Preview Title (og:title)</label>
+              <input type="text" id="ogTitleInput" class="adv-input" maxlength="100" placeholder="Custom card title for link previews">
+            </div>
+            <div class="adv-field">
+              <label for="ogDescInput" class="adv-label">Social Preview Description (og:description)</label>
+              <input type="text" id="ogDescInput" class="adv-input" maxlength="220" placeholder="Custom summary shown in Slack/WhatsApp/X">
+            </div>
+          </div>
+
+          <label class="check-row" for="publicStatsCheck">
+            <input type="checkbox" id="publicStatsCheck">
+            <span>Enable shareable read-only stats page (<span class="mono" style="color:var(--link);">/stats/:slug</span>)</span>
+          </label>
         </div>
       </form>
 
@@ -1347,7 +1641,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
       </div>
       <div class="kpi-card">
         <div class="kpi-top">
-          <span>Expired</span>
+          <span>Expired / Used</span>
           <span class="kpi-icon amber" aria-hidden="true">
             <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><circle cx="128" cy="128" r="96"/><polyline points="128 72 128 128 176 128"/></svg>
           </span>
@@ -1369,7 +1663,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
             <span class="search-icon" aria-hidden="true">
               <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><circle cx="112" cy="112" r="80"/><line x1="168.57" y1="168.57" x2="224" y2="224"/></svg>
             </span>
-            <input type="search" id="searchInput" class="search-input" placeholder="Search slug or URL..." aria-label="Search links">
+            <input type="search" id="searchInput" class="search-input" placeholder="Search slug, URL, label, or #tag..." aria-label="Search links">
             <span class="search-kbd" id="searchKbd" aria-hidden="true">/</span>
             <button type="button" class="search-clear" id="clearSearchBtn" hidden aria-label="Clear search">
               <svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="200" y1="56" x2="56" y2="200"/><line x1="200" y1="200" x2="56" y2="56"/></svg>
@@ -1388,10 +1682,33 @@ export function renderDashboardHtml(authRequired: boolean): string {
             <option value="oldest">Oldest</option>
           </select>
 
-          <button type="button" class="btn btn-secondary btn-sm" id="exportBtn">
+          <button type="button" class="btn btn-secondary btn-sm" id="exportBtn" title="Export links as CSV">
             <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M216,152v56a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V152"/><polyline points="88 112 128 152 168 112"/><line x1="128" y1="40" x2="128" y2="152"/></svg>
             <span>CSV</span>
           </button>
+          <button type="button" class="btn btn-secondary btn-sm" id="exportJsonBtn" title="Export full JSON backup">
+            <span>JSON</span>
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" id="importJsonBtn" title="Import links from JSON backup">
+            <span>Import</span>
+          </button>
+          <input type="file" id="importFileInput" accept=".json,application/json" hidden>
+        </div>
+      </div>
+
+      <div class="tag-filter-bar" id="tagFilterBar" hidden aria-label="Filter links by tag"></div>
+
+      <div class="bulk-bar" id="bulkBar" hidden>
+        <div class="bulk-bar-left">
+          <span id="bulkStatusText">0 selected</span>
+        </div>
+        <div class="bulk-bar-actions">
+          <button type="button" class="btn btn-secondary btn-sm" id="selectExpiredBtn" hidden>Select Expired</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="bulkExportBtn" hidden>Export JSON</button>
+          <button type="button" class="btn btn-danger btn-sm" id="bulkDeleteBtn" hidden>Delete Selected</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="bulkCancelDelBtn" hidden>Cancel</button>
+          <button type="button" class="btn btn-danger-solid btn-sm" id="bulkConfirmDelBtn" hidden>Confirm Delete</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="bulkClearBtn" hidden>Clear</button>
         </div>
       </div>
 
@@ -1442,7 +1759,9 @@ export function renderDashboardHtml(authRequired: boolean): string {
     desktop: '<svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><rect x="32" y="48" width="192" height="144" rx="12"/><line x1="96" y1="224" x2="160" y2="224"/><line x1="128" y1="192" x2="128" y2="224"/></svg>',
     mobile: '<svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><rect x="64" y="24" width="128" height="208" rx="16"/><line x1="112" y1="56" x2="144" y2="56"/></svg>',
     tablet: '<svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><rect x="48" y="32" width="160" height="192" rx="16"/><line x1="112" y1="192" x2="144" y2="192"/></svg>',
-    external: '<svg width="13" height="13" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><path d="M184,136v72a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8h72"/><polyline points="152 40 216 40 216 104"/><line x1="128" y1="128" x2="216" y2="40"/></svg>'
+    external: '<svg width="13" height="13" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><path d="M184,136v72a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8h72"/><polyline points="152 40 216 40 216 104"/><line x1="128" y1="128" x2="216" y2="40"/></svg>',
+    lockSm: '<svg width="11" height="11" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"><rect x="40" y="88" width="176" height="128" rx="8"/><path d="M92,88V52a36,36,0,0,1,72,0V88"/></svg>',
+    globe: '<svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><circle cx="128" cy="128" r="96"/><ellipse cx="128" cy="128" rx="40" ry="96"/><line x1="36" y1="96" x2="220" y2="96"/><line x1="36" y1="160" x2="220" y2="160"/></svg>'
   };
 
   // ── State ──
@@ -1477,7 +1796,11 @@ export function renderDashboardHtml(authRequired: boolean): string {
   var isLoading = false;
   var currentSearch = '';
   var currentFilter = 'all';
+  var currentTag = '';
   var currentSort = 'newest';
+  var selectedSlugs = new Set();
+  var bulkConfirming = false;
+  var dupMatchedSlug = '';
   var latestQrSvg = '';
   var latestSlug = '';
   var lastTriggerEl = null;
@@ -1503,6 +1826,10 @@ export function renderDashboardHtml(authRequired: boolean): string {
   var shortenForm = document.getElementById('shortenForm');
   var urlInput = document.getElementById('urlInput');
   var pasteUrlBtn = document.getElementById('pasteUrlBtn');
+  var duplicateHint = document.getElementById('duplicateHint');
+  var duplicateSlugText = document.getElementById('duplicateSlugText');
+  var copyDupBtn = document.getElementById('copyDupBtn');
+  var inspectDupBtn = document.getElementById('inspectDupBtn');
   var customSlugInput = document.getElementById('customSlugInput');
   var slugPrefix = document.getElementById('slugPrefix');
   var expiryPills = document.getElementById('expiryPills');
@@ -1510,6 +1837,22 @@ export function renderDashboardHtml(authRequired: boolean): string {
   var shortenBtn = document.getElementById('shortenBtn');
   var shortenError = document.getElementById('shortenError');
   var shortenErrorText = document.getElementById('shortenErrorText');
+
+  var advancedToggleBtn = document.getElementById('advancedToggleBtn');
+  var advActiveCount = document.getElementById('advActiveCount');
+  var advancedPanel = document.getElementById('advancedPanel');
+  var labelInput = document.getElementById('labelInput');
+  var tagsInput = document.getElementById('tagsInput');
+  var maxClicksSelect = document.getElementById('maxClicksSelect');
+  var maxClicksCustom = document.getElementById('maxClicksCustom');
+  var linkPasswordInput = document.getElementById('linkPasswordInput');
+  var utmSource = document.getElementById('utmSource');
+  var utmMedium = document.getElementById('utmMedium');
+  var utmCampaign = document.getElementById('utmCampaign');
+  var applyUtmBtn = document.getElementById('applyUtmBtn');
+  var ogTitleInput = document.getElementById('ogTitleInput');
+  var ogDescInput = document.getElementById('ogDescInput');
+  var publicStatsCheck = document.getElementById('publicStatsCheck');
 
   var resultBar = document.getElementById('resultBar');
   var resultQr = document.getElementById('resultQr');
@@ -1534,6 +1877,18 @@ export function renderDashboardHtml(authRequired: boolean): string {
   var statusFilterGroup = document.getElementById('statusFilterGroup');
   var sortSelect = document.getElementById('sortSelect');
   var exportBtn = document.getElementById('exportBtn');
+  var exportJsonBtn = document.getElementById('exportJsonBtn');
+  var importJsonBtn = document.getElementById('importJsonBtn');
+  var importFileInput = document.getElementById('importFileInput');
+  var tagFilterBar = document.getElementById('tagFilterBar');
+  var bulkBar = document.getElementById('bulkBar');
+  var bulkStatusText = document.getElementById('bulkStatusText');
+  var selectExpiredBtn = document.getElementById('selectExpiredBtn');
+  var bulkExportBtn = document.getElementById('bulkExportBtn');
+  var bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+  var bulkCancelDelBtn = document.getElementById('bulkCancelDelBtn');
+  var bulkConfirmDelBtn = document.getElementById('bulkConfirmDelBtn');
+  var bulkClearBtn = document.getElementById('bulkClearBtn');
   var linksContainer = document.getElementById('linksContainer');
 
   var modal = document.getElementById('analyticsModal');
@@ -1575,6 +1930,27 @@ export function renderDashboardHtml(authRequired: boolean): string {
       return new Date(u.expiresAt) < new Date();
     }
     return !!(u && u.isExpired);
+  }
+
+  function isLinkExhausted(u) {
+    return !!(u && typeof u.maxClicks === 'number' && u.maxClicks > 0 && (u.clicks || 0) >= u.maxClicks);
+  }
+
+  function isLinkInactive(u) {
+    return isLinkExpired(u) || isLinkExhausted(u);
+  }
+
+  function upsertLinkRecord(entry) {
+    if (!entry || !entry.slug) return;
+    var found = false;
+    for (var i = 0; i < urls.length; i++) {
+      if (urls[i].slug === entry.slug) {
+        urls[i] = Object.assign({}, urls[i], entry);
+        found = true;
+        break;
+      }
+    }
+    if (!found) urls.unshift(entry);
   }
 
   // ── Theme Switcher ──
@@ -1626,11 +2002,49 @@ export function renderDashboardHtml(authRequired: boolean): string {
     }
   }
 
+  function checkDuplicateHint() {
+    var val = urlInput.value.trim();
+    if (!val || !urls.length) {
+      duplicateHint.hidden = true;
+      dupMatchedSlug = '';
+      return;
+    }
+    var match = null;
+    for (var i = 0; i < urls.length; i++) {
+      if (urls[i].originalUrl === val && !isLinkInactive(urls[i])) {
+        match = urls[i];
+        break;
+      }
+    }
+    if (match) {
+      dupMatchedSlug = match.slug;
+      duplicateSlugText.textContent = '/' + match.slug;
+      duplicateHint.hidden = false;
+    } else {
+      dupMatchedSlug = '';
+      duplicateHint.hidden = true;
+    }
+  }
+
+  urlInput.addEventListener('input', checkDuplicateHint);
+  copyDupBtn.addEventListener('click', async function() {
+    if (!dupMatchedSlug) return;
+    var full = window.location.origin + '/' + dupMatchedSlug;
+    await copyText(full);
+    showToast('Copied existing ' + full, 'success');
+  });
+  inspectDupBtn.addEventListener('click', function() {
+    if (!dupMatchedSlug) return;
+    lastTriggerEl = inspectDupBtn;
+    openInspectorModal(dupMatchedSlug, 'view');
+  });
+
   function applyPendingPrefill() {
     if (!pendingPrefillUrl) return;
     urlInput.value = pendingPrefillUrl;
     pendingPrefillUrl = '';
     setShortenError('');
+    checkDuplicateHint();
     setTimeout(function() { customSlugInput.focus(); }, 30);
     showToast('URL pre-filled — press Enter to shorten', 'success');
   }
@@ -1648,6 +2062,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
   lockBtn.addEventListener('click', function() {
     adminToken = '';
     urls = [];
+    selectedSlugs.clear();
     try { localStorage.removeItem('tl_admin_token'); } catch (e) {}
     adminTokenInput.value = '';
     resultBar.hidden = true;
@@ -1693,6 +2108,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
       try { localStorage.setItem('tl_admin_token', adminToken); } catch (e) {}
       urls = data.urls || [];
       showWorkspace();
+      checkDuplicateHint();
       renderLinksView();
       showToast('Console unlocked', 'success');
     } catch (err) {
@@ -1734,6 +2150,69 @@ export function renderDashboardHtml(authRequired: boolean): string {
     buttons[nextIdx].focus();
   });
 
+  // ── Advanced Options & UTM Builder ──
+  function updateAdvCount() {
+    var count = 0;
+    if (labelInput.value.trim()) count++;
+    if (tagsInput.value.trim()) count++;
+    if (maxClicksSelect.value) count++;
+    if (linkPasswordInput.value.length > 0) count++;
+    if (utmSource.value.trim() || utmMedium.value.trim() || utmCampaign.value.trim()) count++;
+    if (ogTitleInput.value.trim() || ogDescInput.value.trim()) count++;
+    if (publicStatsCheck.checked) count++;
+    if (count > 0) {
+      advActiveCount.textContent = count + ' set';
+      advActiveCount.hidden = false;
+    } else {
+      advActiveCount.hidden = true;
+    }
+  }
+
+  advancedToggleBtn.addEventListener('click', function() {
+    var isOpen = !advancedPanel.hidden;
+    advancedPanel.hidden = isOpen;
+    advancedToggleBtn.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+  });
+
+  maxClicksSelect.addEventListener('change', function() {
+    maxClicksCustom.hidden = maxClicksSelect.value !== 'custom';
+    if (!maxClicksCustom.hidden) maxClicksCustom.focus();
+    updateAdvCount();
+  });
+
+  [labelInput, tagsInput, maxClicksCustom, linkPasswordInput, utmSource, utmMedium, utmCampaign, ogTitleInput, ogDescInput].forEach(function(el) {
+    el.addEventListener('input', updateAdvCount);
+  });
+  publicStatsCheck.addEventListener('change', updateAdvCount);
+
+  function mergeUtmIntoUrl(rawUrl) {
+    var src = utmSource.value.trim();
+    var med = utmMedium.value.trim();
+    var cmp = utmCampaign.value.trim();
+    if (!src && !med && !cmp) return rawUrl;
+    var parsed = new URL(rawUrl);
+    if (src) parsed.searchParams.set('utm_source', src);
+    if (med) parsed.searchParams.set('utm_medium', med);
+    if (cmp) parsed.searchParams.set('utm_campaign', cmp);
+    return parsed.href;
+  }
+
+  applyUtmBtn.addEventListener('click', function() {
+    var raw = urlInput.value.trim();
+    if (!raw || (!raw.startsWith('http://') && !raw.startsWith('https://'))) {
+      setShortenError('Enter a valid http:// or https:// destination URL before applying UTM parameters.');
+      return;
+    }
+    try {
+      urlInput.value = mergeUtmIntoUrl(raw);
+      setShortenError('');
+      checkDuplicateHint();
+      showToast('Applied UTM parameters to URL', 'success');
+    } catch (ex) {
+      setShortenError('Invalid URL format for UTM parameters.');
+    }
+  });
+
   // ── Shorten Form ──
   function setShortenError(msg) {
     if (!msg) {
@@ -1762,6 +2241,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
       }
       urlInput.value = text;
       setShortenError('');
+      checkDuplicateHint();
       if (/^https?:\\/\\//i.test(text)) {
         customSlugInput.focus();
         showToast('Pasted URL from clipboard', 'success');
@@ -1791,10 +2271,41 @@ export function renderDashboardHtml(authRequired: boolean): string {
       setShortenError('Destination URL must start with http:// or https://');
       return;
     }
+    try {
+      url = mergeUtmIntoUrl(url);
+    } catch (ex) {
+      setShortenError('Destination URL is invalid.');
+      return;
+    }
     if (custom && !/^[a-zA-Z0-9_-]{2,50}$/.test(custom)) {
       setShortenError('Custom alias must be 2–50 characters using letters, numbers, "_" or "-".');
       return;
     }
+
+    var maxClicksVal = null;
+    if (maxClicksSelect.value === 'custom') {
+      var customCount = parseInt(maxClicksCustom.value, 10);
+      if (isNaN(customCount) || customCount < 1 || customCount > 1000000) {
+        setShortenError('Custom click limit must be a whole number from 1 to 1,000,000.');
+        return;
+      }
+      maxClicksVal = customCount;
+    } else if (maxClicksSelect.value) {
+      maxClicksVal = parseInt(maxClicksSelect.value, 10);
+    }
+
+    var payload = {
+      url: url,
+      custom: custom,
+      expiresIn: expiresIn
+    };
+    if (labelInput.value.trim()) payload.label = labelInput.value.trim();
+    if (tagsInput.value.trim()) payload.tags = tagsInput.value.trim();
+    if (maxClicksVal !== null) payload.maxClicks = maxClicksVal;
+    if (linkPasswordInput.value.length > 0) payload.password = linkPasswordInput.value;
+    if (ogTitleInput.value.trim()) payload.ogTitle = ogTitleInput.value.trim();
+    if (ogDescInput.value.trim()) payload.ogDescription = ogDescInput.value.trim();
+    if (publicStatsCheck.checked) payload.publicStats = true;
 
     shortenBtn.disabled = true;
     shortenBtn.querySelector('span').textContent = 'Shortening…';
@@ -1802,13 +2313,17 @@ export function renderDashboardHtml(authRequired: boolean): string {
     try {
       var data = await api('/api/shorten', {
         method: 'POST',
-        body: JSON.stringify({ url: url, custom: custom, expiresIn: expiresIn })
+        body: JSON.stringify(payload)
       });
 
       latestQrSvg = data.qrSvg || '';
       latestSlug = data.slug || 'tinylink';
       resultQr.innerHTML = latestQrSvg;
-      resultKicker.textContent = data.expiresAt ? 'Link Ready · Expires ' + fmtDate(data.expiresAt) : 'Link Ready';
+      var kickerParts = ['Link Ready'];
+      if (data.expiresAt) kickerParts.push('Expires ' + fmtDate(data.expiresAt));
+      if (data.maxClicks) kickerParts.push('Max ' + data.maxClicks + (data.maxClicks === 1 ? ' click' : ' clicks'));
+      if (data.hasPassword) kickerParts.push('Locked');
+      resultKicker.textContent = kickerParts.join(' · ');
       resultUrl.textContent = data.shortUrl;
       tryBtn.href = data.shortUrl;
       resultBar.hidden = false;
@@ -1816,13 +2331,34 @@ export function renderDashboardHtml(authRequired: boolean): string {
 
       shortenForm.reset();
       expiresValue.value = 'never';
+      maxClicksCustom.hidden = true;
       var pills = expiryPills.querySelectorAll('[data-expiry]');
       for (var i = 0; i < pills.length; i++) {
         pills[i].setAttribute('aria-checked', pills[i].getAttribute('data-expiry') === 'never' ? 'true' : 'false');
       }
+      updateAdvCount();
+      duplicateHint.hidden = true;
 
+      upsertLinkRecord({
+        slug: data.slug,
+        originalUrl: data.originalUrl,
+        clicks: 0,
+        createdAt: data.createdAt || new Date().toISOString(),
+        expiresAt: data.expiresAt || null,
+        isExpired: data.expiresAt ? new Date(data.expiresAt) < new Date() : false,
+        maxClicks: data.maxClicks || null,
+        isExhausted: false,
+        hasPassword: !!data.hasPassword,
+        label: data.label || null,
+        tags: data.tags || [],
+        ogTitle: data.ogTitle || null,
+        ogDescription: data.ogDescription || null,
+        publicStats: !!data.publicStats,
+        botClicks: 0
+      });
+      renderLinksView();
+      checkDuplicateHint();
       showToast('Short link created', 'success');
-      await loadLinks();
     } catch (err) {
       if (err.status === 401) {
         showVault('Your session expired. Please re-enter your admin token.');
@@ -1926,6 +2462,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
       urls = data.urls || [];
       isLoading = false;
       renderLinksView();
+      checkDuplicateHint();
     } catch (err) {
       isLoading = false;
       if (err.status === 401) {
@@ -1944,15 +2481,23 @@ export function renderDashboardHtml(authRequired: boolean): string {
     }
   }
 
-  // ── Render KPI & Links View ──
+  // ── Render KPI, Tags, Bulk Bar & Links View ──
   function getProcessedLinks() {
     var q = currentSearch.trim().toLowerCase();
+    var qTag = q.startsWith('#') ? q.slice(1) : q;
     var list = urls.filter(function(u) {
-      var expired = isLinkExpired(u);
-      if (currentFilter === 'active' && expired) return false;
-      if (currentFilter === 'expired' && !expired) return false;
+      var inactive = isLinkInactive(u);
+      if (currentFilter === 'active' && inactive) return false;
+      if (currentFilter === 'expired' && !inactive) return false;
+      if (currentTag) {
+        if (!u.tags || u.tags.indexOf(currentTag) === -1) return false;
+      }
       if (q) {
-        return u.slug.toLowerCase().indexOf(q) !== -1 || u.originalUrl.toLowerCase().indexOf(q) !== -1;
+        var inSlug = u.slug.toLowerCase().indexOf(q) !== -1;
+        var inUrl = u.originalUrl.toLowerCase().indexOf(q) !== -1;
+        var inLabel = u.label && u.label.toLowerCase().indexOf(q) !== -1;
+        var inTags = u.tags && u.tags.some(function(t) { return t.toLowerCase().indexOf(qTag) !== -1; });
+        return inSlug || inUrl || inLabel || inTags;
       }
       return true;
     });
@@ -1963,6 +2508,94 @@ export function renderDashboardHtml(authRequired: boolean): string {
       return b.createdAt > a.createdAt ? 1 : -1;
     });
     return list;
+  }
+
+  function renderTagFilterBar() {
+    var counts = {};
+    for (var i = 0; i < urls.length; i++) {
+      var tags = urls[i].tags || [];
+      for (var j = 0; j < tags.length; j++) {
+        counts[tags[j]] = (counts[tags[j]] || 0) + 1;
+      }
+    }
+    var tagList = Object.entries(counts).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 15);
+    if (!tagList.length) {
+      tagFilterBar.hidden = true;
+      currentTag = '';
+      return;
+    }
+    if (currentTag && !counts[currentTag]) currentTag = '';
+    tagFilterBar.hidden = false;
+    var html = '<button type="button" class="tag-chip" data-tag="" aria-pressed="' + (!currentTag ? 'true' : 'false') + '">All tags</button>';
+    for (var k = 0; k < tagList.length; k++) {
+      var t = tagList[k][0];
+      var cnt = tagList[k][1];
+      var tEsc = escapeHtml(t);
+      html += '<button type="button" class="tag-chip" data-tag="' + tEsc + '" aria-pressed="' + (currentTag === t ? 'true' : 'false') + '">#' + tEsc + ' (' + cnt + ')</button>';
+    }
+    tagFilterBar.innerHTML = html;
+  }
+
+  function syncBulkBar() {
+    var validSet = new Set();
+    for (var i = 0; i < urls.length; i++) validSet.add(urls[i].slug);
+    selectedSlugs.forEach(function(s) {
+      if (!validSet.has(s)) selectedSlugs.delete(s);
+    });
+
+    var inactiveCount = urls.filter(function(u) { return isLinkInactive(u); }).length;
+    var selCount = selectedSlugs.size;
+
+    if (selCount === 0 && inactiveCount === 0) {
+      bulkBar.hidden = true;
+      bulkConfirming = false;
+      return;
+    }
+
+    bulkBar.hidden = false;
+    if (selCount > 0) {
+      bulkStatusText.textContent = bulkConfirming
+        ? 'Delete ' + selCount + (selCount === 1 ? ' selected link' : ' selected links') + ' permanently?'
+        : selCount + ' selected';
+      selectExpiredBtn.hidden = true;
+      bulkExportBtn.hidden = bulkConfirming;
+      bulkDeleteBtn.hidden = bulkConfirming;
+      bulkCancelDelBtn.hidden = !bulkConfirming;
+      bulkConfirmDelBtn.hidden = !bulkConfirming;
+      bulkClearBtn.hidden = bulkConfirming;
+    } else {
+      bulkConfirming = false;
+      bulkStatusText.textContent = inactiveCount + (inactiveCount === 1 ? ' expired or used link' : ' expired or used links');
+      selectExpiredBtn.hidden = false;
+      bulkExportBtn.hidden = true;
+      bulkDeleteBtn.hidden = true;
+      bulkCancelDelBtn.hidden = true;
+      bulkConfirmDelBtn.hidden = true;
+      bulkClearBtn.hidden = true;
+    }
+  }
+
+  function buildStatusBadge(u) {
+    if (isLinkExhausted(u)) {
+      return '<span class="status-pill exhausted"><span class="status-dot"></span>Exhausted</span>';
+    }
+    if (isLinkExpired(u)) {
+      return '<span class="status-pill expired"><span class="status-dot"></span>Expired</span>';
+    }
+    return '<span class="status-pill active"><span class="status-dot"></span>Active</span>';
+  }
+
+  function buildMetaChips(u) {
+    var chips = [];
+    if (u.hasPassword) chips.push('<span class="meta-chip lock">' + ICONS.lockSm + '<span>Locked</span></span>');
+    if (u.maxClicks) chips.push('<span class="meta-chip limit">' + (u.clicks || 0) + '/' + u.maxClicks + ' max</span>');
+    if (u.publicStats) chips.push('<span class="meta-chip stats">Public stats</span>');
+    if (u.tags && u.tags.length) {
+      for (var i = 0; i < u.tags.length; i++) {
+        chips.push('<span class="meta-chip">#' + escapeHtml(u.tags[i]) + '</span>');
+      }
+    }
+    return chips.length ? '<div class="meta-chips">' + chips.join('') + '</div>' : '';
   }
 
   function renderLinksView() {
@@ -1977,14 +2610,17 @@ export function renderDashboardHtml(authRequired: boolean): string {
     }
 
     var totalClicks = urls.reduce(function(s, u) { return s + (u.clicks || 0); }, 0);
-    var activeCount = urls.filter(function(u) { return !isLinkExpired(u); }).length;
-    var expiredCount = urls.filter(function(u) { return isLinkExpired(u); }).length;
+    var activeCount = urls.filter(function(u) { return !isLinkInactive(u); }).length;
+    var expiredCount = urls.filter(function(u) { return isLinkInactive(u); }).length;
 
     statsRow.hidden = urls.length === 0;
     statLinks.textContent = urls.length.toLocaleString();
     statActive.textContent = activeCount.toLocaleString();
     statClicks.textContent = totalClicks.toLocaleString();
     statExpired.textContent = expiredCount.toLocaleString();
+
+    renderTagFilterBar();
+    syncBulkBar();
 
     var filtered = getProcessedLinks();
     linkCount.textContent = filtered.length === urls.length
@@ -2006,7 +2642,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
         '<div class="empty-state">' +
           '<div class="empty-icon">' + ICONS.search + '</div>' +
           '<div class="empty-title">No matching links</div>' +
-          '<div class="empty-desc">Try adjusting your search query or status filter.</div>' +
+          '<div class="empty-desc">Try adjusting your search query, tag, or status filter.</div>' +
           '<button type="button" class="btn btn-secondary btn-sm" id="resetFiltersBtn" style="margin-top:14px;">Reset Filters</button>' +
         '</div>';
       var resetFiltersBtn = document.getElementById('resetFiltersBtn');
@@ -2015,6 +2651,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
           searchInput.value = '';
           currentSearch = '';
           currentFilter = 'all';
+          currentTag = '';
           syncSearchUI();
           var fBtns = statusFilterGroup.querySelectorAll('[data-filter]');
           for (var j = 0; j < fBtns.length; j++) {
@@ -2030,18 +2667,22 @@ export function renderDashboardHtml(authRequired: boolean): string {
       linksContainer.innerHTML = '<div class="mobile-list">' + filtered.map(function(u) {
         var slugEsc = escapeHtml(u.slug);
         var urlEsc = escapeHtml(u.originalUrl);
-        var statusHtml = isLinkExpired(u)
-          ? '<span class="status-pill expired"><span class="status-dot"></span>Expired</span>'
-          : '<span class="status-pill active"><span class="status-dot"></span>Active</span>';
+        var checkedAttr = selectedSlugs.has(u.slug) ? ' checked' : '';
+        var labelHtml = u.label ? '<div class="link-label-line" style="max-width:none;">' + escapeHtml(u.label) + '</div>' : '';
 
         return '<article class="mobile-item">' +
           '<div class="mobile-item-head">' +
-            '<a class="slug-link" href="/' + slugEsc + '" target="_blank" rel="noopener noreferrer">/' + slugEsc + ' ' + ICONS.external + '</a>' +
-            statusHtml +
+            '<div class="mobile-item-left">' +
+              '<input type="checkbox" class="row-check" data-select-slug="' + slugEsc + '" aria-label="Select /' + slugEsc + '"' + checkedAttr + '>' +
+              '<a class="slug-link" href="/' + slugEsc + '" target="_blank" rel="noopener noreferrer">/' + slugEsc + ' ' + ICONS.external + '</a>' +
+            '</div>' +
+            buildStatusBadge(u) +
           '</div>' +
+          labelHtml +
           '<div class="mobile-dest" title="' + urlEsc + '">' + urlEsc + '</div>' +
+          buildMetaChips(u) +
           '<div class="mobile-meta">' +
-            '<span class="tabular"><strong>' + (u.clicks || 0).toLocaleString() + '</strong> clicks</span>' +
+            '<span class="tabular"><strong>' + (u.clicks || 0).toLocaleString() + '</strong>' + (u.maxClicks ? ' / ' + u.maxClicks : '') + ' clicks</span>' +
             '<span>Created ' + fmtDate(u.createdAt) + (u.expiresAt ? ' · Exp ' + fmtDate(u.expiresAt) : '') + '</span>' +
           '</div>' +
           '<div class="mobile-actions">' +
@@ -2055,10 +2696,12 @@ export function renderDashboardHtml(authRequired: boolean): string {
       return;
     }
 
+    var allVisibleSelected = filtered.length > 0 && filtered.every(function(u) { return selectedSlugs.has(u.slug); });
     linksContainer.innerHTML =
       '<div class="table-scroll"><table><thead><tr>' +
+        '<th style="width:38px;"><input type="checkbox" id="selectAllCheck" class="row-check" aria-label="Select all visible links"' + (allVisibleSelected ? ' checked' : '') + '></th>' +
         '<th>Short Link</th>' +
-        '<th>Destination</th>' +
+        '<th>Destination &amp; Tags</th>' +
         '<th>Clicks</th>' +
         '<th>Status</th>' +
         '<th>Created</th>' +
@@ -2067,20 +2710,20 @@ export function renderDashboardHtml(authRequired: boolean): string {
       filtered.map(function(u) {
         var slugEsc = escapeHtml(u.slug);
         var urlEsc = escapeHtml(u.originalUrl);
-        var statusHtml = isLinkExpired(u)
-          ? '<span class="status-pill expired"><span class="status-dot"></span>Expired</span>'
-          : '<span class="status-pill active"><span class="status-dot"></span>Active</span>';
+        var checkedAttr = selectedSlugs.has(u.slug) ? ' checked' : '';
+        var labelHtml = u.label ? '<div class="link-label-line" title="' + escapeHtml(u.label) + '">' + escapeHtml(u.label) + '</div>' : '';
 
         return '<tr>' +
+          '<td><input type="checkbox" class="row-check" data-select-slug="' + slugEsc + '" aria-label="Select /' + slugEsc + '"' + checkedAttr + '></td>' +
           '<td><a class="slug-link" href="/' + slugEsc + '" target="_blank" rel="noopener noreferrer">/' + slugEsc + ' ' + ICONS.external + '</a></td>' +
-          '<td><div class="dest-text" title="' + urlEsc + '">' + urlEsc + '</div></td>' +
-          '<td><span class="clicks-num tabular">' + (u.clicks || 0).toLocaleString() + '</span></td>' +
-          '<td>' + statusHtml + '</td>' +
+          '<td>' + labelHtml + '<div class="dest-text" title="' + urlEsc + '">' + urlEsc + '</div>' + buildMetaChips(u) + '</td>' +
+          '<td><span class="clicks-num tabular">' + (u.clicks || 0).toLocaleString() + '</span>' + (u.maxClicks ? '<span style="color:var(--text-muted);font-size:0.74rem;"> / ' + u.maxClicks + '</span>' : '') + '</td>' +
+          '<td>' + buildStatusBadge(u) + '</td>' +
           '<td><span class="tabular" style="color:var(--text-muted);font-size:0.8rem;white-space:nowrap;">' + fmtDate(u.createdAt) + '</span></td>' +
           '<td><div class="row-actions">' +
             '<button type="button" class="btn btn-secondary btn-icon" data-action="copy" data-slug="' + slugEsc + '" title="Copy short URL" aria-label="Copy short URL /' + slugEsc + '">' + ICONS.copy + '</button>' +
             '<button type="button" class="btn btn-secondary btn-icon" data-action="analytics" data-slug="' + slugEsc + '" title="Inspect analytics & QR" aria-label="Inspect analytics for /' + slugEsc + '">' + ICONS.chart + '</button>' +
-            '<button type="button" class="btn btn-secondary btn-icon" data-action="edit" data-slug="' + slugEsc + '" title="Edit destination URL" aria-label="Edit destination for /' + slugEsc + '">' + ICONS.pencil + '</button>' +
+            '<button type="button" class="btn btn-secondary btn-icon" data-action="edit" data-slug="' + slugEsc + '" title="Edit link settings" aria-label="Edit link /' + slugEsc + '">' + ICONS.pencil + '</button>' +
             '<button type="button" class="btn btn-danger btn-icon" data-action="delete" data-slug="' + slugEsc + '" title="Delete link" aria-label="Delete /' + slugEsc + '">' + ICONS.trash + '</button>' +
           '</div></td>' +
         '</tr>';
@@ -2088,7 +2731,35 @@ export function renderDashboardHtml(authRequired: boolean): string {
       '</tbody></table></div>';
   }
 
-  // ── Event Delegation for Table & Mobile Actions ──
+  // ── Event Delegation for Table, Checkboxes & Mobile Actions ──
+  linksContainer.addEventListener('change', function(e) {
+    var cb = e.target;
+    if (cb.id === 'selectAllCheck') {
+      var visible = getProcessedLinks();
+      for (var i = 0; i < visible.length; i++) {
+        if (cb.checked) selectedSlugs.add(visible[i].slug);
+        else selectedSlugs.delete(visible[i].slug);
+      }
+      var rowCbs = linksContainer.querySelectorAll('[data-select-slug]');
+      for (var j = 0; j < rowCbs.length; j++) rowCbs[j].checked = cb.checked;
+      bulkConfirming = false;
+      syncBulkBar();
+      return;
+    }
+    var selSlug = cb.getAttribute('data-select-slug');
+    if (selSlug !== null) {
+      if (cb.checked) selectedSlugs.add(selSlug);
+      else selectedSlugs.delete(selSlug);
+      bulkConfirming = false;
+      syncBulkBar();
+      var selectAll = document.getElementById('selectAllCheck');
+      if (selectAll) {
+        var vis = getProcessedLinks();
+        selectAll.checked = vis.length > 0 && vis.every(function(u) { return selectedSlugs.has(u.slug); });
+      }
+    }
+  });
+
   linksContainer.addEventListener('click', async function(e) {
     var btn = e.target.closest('[data-action]');
     if (!btn) return;
@@ -2110,6 +2781,100 @@ export function renderDashboardHtml(authRequired: boolean): string {
       lastTriggerEl = btn;
       openInspectorModal(slug, action === 'edit' ? 'edit' : (action === 'delete' ? 'delete' : 'view'));
     }
+  });
+
+  // ── Tag Filter & Bulk Actions ──
+  tagFilterBar.addEventListener('click', function(e) {
+    var btn = e.target.closest('[data-tag]');
+    if (!btn) return;
+    currentTag = btn.getAttribute('data-tag') || '';
+    renderLinksView();
+  });
+
+  selectExpiredBtn.addEventListener('click', function() {
+    selectedSlugs.clear();
+    for (var i = 0; i < urls.length; i++) {
+      if (isLinkInactive(urls[i])) selectedSlugs.add(urls[i].slug);
+    }
+    bulkConfirming = false;
+    renderLinksView();
+  });
+
+  bulkClearBtn.addEventListener('click', function() {
+    selectedSlugs.clear();
+    bulkConfirming = false;
+    renderLinksView();
+  });
+
+  bulkDeleteBtn.addEventListener('click', function() {
+    bulkConfirming = true;
+    syncBulkBar();
+  });
+
+  bulkCancelDelBtn.addEventListener('click', function() {
+    bulkConfirming = false;
+    syncBulkBar();
+  });
+
+  bulkConfirmDelBtn.addEventListener('click', async function() {
+    var slugsToDel = Array.from(selectedSlugs);
+    if (!slugsToDel.length) return;
+    bulkConfirmDelBtn.disabled = true;
+    bulkConfirmDelBtn.textContent = 'Deleting…';
+    try {
+      var deletedTotal = 0;
+      for (var i = 0; i < slugsToDel.length; i += 40) {
+        var chunk = slugsToDel.slice(i, i + 40);
+        var res = await api('/api/bulk-delete', {
+          method: 'POST',
+          body: JSON.stringify({ slugs: chunk })
+        });
+        deletedTotal += res.count || chunk.length;
+      }
+      var delSet = new Set(slugsToDel);
+      urls = urls.filter(function(u) { return !delSet.has(u.slug); });
+      selectedSlugs.clear();
+      bulkConfirming = false;
+      renderLinksView();
+      checkDuplicateHint();
+      showToast('Deleted ' + deletedTotal + ' links', 'success');
+    } catch (err) {
+      showToast('Bulk delete failed: ' + err.message, 'error');
+    } finally {
+      bulkConfirmDelBtn.disabled = false;
+      bulkConfirmDelBtn.textContent = 'Confirm Delete';
+    }
+  });
+
+  function downloadLinksJson(linkList, prefixName) {
+    var payload = {
+      exportedAt: new Date().toISOString(),
+      version: 3,
+      count: linkList.length,
+      links: linkList.map(function(u) {
+        return {
+          slug: u.slug,
+          originalUrl: u.originalUrl,
+          createdAt: u.createdAt,
+          expiresAt: u.expiresAt,
+          clicks: u.clicks || 0,
+          botClicks: u.botClicks || 0,
+          label: u.label || null,
+          tags: u.tags || [],
+          maxClicks: u.maxClicks || null,
+          publicStats: !!u.publicStats
+        };
+      })
+    };
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8;' });
+    triggerBlobDownload(blob, prefixName + '-' + new Date().toISOString().slice(0, 10) + '.json');
+  }
+
+  bulkExportBtn.addEventListener('click', function() {
+    var chosen = urls.filter(function(u) { return selectedSlugs.has(u.slug); });
+    if (!chosen.length) return;
+    downloadLinksJson(chosen, 'tinylink-selected');
+    showToast('Exported ' + chosen.length + ' links to JSON', 'success');
   });
 
   // ── Search, Filter & Sort Listeners ──
@@ -2167,25 +2932,128 @@ export function renderDashboardHtml(authRequired: boolean): string {
 
   isMobileMq.addEventListener('change', renderLinksView);
 
-  // ── CSV Export ──
+  // ── CSV Export, JSON Export & JSON Import ──
   exportBtn.addEventListener('click', function() {
     if (!urls.length) return showToast('No links to export', 'error');
-    var header = ['Slug', 'Original URL', 'Short URL', 'Clicks', 'Created At', 'Expires At', 'Status'];
+    var header = ['Slug', 'Original URL', 'Short URL', 'Label', 'Tags', 'Clicks', 'Max Clicks', 'Created At', 'Expires At', 'Status'];
     var rows = urls.map(function(u) {
+      var st = isLinkExhausted(u) ? 'Exhausted' : (isLinkExpired(u) ? 'Expired' : 'Active');
       return [
         '"' + u.slug.replace(/"/g, '""') + '"',
         '"' + u.originalUrl.replace(/"/g, '""') + '"',
         '"' + window.location.origin + '/' + u.slug + '"',
+        '"' + (u.label || '').replace(/"/g, '""') + '"',
+        '"' + (u.tags || []).join(',').replace(/"/g, '""') + '"',
         u.clicks || 0,
+        u.maxClicks || '',
         '"' + (u.createdAt || '') + '"',
         '"' + (u.expiresAt || '') + '"',
-        isLinkExpired(u) ? 'Expired' : 'Active'
+        st
       ].join(',');
     });
     var csv = [header.join(',')].concat(rows).join('\\n');
     var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     triggerBlobDownload(blob, 'tinylink-export-' + new Date().toISOString().slice(0, 10) + '.csv');
     showToast('Exported ' + urls.length + ' links to CSV', 'success');
+  });
+
+  exportJsonBtn.addEventListener('click', function() {
+    if (!urls.length) return showToast('No links to export', 'error');
+    downloadLinksJson(urls, 'tinylink-backup');
+    showToast('Exported ' + urls.length + ' links to JSON backup', 'success');
+  });
+
+  importJsonBtn.addEventListener('click', function() {
+    lastTriggerEl = importJsonBtn;
+    importFileInput.value = '';
+    importFileInput.click();
+  });
+
+  function openImportModal(parsedLinks, filename) {
+    modalLabel.textContent = 'Import Backup';
+    modalSlug.textContent = filename || 'backup.json';
+    modalSlug.hidden = false;
+    modalBody.innerHTML =
+      '<div class="tool-card">' +
+        '<div class="tool-title">Ready to import ' + parsedLinks.length + (parsedLinks.length === 1 ? ' link' : ' links') + '</div>' +
+        '<p class="tool-desc">Choose how TinyLink should handle slugs that already exist in your KV store. Links with invalid URLs or reserved paths are skipped automatically.</p>' +
+        '<div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:4px;">' +
+          '<label for="importModeSelect" style="font-size:0.82rem;color:var(--text-muted);">Conflict policy:</label>' +
+          '<select id="importModeSelect" class="sort-select" style="flex:1;min-height:38px;">' +
+            '<option value="skip">Skip existing slugs (safe default)</option>' +
+            '<option value="overwrite">Overwrite matching slugs</option>' +
+          '</select>' +
+        '</div>' +
+      '</div>' +
+      '<div class="alert-box" id="importErrBox" role="alert" hidden><span id="importErrText"></span></div>' +
+      '<div style="display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;">' +
+        '<button type="button" class="btn btn-secondary" id="cancelImportBtn">Cancel</button>' +
+        '<button type="button" class="btn btn-primary" id="runImportBtn">Import ' + parsedLinks.length + ' Links</button>' +
+      '</div>';
+
+    openModalElement();
+
+    document.getElementById('cancelImportBtn').addEventListener('click', closeModalElement);
+    var runBtn = document.getElementById('runImportBtn');
+    runBtn.addEventListener('click', async function() {
+      var mode = document.getElementById('importModeSelect').value;
+      var errBox = document.getElementById('importErrBox');
+      var errText = document.getElementById('importErrText');
+      errBox.hidden = true;
+      runBtn.disabled = true;
+
+      var totalImported = 0;
+      var totalSkipped = 0;
+      var totalErrors = [];
+
+      try {
+        for (var i = 0; i < parsedLinks.length; i += 15) {
+          runBtn.textContent = 'Importing ' + Math.min(i + 15, parsedLinks.length) + ' / ' + parsedLinks.length + '…';
+          var batch = parsedLinks.slice(i, i + 15);
+          var res = await api('/api/import', {
+            method: 'POST',
+            body: JSON.stringify({ links: batch, mode: mode })
+          });
+          totalImported += res.imported || 0;
+          totalSkipped += res.skipped || 0;
+          if (res.importedLinks && res.importedLinks.length) {
+            for (var j = 0; j < res.importedLinks.length; j++) {
+              upsertLinkRecord(res.importedLinks[j]);
+            }
+          }
+          if (res.errors && res.errors.length) totalErrors = totalErrors.concat(res.errors);
+        }
+        closeModalElement();
+        renderLinksView();
+        checkDuplicateHint();
+        showToast('Imported ' + totalImported + ', skipped ' + totalSkipped + (totalErrors.length ? ', ' + totalErrors.length + ' invalid' : ''), 'success');
+      } catch (err) {
+        errText.textContent = err.message;
+        errBox.hidden = false;
+        runBtn.disabled = false;
+        runBtn.textContent = 'Import ' + parsedLinks.length + ' Links';
+      }
+    });
+  }
+
+  importFileInput.addEventListener('change', function() {
+    var file = importFileInput.files && importFileInput.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function() {
+      try {
+        var parsed = JSON.parse(String(reader.result || ''));
+        var list = Array.isArray(parsed) ? parsed : (parsed && Array.isArray(parsed.links) ? parsed.links : null);
+        if (!list || !list.length) {
+          showToast('JSON file contains no links array', 'error');
+          return;
+        }
+        openImportModal(list, file.name);
+      } catch (ex) {
+        showToast('Invalid JSON backup file', 'error');
+      }
+    };
+    reader.readAsText(file);
   });
 
   // ── SVG Timeline Chart Builder ──
@@ -2253,7 +3121,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
       closeModalElement();
     }
     if (!modal.hidden && e.key === 'Tab') {
-      var focusables = modalDialog.querySelectorAll('button:not([disabled]):not([hidden]), a[href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])');
+      var focusables = modalDialog.querySelectorAll('button:not([disabled]):not([hidden]), a[href]:not([hidden]), input:not([disabled]):not([hidden]), select:not([disabled]):not([hidden]), [tabindex]:not([tabindex="-1"])');
       if (!focusables.length) return;
       var first = focusables[0];
       var last = focusables[focusables.length - 1];
@@ -2360,13 +3228,18 @@ export function renderDashboardHtml(authRequired: boolean): string {
       var topReferrers = Object.entries(data.referrers || {}).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 5);
       var maxRef = topReferrers.length ? topReferrers[0][1] : 1;
 
+      var topCountries = Object.entries(data.countries || {}).sort(function(a, b) { return b[1] - a[1]; }).slice(0, 6);
+      var maxCountry = topCountries.length ? topCountries[0][1] : 1;
+
       var topDevices = Object.entries(data.devices || {}).sort(function(a, b) { return b[1] - a[1]; });
       var totalDev = topDevices.reduce(function(s, pair) { return s + pair[1]; }, 0) || 1;
       var devColors = { desktop: '#38BDF8', mobile: '#22C55E', tablet: '#F59E0B' };
 
-      var statusBadge = data.isExpired
-        ? '<span class="status-pill expired"><span class="status-dot"></span>Expired</span>'
-        : '<span class="status-pill active"><span class="status-dot"></span>' + (data.lastClicked ? 'Active' : 'Ready (0 clicks)') + '</span>';
+      var statusBadge = data.isExhausted
+        ? '<span class="status-pill exhausted"><span class="status-dot"></span>Exhausted</span>'
+        : (data.isExpired
+            ? '<span class="status-pill expired"><span class="status-dot"></span>Expired</span>'
+            : '<span class="status-pill active"><span class="status-dot"></span>' + (data.lastClicked ? 'Active' : 'Ready (0 clicks)') + '</span>');
 
       var refSection = topReferrers.length
         ? '<div class="ref-list">' + topReferrers.map(function(item) {
@@ -2375,6 +3248,14 @@ export function renderDashboardHtml(authRequired: boolean): string {
               '<div class="ref-bar-bg"><div class="ref-bar-fill" style="width:' + pct + '%;"></div></div></div>';
           }).join('') + '</div>'
         : '<p style="font-size:0.83rem;color:var(--text-muted);">No referrer data yet.</p>';
+
+      var countrySection = topCountries.length
+        ? '<div class="ref-list">' + topCountries.map(function(item) {
+            var pct = Math.round((item[1] / maxCountry) * 100);
+            return '<div><div class="ref-item"><span style="display:inline-flex;align-items:center;gap:5px;">' + ICONS.globe + '<span>' + escapeHtml(item[0]) + '</span></span><span class="mono tabular" style="font-weight:600;">' + item[1] + '</span></div>' +
+              '<div class="ref-bar-bg"><div class="ref-bar-fill" style="width:' + pct + '%;background:var(--accent);"></div></div></div>';
+          }).join('') + '</div>'
+        : '<p style="font-size:0.83rem;color:var(--text-muted);">No country data yet.</p>';
 
       var devSection = topDevices.length
         ? '<div class="device-stack-bar">' +
@@ -2397,14 +3278,34 @@ export function renderDashboardHtml(authRequired: boolean): string {
           '</div>'
         : '<p style="font-size:0.83rem;color:var(--text-muted);">No device data yet.</p>';
 
+      var labelBlock = data.label
+        ? '<div style="font-size:0.9rem;font-weight:600;color:var(--text);margin-bottom:6px;">' + escapeHtml(data.label) + '</div>'
+        : '';
+      var metaChipsHtml = buildMetaChips(data);
+      var botNoteHtml = data.botClicks
+        ? '<div style="font-size:0.72rem;color:var(--text-muted);margin-top:3px;">' + data.botClicks + ' bot ' + (data.botClicks === 1 ? 'preview' : 'previews') + ' filtered</div>'
+        : '';
+      var publicStatsUrl = window.location.origin + '/stats/' + encodeURIComponent(slug);
+      var publicStatsRowHtml = data.publicStats
+        ? '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);">' +
+            '<div style="min-width:0;flex:1;">' +
+              '<div style="font-size:0.71rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);">Shareable Public Stats</div>' +
+              '<a href="' + escapeHtml(publicStatsUrl) + '" target="_blank" rel="noopener noreferrer" class="mono" style="font-size:0.8rem;color:var(--link);word-break:break-all;">' + escapeHtml(publicStatsUrl) + '</a>' +
+            '</div>' +
+            '<button type="button" class="btn btn-secondary btn-sm" id="modalCopyPublicStatsBtn">' + ICONS.copy + '<span>Copy Stats URL</span></button>' +
+          '</div>'
+        : '';
+
       modalBody.innerHTML =
         '<div>' +
           '<div class="section-head"><span>Destination URL</span>' + statusBadge + '</div>' +
+          labelBlock +
           '<div class="modal-url-box">' + origEsc + '</div>' +
+          metaChipsHtml +
         '</div>' +
 
         '<div class="modal-stats-grid">' +
-          '<div class="modal-stat"><div class="modal-stat-label">Total Clicks</div><div class="modal-stat-val tabular" style="color:var(--accent);">' + (data.clicks || 0).toLocaleString() + '</div></div>' +
+          '<div class="modal-stat"><div class="modal-stat-label">Total Clicks</div><div class="modal-stat-val tabular" style="color:var(--accent);">' + (data.clicks || 0).toLocaleString() + (data.maxClicks ? '<span style="font-size:0.82rem;color:var(--text-muted);font-weight:500;"> / ' + data.maxClicks + '</span>' : '') + '</div>' + botNoteHtml + '</div>' +
           '<div class="modal-stat"><div class="modal-stat-label">Last Clicked</div><div class="modal-stat-val tabular" style="font-size:0.88rem;">' + (data.lastClicked ? fmtDate(data.lastClicked) : 'Never') + '</div></div>' +
           '<div class="modal-stat"><div class="modal-stat-label">Expires</div><div class="modal-stat-val tabular" style="font-size:0.88rem;color:' + (data.isExpired ? 'var(--danger)' : 'var(--text)') + ';">' + (data.expiresAt ? fmtDate(data.expiresAt) : 'Never') + '</div></div>' +
         '</div>' +
@@ -2414,9 +3315,10 @@ export function renderDashboardHtml(authRequired: boolean): string {
           buildSvgTimeline(data.clickTimeline) +
         '</div>' +
 
-        '<div class="breakdown-grid">' +
+        '<div class="breakdown-grid-3">' +
           '<div><div class="section-head"><span>Devices</span></div>' + devSection + '</div>' +
           '<div><div class="section-head"><span>Top Referrers</span></div>' + refSection + '</div>' +
+          '<div><div class="section-head"><span>Top Countries</span></div>' + countrySection + '</div>' +
         '</div>' +
 
         '<div>' +
@@ -2432,27 +3334,68 @@ export function renderDashboardHtml(authRequired: boolean): string {
               '</div>' +
             '</div>' +
           '</div>' +
+          publicStatsRowHtml +
         '</div>' +
 
         '<div>' +
-          '<div class="section-head"><span>Update Destination &amp; Expiry</span></div>' +
+          '<div class="section-head"><span>Update Link Settings</span></div>' +
           '<div class="alert-box" id="editError" role="alert" hidden><span id="editErrorText"></span></div>' +
           '<form id="editForm" class="edit-stack" novalidate>' +
-            '<div class="edit-row">' +
-              '<label for="editUrlInput" class="sr-only">New destination URL</label>' +
+            '<div class="adv-field">' +
+              '<label for="editUrlInput" class="adv-label">Destination URL</label>' +
               '<input type="url" id="editUrlInput" class="input-field" value="' + origEsc + '" placeholder="https://new-destination.com" required>' +
             '</div>' +
-            '<div class="edit-row" style="align-items:center;">' +
-              '<label for="editExpirySelect" style="font-size:0.8rem;color:var(--text-muted);white-space:nowrap;">Expiration:</label>' +
-              '<select id="editExpirySelect" class="sort-select" style="flex:1;min-height:40px;">' +
-                '<option value="keep">Keep current (' + (data.expiresAt ? fmtDate(data.expiresAt) : 'Never') + ')</option>' +
-                '<option value="never">Never expire</option>' +
-                '<option value="1">Expire in 1 day</option>' +
-                '<option value="7">Expire in 7 days</option>' +
-                '<option value="30">Expire in 30 days</option>' +
-                '<option value="90">Expire in 90 days</option>' +
-                '<option value="365">Expire in 1 year</option>' +
-              '</select>' +
+            '<div class="adv-grid">' +
+              '<div class="adv-field">' +
+                '<label for="editLabelInput" class="adv-label">Label / Note</label>' +
+                '<input type="text" id="editLabelInput" class="adv-input" maxlength="60" value="' + escapeHtml(data.label || '') + '" placeholder="Optional title or note">' +
+              '</div>' +
+              '<div class="adv-field">' +
+                '<label for="editTagsInput" class="adv-label">Tags (comma-separated)</label>' +
+                '<input type="text" id="editTagsInput" class="adv-input mono" value="' + escapeHtml((data.tags || []).join(', ')) + '" placeholder="work, docs, social">' +
+              '</div>' +
+              '<div class="adv-field">' +
+                '<label for="editExpirySelect" class="adv-label">Expiration</label>' +
+                '<select id="editExpirySelect" class="sort-select" style="width:100%;min-height:38px;">' +
+                  '<option value="keep">Keep current (' + (data.expiresAt ? fmtDate(data.expiresAt) : 'Never') + ')</option>' +
+                  '<option value="never">Never expire</option>' +
+                  '<option value="1">Expire in 1 day</option>' +
+                  '<option value="7">Expire in 7 days</option>' +
+                  '<option value="30">Expire in 30 days</option>' +
+                  '<option value="90">Expire in 90 days</option>' +
+                  '<option value="365">Expire in 1 year</option>' +
+                '</select>' +
+              '</div>' +
+              '<div class="adv-field">' +
+                '<label for="editMaxClicksInput" class="adv-label">Click Limit (blank = unlimited)</label>' +
+                '<input type="number" id="editMaxClicksInput" class="adv-input mono" min="1" max="1000000" value="' + (data.maxClicks ? String(data.maxClicks) : '') + '" placeholder="Unlimited">' +
+              '</div>' +
+              '<div class="adv-field">' +
+                '<label for="editPasswordMode" class="adv-label">Link Password</label>' +
+                '<select id="editPasswordMode" class="sort-select" style="width:100%;min-height:38px;">' +
+                  '<option value="keep">' + (data.hasPassword ? 'Keep existing password' : 'No password') + '</option>' +
+                  '<option value="set">' + (data.hasPassword ? 'Replace password' : 'Set password') + '</option>' +
+                  (data.hasPassword ? '<option value="clear">Remove password</option>' : '') +
+                '</select>' +
+              '</div>' +
+              '<div class="adv-field" id="editPasswordWrap" hidden>' +
+                '<label for="editPasswordInput" class="adv-label">New Link Password</label>' +
+                '<input type="password" id="editPasswordInput" class="adv-input mono" maxlength="128" placeholder="Enter new password" autocomplete="new-password" hidden>' +
+              '</div>' +
+              '<div class="adv-field">' +
+                '<label for="editOgTitleInput" class="adv-label">Social Title (og:title)</label>' +
+                '<input type="text" id="editOgTitleInput" class="adv-input" maxlength="100" value="' + escapeHtml(data.ogTitle || '') + '" placeholder="Custom social card title">' +
+              '</div>' +
+              '<div class="adv-field">' +
+                '<label for="editOgDescInput" class="adv-label">Social Description (og:description)</label>' +
+                '<input type="text" id="editOgDescInput" class="adv-input" maxlength="220" value="' + escapeHtml(data.ogDescription || '') + '" placeholder="Custom social card description">' +
+              '</div>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
+              '<label class="check-row" for="editPublicStatsCheck">' +
+                '<input type="checkbox" id="editPublicStatsCheck"' + (data.publicStats ? ' checked' : '') + '>' +
+                '<span>Shareable read-only stats page (<span class="mono" style="color:var(--link);">/stats/' + slugEsc + '</span>)</span>' +
+              '</label>' +
               '<button type="submit" class="btn btn-primary" id="saveEditBtn">Save Changes</button>' +
             '</div>' +
           '</form>' +
@@ -2483,6 +3426,13 @@ export function renderDashboardHtml(authRequired: boolean): string {
         await copyText(shortFull);
         showToast('Copied ' + shortFull, 'success');
       });
+      var copyPublicStatsBtn = document.getElementById('modalCopyPublicStatsBtn');
+      if (copyPublicStatsBtn) {
+        copyPublicStatsBtn.addEventListener('click', async function() {
+          await copyText(publicStatsUrl);
+          showToast('Copied ' + publicStatsUrl, 'success');
+        });
+      }
       document.getElementById('modalDlSvgBtn').addEventListener('click', function() {
         downloadSvg(data.qrSvg, slug + '-qr.svg');
       });
@@ -2493,10 +3443,30 @@ export function renderDashboardHtml(authRequired: boolean): string {
       // Wire Edit form
       var editForm = document.getElementById('editForm');
       var editUrlInput = document.getElementById('editUrlInput');
+      var editLabelInput = document.getElementById('editLabelInput');
+      var editTagsInput = document.getElementById('editTagsInput');
       var editExpirySelect = document.getElementById('editExpirySelect');
+      var editMaxClicksInput = document.getElementById('editMaxClicksInput');
+      var editPasswordMode = document.getElementById('editPasswordMode');
+      var editPasswordWrap = document.getElementById('editPasswordWrap');
+      var editPasswordInput = document.getElementById('editPasswordInput');
+      var editOgTitleInput = document.getElementById('editOgTitleInput');
+      var editOgDescInput = document.getElementById('editOgDescInput');
+      var editPublicStatsCheck = document.getElementById('editPublicStatsCheck');
       var saveEditBtn = document.getElementById('saveEditBtn');
       var editError = document.getElementById('editError');
       var editErrorText = document.getElementById('editErrorText');
+
+      editPasswordMode.addEventListener('change', function() {
+        var isSet = editPasswordMode.value === 'set';
+        editPasswordWrap.hidden = !isSet;
+        editPasswordInput.hidden = !isSet;
+        if (isSet) {
+          editPasswordInput.focus();
+        } else {
+          editPasswordInput.value = '';
+        }
+      });
 
       editForm.addEventListener('submit', async function(ev) {
         ev.preventDefault();
@@ -2508,16 +3478,71 @@ export function renderDashboardHtml(authRequired: boolean): string {
           editError.hidden = false;
           return;
         }
+
+        var nextMaxStr = editMaxClicksInput.value.trim();
+        var nextMaxVal = null;
+        if (nextMaxStr !== '') {
+          if (!/^\\d+$/.test(nextMaxStr)) {
+            editErrorText.textContent = 'Click limit must be a whole number between 1 and 1,000,000.';
+            editError.hidden = false;
+            return;
+          }
+          nextMaxVal = parseInt(nextMaxStr, 10);
+          if (nextMaxVal < 1 || nextMaxVal > 1000000) {
+            editErrorText.textContent = 'Click limit must be between 1 and 1,000,000.';
+            editError.hidden = false;
+            return;
+          }
+        }
+
+        var updatePayload = {
+          url: nextUrl,
+          expiresIn: nextExpiry,
+          label: editLabelInput.value.trim() || null,
+          tags: editTagsInput.value.trim(),
+          maxClicks: nextMaxVal,
+          ogTitle: editOgTitleInput.value.trim() || null,
+          ogDescription: editOgDescInput.value.trim() || null,
+          publicStats: editPublicStatsCheck.checked
+        };
+
+        var pwdMode = editPasswordMode.value;
+        if (pwdMode === 'set') {
+          if (!editPasswordInput.value) {
+            editErrorText.textContent = 'Enter a new password or switch the Link Password option.';
+            editError.hidden = false;
+            return;
+          }
+          updatePayload.password = editPasswordInput.value;
+        } else if (pwdMode === 'clear') {
+          updatePayload.clearPassword = true;
+        }
+
         saveEditBtn.disabled = true;
         saveEditBtn.textContent = 'Saving…';
         try {
-          await api('/api/urls/' + encodeURIComponent(slug), {
+          var updated = await api('/api/urls/' + encodeURIComponent(slug), {
             method: 'PUT',
-            body: JSON.stringify({ url: nextUrl, expiresIn: nextExpiry })
+            body: JSON.stringify(updatePayload)
+          });
+          upsertLinkRecord({
+            slug: slug,
+            originalUrl: updated.originalUrl,
+            expiresAt: updated.expiresAt,
+            isExpired: updated.expiresAt ? new Date(updated.expiresAt) < new Date() : false,
+            maxClicks: updated.maxClicks,
+            isExhausted: !!(updated.maxClicks && (data.clicks || 0) >= updated.maxClicks),
+            hasPassword: !!updated.hasPassword,
+            label: updated.label,
+            tags: updated.tags || [],
+            ogTitle: updated.ogTitle,
+            ogDescription: updated.ogDescription,
+            publicStats: !!updated.publicStats
           });
           showToast('Link updated', 'success');
           closeModalElement();
-          await loadLinks();
+          renderLinksView();
+          checkDuplicateHint();
         } catch (err) {
           editErrorText.textContent = err.message;
           editError.hidden = false;
@@ -2554,9 +3579,12 @@ export function renderDashboardHtml(authRequired: boolean): string {
         confirmDeleteBtn.textContent = 'Deleting…';
         try {
           await api('/api/urls/' + encodeURIComponent(slug), { method: 'DELETE' });
+          urls = urls.filter(function(u) { return u.slug !== slug; });
+          selectedSlugs.delete(slug);
           showToast('Link deleted', 'success');
           closeModalElement();
-          await loadLinks();
+          renderLinksView();
+          checkDuplicateHint();
         } catch (err) {
           showToast('Failed to delete: ' + err.message, 'error');
           confirmDeleteBtn.disabled = false;
@@ -2580,6 +3608,9 @@ export function renderDashboardHtml(authRequired: boolean): string {
   }
 
   // ── Bootstrap App ──
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(function() {});
+  }
   if (!AUTH_REQUIRED || adminToken) {
     showWorkspace();
     loadLinks();

@@ -4,12 +4,13 @@
 
 <br/><br/>
 
+[![CI](https://github.com/VarshuDev/tinylink/actions/workflows/ci.yml/badge.svg)](https://github.com/VarshuDev/tinylink/actions/workflows/ci.yml)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers%20%2B%20KV-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)](#architecture)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](#project-structure)
 [![PWA Ready](https://img.shields.io/badge/PWA-Share%20Target-22C55E?style=for-the-badge)](#highlights)
 [![License: MIT](https://img.shields.io/badge/License-MIT-0F172A?style=for-the-badge)](LICENSE)
 
-**Self-hosted edge URL shortener, instant SVG/PNG QR generator, and click analytics console running entirely inside one Cloudflare Worker at $0/month.**
+**Self-hosted edge URL shortener, instant SVG/PNG QR generator, link access controls, and privacy-first analytics running inside a single Cloudflare Worker at $0/month.**
 
 [Quick Deploy](#quick-deploy-60-seconds) · [Personal Setup Guide](PERSONAL_SETUP.md) · [Hosting & API Reference](HOSTING_GUIDE.md)
 
@@ -23,7 +24,7 @@
   <img src="docs/architecture.svg" alt="TinyLink Edge Redirect and Telemetry Flow" width="100%" />
 </div>
 
-TinyLink serves both the **JSON API** and **OLED Dark / Crisp Light dashboard** from a single Cloudflare Worker backed by **Workers KV**—zero servers, zero cold-start penalties, and no external database setup.
+TinyLink serves the **JSON API**, **edge redirects**, **read-only public stats**, **Service Worker shell**, and **OLED Dark / Crisp Light dashboard** from one Cloudflare Worker backed by **Workers KV**—zero servers, zero cold-start penalties, and no external database setup.
 
 ---
 
@@ -31,13 +32,14 @@ TinyLink serves both the **JSON API** and **OLED Dark / Crisp Light dashboard** 
 
 | Category | What You Get |
 |----------|--------------|
-| **Edge Redirects** | Sub-5ms `302` redirects globally, trailing-slash normalization, branded `404` & `410` pages |
-| **Custom Aliases & TTL** | Auto 7-char slugs or custom `2–50` char aliases, reserved-slug protection, reversible `1d`–`1y` / `never` expiry |
-| **Live Inspector Analytics** | Total clicks, chronological timeline chart, top referrer hostnames, device split (`desktop` / `mobile` / `tablet`) |
-| **QR Code Studio** | Crisp high-contrast SVG QR generated per link with 1-click **SVG** & **512px PNG** downloads |
-| **Zero-Friction Capture** | `?url=` / `?text=` query prefill, Android **PWA Share Target**, browser bookmarklet, Chrome `tl` omnibox shortcut, PowerShell helper |
-| **Private Vault Auth** | Constant-time `ADMIN_TOKEN` verification protecting all management & write APIs |
-| **Developer UX** | OLED Dark & Light theme persistence, keyboard shortcuts (`n`, `/`, `Esc`), cursor-paginated KV listing (`>1,000` keys), CSV backup export |
+| **Edge Redirects & Pages** | Sub-5ms `302` redirects globally, trailing-slash normalization, branded `404` & `410` (expired / limit-reached) pages |
+| **Smart Link Controls** | Click caps & **burn-after-read** (`maxClicks`), salted **SHA-256 link passwords**, labels, `#tags` filtering, duplicate URL hints, and a **UTM Campaign Builder** |
+| **Rich Telemetry & Bot Shield** | Exact UTC hourly/daily timeline, referrers, device split, **visitor countries** (`cf.country`), and preview-bot filtering so Slack/WhatsApp unfurls never burn `maxClicks` |
+| **Social Cards & Public Stats** | Custom `og:title` & `og:description` preview metadata for unfurlers plus opt-in shareable `/stats/:slug` pages (masks locked destinations automatically) |
+| **QR Code Studio** | Crisp high-contrast SVG QR per link with 1-click **SVG** & **512px PNG** downloads |
+| **Zero-Friction Capture & PWA** | `/sw.js` Service Worker, `?url=` / `?text=` prefill, Android **PWA Share Target**, bookmarklet, Chrome `tl` omnibox shortcut, PowerShell helper |
+| **Vault Auth & Rate Limiting** | Constant-time `ADMIN_TOKEN` guard, KV-backed IP brute-force protection (`429` + `Retry-After` after `10` failed attempts), SSRF/localhost blocking |
+| **Bulk Ops & Backups** | Multi-select bulk delete (`/api/bulk-delete`), CSV export, full **JSON backup export & import** (`skip`/`overwrite`), cursor-paginated KV listing (`>1,000` keys) |
 
 ---
 
@@ -46,7 +48,7 @@ TinyLink serves both the **JSON API** and **OLED Dark / Crisp Light dashboard** 
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/<your-username>/tinylink.git
+git clone https://github.com/VarshuDev/tinylink.git
 cd tinylink
 npm install
 ```
@@ -77,10 +79,11 @@ npx wrangler secret put ADMIN_TOKEN
 
 > Always configure a strong `ADMIN_TOKEN` (16+ random characters) in production. Without it, the dashboard runs in open public-console mode for local testing.
 
-### 4. Type Check & Deploy
+### 4. Type Check, Test & Deploy
 
 ```bash
 npm run check
+npm test
 npx wrangler deploy
 ```
 
@@ -92,21 +95,26 @@ Your shortener goes live immediately at `https://url-shortener.<your-subdomain>.
 
 ```
 url-shortener/
+├── .github/workflows/
+│   └── ci.yml                # GitHub Actions: tsc --noEmit & Vitest on push/PR
 ├── docs/
 │   ├── hero.svg              # Animated README banner
 │   ├── architecture.svg      # Animated edge redirect & telemetry diagram
 │   └── icons/                # Vector section icons (SVG)
 ├── src/
-│   ├── index.ts              # Router, auth guard, KV storage, redirect & API handlers
-│   ├── frontend.ts           # Server-rendered OLED Dark/Light console, QR studio & shortcuts modal
-│   ├── pages.ts              # Branded 404 (Not Found) & 410 (Expired) pages
-│   └── types.d.ts            # QRCode TypeScript declarations
+│   ├── index.ts              # Router, vault auth, rate limiter, KV storage, redirect & API handlers
+│   ├── frontend.ts           # Server-rendered OLED Dark/Light console, UTM/QR studio & bulk tools
+│   ├── pages.ts              # Status pages (404/410), password gate, OG preview card & /stats/:slug
+│   ├── types.ts              # Shared TypeScript interfaces for KV records, API payloads & env
+│   └── qrcode.d.ts           # QRCode module TypeScript declarations
+├── test/
+│   └── worker.test.ts        # Offline Vitest Worker integration & HTML inline script suite
 ├── wrangler.example.toml     # Safe Worker & KV binding template (copy to wrangler.toml)
 ├── tsconfig.json             # Strict TypeScript config
-├── package.json              # Scripts: dev, deploy, tail, check
+├── package.json              # Scripts: dev, deploy, tail, check, test
 ├── LICENSE                   # MIT License
-├── HOSTING_GUIDE.md          # Complete deployment & curl reference
-└── PERSONAL_SETUP.md         # Daily bookmarklet, Chrome 'tl' omnibox, PowerShell & mobile PWA guide
+├── HOSTING_GUIDE.md          # Complete deployment, quotas & curl reference
+└── PERSONAL_SETUP.md         # Bookmarklet, Chrome 'tl' omnibox, PowerShell & mobile PWA guide
 ```
 
 ---
@@ -118,12 +126,16 @@ Protected routes accept `X-Auth-Token: <token>` or `Authorization: Bearer <token
 | Method | Endpoint | Auth | Description |
 |--------|----------|:----:|-------------|
 | `GET` | `/api/health` | No | Lightweight health & auth status check |
-| `POST` | `/api/shorten` | Yes | Create short link (`url`, optional `custom`, `expiresIn`) |
-| `GET` | `/api/list` | Yes | Cursor-paginated list of all links (`>1,000` KV keys supported) |
-| `GET` | `/api/analytics/:slug` | Yes | Timeline, devices, referrers & SVG QR code |
-| `PUT` | `/api/urls/:slug` | Yes | Update destination `url` and/or `expiresIn` TTL |
+| `POST` | `/api/shorten` | Yes | Create link (`url`, `custom`, `expiresIn`, `label`, `tags`, `maxClicks`, `password`, `ogTitle`, `ogDescription`, `publicStats`, `dedupe`) |
+| `GET` | `/api/list` | Yes | Cursor-paginated list of all links (`>1,000` KV keys + KV metadata fallback supported) |
+| `GET` | `/api/analytics/:slug` | Yes | Timeline, devices, referrers, countries, `botClicks` & SVG QR code |
+| `PUT` | `/api/urls/:slug` | Yes | Update URL, expiry, label, tags, click limit, password (`password` / `clearPassword`), OG tags & `publicStats` |
 | `DELETE` | `/api/urls/:slug` | Yes | Permanently delete link and telemetry |
-| `GET` | `/:slug` | No | Edge redirect (`302`), expired page (`410`), or missing (`404`) |
+| `POST` | `/api/bulk-delete` | Yes | Delete up to `45` slugs per request |
+| `POST` | `/api/import` | Yes | Import up to `20` links per batch (`mode`: `"skip"` or `"overwrite"`) |
+| `GET` | `/stats/:slug` | Opt-in | Public read-only analytics view when `publicStats: true` |
+| `GET` / `POST` | `/:slug` | No | Edge redirect (`302`), OG unfurl preview, password unlock (`200`/`401`/`303`), expired/exhausted (`410`), or missing (`404`) |
+| `GET` | `/sw.js` | No | Offline PWA shell Service Worker |
 
 <details>
 <summary><strong>Expand curl request & response examples</strong></summary>
@@ -132,17 +144,31 @@ Protected routes accept `X-Auth-Token: <token>` or `Authorization: Bearer <token
 BASE="https://url-shortener.your-subdomain.workers.dev"
 TOKEN="<YOUR_ADMIN_TOKEN>"
 
-# Create a short link expiring in 30 days
+# Create a tagged, single-use (burn-after-read) link with custom OG metadata & public stats
 curl -X POST "$BASE/api/shorten" \
   -H "Content-Type: application/json" \
   -H "X-Auth-Token: $TOKEN" \
-  -d '{"url": "https://github.com/cloudflare/workers-sdk", "custom": "workers", "expiresIn": "30"}'
+  -d '{
+    "url": "https://github.com/cloudflare/workers-sdk",
+    "custom": "workers",
+    "expiresIn": "30",
+    "label": "Workers SDK",
+    "tags": ["cloudflare", "docs"],
+    "maxClicks": 50,
+    "publicStats": true
+  }'
 
-# Update destination or clear expiration ("never")
+# Update destination, clear expiration ("never"), or remove password
 curl -X PUT "$BASE/api/urls/workers" \
   -H "Content-Type: application/json" \
   -H "X-Auth-Token: $TOKEN" \
-  -d '{"url": "https://developers.cloudflare.com/workers/", "expiresIn": "never"}'
+  -d '{"url": "https://developers.cloudflare.com/workers/", "expiresIn": "never", "clearPassword": true}'
+
+# Bulk delete multiple slugs
+curl -X POST "$BASE/api/bulk-delete" \
+  -H "Content-Type: application/json" \
+  -H "X-Auth-Token: $TOKEN" \
+  -d '{"slugs": ["old-promo", "temp-link"]}'
 ```
 
 </details>
@@ -151,7 +177,7 @@ curl -X PUT "$BASE/api/urls/workers" \
 
 ## <img src="docs/icons/security.svg" width="22" height="22" align="absmiddle" alt="" /> Development & Security Checklist
 
-- Run `npm run check` (`tsc --noEmit`) before deploying to catch strict TypeScript errors.
+- Run `npm run check && npm test` before deploying to verify strict TypeScript types, KV metadata bounds, rate limits, and inline HTML scripts.
 - Keep `wrangler.toml`, `.dev.vars`, and `.wrangler/` out of version control (all excluded via [`.gitignore`](.gitignore)).
 - Use [`PERSONAL_SETUP.md`](PERSONAL_SETUP.md) to configure Android PWA Share Sheet, browser bookmarklets, Chrome omnibox search, and Windows PowerShell helpers.
 

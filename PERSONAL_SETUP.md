@@ -19,9 +19,17 @@ Enter your passphrase when prompted, then unlock your dashboard once in the brow
 
 ---
 
-## 2. In-App Quick Setup Button
+## 2. In-App Quick Setup & Power Features
 
-Once unlocked, click the **Keyboard / Shortcuts icon** in the top-right header bar to open **Personal Shortcuts** inside TinyLink. It automatically binds to `window.location.origin` with one-click copy buttons and a draggable bookmarklet.
+- Click the **Keyboard / Shortcuts icon** in the top-right header bar to open **Personal Shortcuts** inside TinyLink (pre-bound to your live origin with one-click copy buttons and a draggable bookmarklet).
+- Expand **Advanced Options** below the destination box whenever you want to add:
+  - **Label / Note** & comma-separated **Tags** (clickable `#tag` filter bar appears automatically)
+  - **Click Limit / Burn-after-read** (`1` to `1,000,000` clicks; preview bots do not consume the quota)
+  - **Link Password** (salted SHA-256 unlock gate before redirect)
+  - **UTM Campaign Builder** (`utm_source`, `utm_medium`, `utm_campaign`)
+  - **Custom OG Card** (`og:title` & `og:description` for Slack/WhatsApp/Discord unfurls)
+  - **Shareable Public Stats** (`/stats/:slug` read-only link; locked URLs remain hidden)
+- Pasting a URL that already has an active short link shows a non-blocking **Already shortened** banner with **Copy Existing** and **Inspect** buttons.
 
 ---
 
@@ -82,10 +90,10 @@ ctl https://github.com/cloudflare/workers-sdk workers
 
 ## 4. Phone Workflows (Android & iOS)
 
-### Android (Chrome — Native Share Target)
+### Android (Chrome — Native Share Target & Offline App Shell)
 1. Open your TinyLink URL in **Chrome on Android** and unlock it once.
-2. Open the Chrome menu (`⋮`) → **Install app** (or **Add to Home screen**).
-3. TinyLink registers `/manifest.webmanifest` as an OS **Share Target**.
+2. Open the Chrome menu → **Install app** (or **Add to Home screen**).
+3. TinyLink registers `/manifest.webmanifest` as an OS **Share Target** and caches its shell assets via `/sw.js`.
 4. Whenever you tap **Share** in Chrome, YouTube, Reddit, or X, choose **TinyLink** to pre-fill the URL automatically.
 
 ### iPhone / iPad (Safari)
@@ -100,17 +108,18 @@ ctl https://github.com/cloudflare/workers-sdk workers
 | Shortcut | Action |
 |----------|--------|
 | `n` | Focus **Destination URL** box to create a new link |
-| `/` | Focus **Search** input (`slug` or destination filter) |
+| `/` | Focus **Search** input (`slug`, URL, label, or `#tag` filter) |
 | `ArrowLeft` / `ArrowRight` | Switch expiration pills (`Never`, `1d`, `7d`, `30d`, `90d`, `1y`) |
-| `Esc` | Close Analytics Inspector or Personal Shortcuts modal |
+| `Esc` | Close Analytics Inspector, Import modal, or Personal Shortcuts dialog |
 
 ---
 
-## 6. Reserved Paths & Backups
+## 6. Reserved Paths, Bulk Cleanup & JSON Backups
 
-- Reserved routes blocked from custom slugs: `api`, `health`, `favicon.ico`, `robots.txt`, `manifest.webmanifest`, `icon.svg`, `sw.js`.
-- Expired links stay stored so they display **HTTP 410 Link Expired** cleanly and can be renewed inside the Inspector modal (`Edit` → `Expiration`).
-- Click **CSV** in the dashboard toolbar anytime to download a local backup spreadsheet of all your links and click counts.
+- Reserved routes blocked from custom slugs: `api`, `health`, `favicon.ico`, `robots.txt`, `manifest.webmanifest`, `icon.svg`, `sw.js`, `stats`.
+- Expired or exhausted (`maxClicks`) links stay stored so they display **HTTP 410** cleanly and can be renewed inside the Inspector modal (`Edit` → `Expiration` / `Click Limit`).
+- Use the checkboxes or **Select Expired** action to bulk delete stale links in one click.
+- Use **CSV**, **JSON**, and **Import** in the toolbar to export spreadsheets or migrate full JSON backups across TinyLink instances (supporting `skip` or `overwrite` conflict resolution).
 
 ---
 
