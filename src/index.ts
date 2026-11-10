@@ -14,6 +14,8 @@ import type {
   URLData,
   URLListEntry,
   URLMetadata,
+  WebhookConfig,
+  WebhookDispatchPayload,
 } from "./types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -32,6 +34,7 @@ export const RESERVED_SLUGS = new Set([
 const MAX_AUTH_FAILURES = 10;
 const AUTH_WINDOW_SECONDS = 300;
 const MAX_KV_META_BYTES = 980;
+const WEBHOOK_SETTINGS_KEY = "settings:webhooks";
 
 const APP_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <rect width="512" height="512" rx="112" fill="#090D16"/>
@@ -291,6 +294,28 @@ function detectDevice(ua: string): string {
   return "desktop";
 }
 
+export function detectOsCategory(ua: string): "ios" | "android" | "desktop" {
+  const low = ua.toLowerCase();
+  if (/iphone|ipad|ipod/i.test(low)) return "ios";
+  if (/android/i.test(low)) return "android";
+  return "desktop";
+}
+
+export function resolveDestinationUrl(
+  data: URLData,
+  country: string,
+  os: "ios" | "android" | "desktop"
+): { targetUrl: string; reason: "device" | "geo" | "default" } {
+  if (data.deviceRoutes && data.deviceRoutes[os]?.trim()) {
+    return { targetUrl: data.deviceRoutes[os]!.trim(), reason: "device" };
+  }
+  const upperCountry = country.toUpperCase();
+  if (data.geoRoutes && data.geoRoutes[upperCountry]?.trim()) {
+    return { targetUrl: data.geoRoutes[upperCountry]!.trim(), reason: "geo" };
+  }
+  return { targetUrl: data.originalUrl, reason: "default" };
+}
+
 function parseReferrer(referer: string | null): string {
   if (!referer) return "direct";
   try {
@@ -400,6 +425,78 @@ function parseMaxClicks(raw: unknown): { value: number | null; error?: string } 
   return { value: num };
 }
 
+function parseScheduleInput(raw: unknown): { value: string | null; error?: string } {
+  if (raw === undefined || raw === null || raw === "") return { value: null };
+  if (typeof raw !== "string") return { value: null, error: "Invalid schedule format" };
+  const trimmed = raw.trim();
+  if (!trimmed) return { value: null };
+  const parsed = new Date(trimmed);
+  if (isNaN(parsed.getTime())) {
+    return { value: null, error: "Invalid schedule date/time format (use ISO 8601 or YYYY-MM-DDTHH:mm)" };
+  }
+  return { value: parsed.toISOString() };
+}
+
+function parseFallbackUrl(raw: unknown, reqUrl: string): { url: string | null; error?: string } {
+  if (raw === undefined || raw === null || raw === "") return { url: null };
+  if (typeof raw !== "string" || !raw.trim()) return { url: null };
+  const valid = validateDestinationUrl(raw, reqUrl);
+  if (valid.error || !valid.url) {
+    return { url: null, error: `Fallback URL: ${valid.error || "Invalid URL"}` };
+  }
+  return { url: valid.url };
+}
+
+function normalizeGeoRoutes(
+  raw: unknown,
+  reqUrl: string
+): { routes: Record<string, string>; error?: string } {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { routes: {} };
+  }
+  const routes: Record<string, string> = {};
+  const entries = Object.entries(raw as Record<string, unknown>);
+  if (entries.length > 30) {
+    return { routes: {}, error: "Geo routes limit is 30 countries" };
+  }
+  for (const [key, val] of entries) {
+    const code = key.trim().toUpperCase();
+    if (!/^[A-Z]{2}$/.test(code)) {
+      return { routes: {}, error: `Invalid country code: '${key}' (must be 2-letter ISO code like US, IN, GB)` };
+    }
+    if (typeof val !== "string" || !val.trim()) continue;
+    const valid = validateDestinationUrl(val, reqUrl);
+    if (valid.error || !valid.url) {
+      return { routes: {}, error: `Geo route [${code}]: ${valid.error || "Invalid URL"}` };
+    }
+    routes[code] = valid.url;
+  }
+  return { routes };
+}
+
+function normalizeDeviceRoutes(
+  raw: unknown,
+  reqUrl: string
+): { routes: { ios?: string | null; android?: string | null; desktop?: string | null }; error?: string } {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { routes: {} };
+  }
+  const rec = raw as Record<string, unknown>;
+  const routes: { ios?: string | null; android?: string | null; desktop?: string | null } = {};
+
+  for (const deviceKey of ["ios", "android", "desktop"] as const) {
+    const val = rec[deviceKey];
+    if (typeof val === "string" && val.trim()) {
+      const valid = validateDestinationUrl(val, reqUrl);
+      if (valid.error || !valid.url) {
+        return { routes: {}, error: `Device route [${deviceKey}]: ${valid.error || "Invalid URL"}` };
+      }
+      routes[deviceKey] = valid.url;
+    }
+  }
+  return { routes };
+}
+
 function normalizeOgText(raw: unknown, maxLen: number): string | null {
   if (typeof raw !== "string") return null;
   const trimmed = raw.trim().slice(0, maxLen);
@@ -408,6 +505,12 @@ function normalizeOgText(raw: unknown, maxLen: number): string | null {
 
 function isLinkExpired(data: { expiresAt?: string | null }, now = new Date()): boolean {
   return data.expiresAt ? new Date(data.expiresAt) < now : false;
+}
+
+function isLinkPending(data: { startsAt?: string | null }, now = new Date()): boolean {
+  if (!data.startsAt) return false;
+  const d = new Date(data.startsAt);
+  return !isNaN(d.getTime()) && d > now;
 }
 
 function isLinkExhausted(data: { maxClicks?: number | null; clicks?: number }): boolean {
@@ -430,6 +533,7 @@ function buildMetadataIfFits(data: URLData): URLMetadata | undefined {
     ...(data.passwordHash ? { hasPassword: true } : {}),
     ...(data.publicStats ? { publicStats: true } : {}),
     ...(data.botClicks ? { botClicks: data.botClicks } : {}),
+    ...(data.startsAt ? { startsAt: data.startsAt } : {}),
   };
 
   if (encoder.encode(JSON.stringify(full)).length <= MAX_KV_META_BYTES) {
@@ -440,6 +544,7 @@ function buildMetadataIfFits(data: URLData): URLMetadata | undefined {
     ...(data.maxClicks ? { maxClicks: data.maxClicks } : {}),
     ...(data.passwordHash ? { hasPassword: true } : {}),
     ...(data.publicStats ? { publicStats: true } : {}),
+    ...(data.startsAt ? { startsAt: data.startsAt } : {}),
   };
   if (encoder.encode(JSON.stringify(compact)).length <= MAX_KV_META_BYTES) {
     return compact;
@@ -565,7 +670,29 @@ export function aggregateTimeline(data: Pick<URLData, "clickTimeline" | "dailyCl
   return ordered.map(({ label, count }) => ({ label, count }));
 }
 
-function toListEntry(slug: string, d: Pick<URLData, "originalUrl" | "clicks" | "createdAt" | "expiresAt" | "label" | "tags" | "maxClicks" | "passwordHash" | "ogTitle" | "ogDescription" | "publicStats" | "botClicks">, now: Date): URLListEntry {
+function toListEntry(
+  slug: string,
+  d: Pick<
+    URLData,
+    | "originalUrl"
+    | "clicks"
+    | "createdAt"
+    | "expiresAt"
+    | "label"
+    | "tags"
+    | "maxClicks"
+    | "passwordHash"
+    | "ogTitle"
+    | "ogDescription"
+    | "publicStats"
+    | "botClicks"
+    | "startsAt"
+    | "fallbackUrl"
+    | "geoRoutes"
+    | "deviceRoutes"
+  >,
+  now: Date
+): URLListEntry {
   return {
     slug,
     originalUrl: d.originalUrl,
@@ -582,6 +709,11 @@ function toListEntry(slug: string, d: Pick<URLData, "originalUrl" | "clicks" | "
     ogDescription: d.ogDescription ?? null,
     publicStats: !!d.publicStats,
     botClicks: d.botClicks ?? 0,
+    startsAt: d.startsAt ?? null,
+    fallbackUrl: d.fallbackUrl ?? null,
+    isPending: isLinkPending(d, now),
+    geoRoutes: d.geoRoutes || {},
+    deviceRoutes: d.deviceRoutes || {},
   };
 }
 
@@ -600,6 +732,7 @@ async function listAllEntries(env: Env): Promise<URLListEntry[]> {
       if (meta && meta.originalUrl) {
         const clicks = meta.clicks || 0;
         const maxClicks = meta.maxClicks ?? null;
+        const startsAt = meta.startsAt || null;
         urls.push({
           slug,
           originalUrl: meta.originalUrl,
@@ -616,6 +749,11 @@ async function listAllEntries(env: Env): Promise<URLListEntry[]> {
           ogDescription: null,
           publicStats: !!meta.publicStats,
           botClicks: meta.botClicks ?? 0,
+          startsAt,
+          fallbackUrl: null,
+          isPending: isLinkPending({ startsAt }, now),
+          geoRoutes: {},
+          deviceRoutes: {},
         });
       } else {
         fallbackGets.push(
@@ -643,6 +781,219 @@ async function listAllEntries(env: Env): Promise<URLListEntry[]> {
   return urls;
 }
 
+// ─── Outgoing Webhook Event Stream ────────────────────────────────────────────
+
+async function computeHmacSha256(secret: string, message: string): Promise<string> {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, enc.encode(message));
+  return bytesToHex(new Uint8Array(signature));
+}
+
+async function getWebhookConfig(env: Env): Promise<WebhookConfig | null> {
+  try {
+    const raw = await env.URL_KV.get(WEBHOOK_SETTINGS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as WebhookConfig;
+  } catch {
+    return null;
+  }
+}
+
+async function sendWebhookPost(
+  url: string,
+  secret: string | null | undefined,
+  payload: WebhookDispatchPayload
+): Promise<{ ok: boolean; status: number; statusText: string; error?: string }> {
+  const isDiscord = /discord\.com\/api\/webhooks/i.test(url);
+  const isSlack = /hooks\.slack\.com\//i.test(url);
+
+  let bodyString: string;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "User-Agent": "TinyLink-Webhooks/1.0",
+  };
+
+  if (isDiscord) {
+    const eventTitle =
+      payload.event === "link.clicked"
+        ? "Link Clicked"
+        : payload.event === "link.limit_reached"
+        ? "Click Limit Reached"
+        : payload.event === "link.expired"
+        ? "Link Expired"
+        : "Webhook Ping Test";
+
+    const color =
+      payload.event === "link.limit_reached"
+        ? 0xf59e0b
+        : payload.event === "link.expired"
+        ? 0xef4444
+        : 0x22c55e;
+
+    const discordBody = {
+      embeds: [
+        {
+          title: `TinyLink: ${eventTitle}`,
+          color,
+          description: payload.link.label
+            ? `**${payload.link.label}** (\`/${payload.link.slug}\`)`
+            : `Slug: \`/${payload.link.slug}\``,
+          fields: [
+            { name: "Target URL", value: payload.link.targetUrl || payload.link.originalUrl, inline: false },
+            {
+              name: "Visitor",
+              value: `${payload.visitor.country} · ${payload.visitor.device}`,
+              inline: true,
+            },
+            {
+              name: "Clicks",
+              value: payload.link.maxClicks
+                ? `${payload.link.clicks} / ${payload.link.maxClicks}`
+                : `${payload.link.clicks}`,
+              inline: true,
+            },
+            {
+              name: "Referrer",
+              value: payload.visitor.referrer || "direct",
+              inline: true,
+            },
+          ],
+          timestamp: payload.timestamp,
+          footer: { text: "TinyLink Smart Traffic & Automation" },
+        },
+      ],
+    };
+    bodyString = JSON.stringify(discordBody);
+  } else if (isSlack) {
+    const eventTitle =
+      payload.event === "link.clicked"
+        ? "Link Clicked"
+        : payload.event === "link.limit_reached"
+        ? "Click Limit Reached"
+        : payload.event === "link.expired"
+        ? "Link Expired"
+        : "Webhook Ping Test";
+
+    const slackBody = {
+      text: `TinyLink Event: ${eventTitle} (/${payload.link.slug})`,
+      blocks: [
+        {
+          type: "header",
+          text: {
+            type: "plain_text",
+            text: `TinyLink: ${eventTitle}`,
+          },
+        },
+        {
+          type: "section",
+          fields: [
+            { type: "mrkdwn", text: `*Slug:*\n\`/${payload.link.slug}\`` },
+            {
+              type: "mrkdwn",
+              text: `*Clicks:*\n${payload.link.clicks}${
+                payload.link.maxClicks ? ` / ${payload.link.maxClicks}` : ""
+              }`,
+            },
+            { type: "mrkdwn", text: `*Visitor Country:*\n${payload.visitor.country}` },
+            { type: "mrkdwn", text: `*Device / OS:*\n${payload.visitor.device}` },
+          ],
+        },
+        {
+          type: "section",
+          text: {
+            type: "mrkdwn",
+            text: `*Target URL:*\n${payload.link.targetUrl || payload.link.originalUrl}`,
+          },
+        },
+      ],
+    };
+    bodyString = JSON.stringify(slackBody);
+  } else {
+    bodyString = JSON.stringify(payload);
+    headers["X-TinyLink-Event"] = payload.event;
+    if (secret && secret.trim()) {
+      const sig = await computeHmacSha256(secret.trim(), bodyString);
+      headers["X-TinyLink-Signature"] = `sha256=${sig}`;
+    }
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, {
+      method: "POST",
+      headers,
+      body: bodyString,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return { ok: res.ok, status: res.status, statusText: res.statusText };
+  } catch (err: unknown) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    return { ok: false, status: 500, statusText: "Fetch Error", error: errMsg };
+  }
+}
+
+function dispatchWebhookEvent(
+  env: Env,
+  ctx: ExecutionContext,
+  event: "link.clicked" | "link.limit_reached" | "link.expired",
+  slug: string,
+  data: URLData,
+  req: Request,
+  targetUrl: string
+) {
+  ctx.waitUntil(
+    (async () => {
+      try {
+        const config = await getWebhookConfig(env);
+        if (!config || !config.enabled || !config.url) return;
+
+        if (event === "link.clicked" && config.events?.onClicked === false) return;
+        if (event === "link.limit_reached" && !config.events?.onLimitReached) return;
+        if (event === "link.expired" && !config.events?.onExpired) return;
+
+        const ip = getClientIp(req);
+        const ipHash = (await sha256Hex(ip)).slice(0, 12);
+        const ua = req.headers.get("User-Agent") || "unknown";
+        const country = getVisitorCountry(req);
+        const device = `${detectDevice(ua)} (${detectOsCategory(ua)})`;
+        const referrer = parseReferrer(req.headers.get("Referer"));
+
+        const payload: WebhookDispatchPayload = {
+          event,
+          timestamp: new Date().toISOString(),
+          link: {
+            slug,
+            originalUrl: data.originalUrl,
+            targetUrl,
+            clicks: data.clicks || 0,
+            maxClicks: data.maxClicks ?? null,
+            label: data.label ?? null,
+            tags: data.tags ?? [],
+          },
+          visitor: {
+            country,
+            device,
+            referrer,
+            ipHash,
+            userAgent: ua.slice(0, 200),
+          },
+        };
+
+        await sendWebhookPost(config.url, config.secret, payload);
+      } catch {}
+    })()
+  );
+}
+
 // ─── API Handlers ─────────────────────────────────────────────────────────────
 
 async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
@@ -661,6 +1012,10 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
     ogDescription?: string;
     publicStats?: boolean;
     dedupe?: boolean;
+    startsAt?: string | null;
+    fallbackUrl?: string | null;
+    geoRoutes?: Record<string, string>;
+    deviceRoutes?: { ios?: string | null; android?: string | null; desktop?: string | null };
   };
   try {
     body = await req.json();
@@ -677,6 +1032,18 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
   const custom = body.custom?.trim();
   const maxClicksParsed = parseMaxClicks(body.maxClicks);
   if (maxClicksParsed.error) return err(maxClicksParsed.error);
+
+  const startsAtParsed = parseScheduleInput(body.startsAt);
+  if (startsAtParsed.error) return err(startsAtParsed.error);
+
+  const fallbackUrlParsed = parseFallbackUrl(body.fallbackUrl, req.url);
+  if (fallbackUrlParsed.error) return err(fallbackUrlParsed.error);
+
+  const geoRoutesParsed = normalizeGeoRoutes(body.geoRoutes, req.url);
+  if (geoRoutesParsed.error) return err(geoRoutesParsed.error);
+
+  const deviceRoutesParsed = normalizeDeviceRoutes(body.deviceRoutes, req.url);
+  if (deviceRoutesParsed.error) return err(deviceRoutesParsed.error);
 
   const label = normalizeLabel(body.label);
   const tags = normalizeTags(body.tags);
@@ -713,6 +1080,11 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
         ogTitle: match.ogTitle,
         ogDescription: match.ogDescription,
         publicStats: match.publicStats,
+        startsAt: match.startsAt,
+        fallbackUrl: match.fallbackUrl,
+        isPending: match.isPending,
+        geoRoutes: match.geoRoutes,
+        deviceRoutes: match.deviceRoutes,
         deduplicated: true,
         qrSvg,
       });
@@ -721,6 +1093,9 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
 
   const expiresIn = parseExpiryInput(body.expiresIn);
   const expiresAt = computeExpiration(expiresIn);
+  if (startsAtParsed.value && expiresAt && new Date(startsAtParsed.value) >= new Date(expiresAt)) {
+    return err("Activation start time must be before link expiration time");
+  }
 
   let slug: string;
   if (custom) {
@@ -775,6 +1150,10 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
     ogTitle,
     ogDescription,
     publicStats,
+    startsAt: startsAtParsed.value,
+    fallbackUrl: fallbackUrlParsed.url,
+    geoRoutes: geoRoutesParsed.routes,
+    deviceRoutes: deviceRoutesParsed.routes,
   };
 
   await saveUrlRecord(env, slug!, data);
@@ -796,6 +1175,11 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
     ogTitle,
     ogDescription,
     publicStats,
+    startsAt: data.startsAt ?? null,
+    fallbackUrl: data.fallbackUrl ?? null,
+    isPending: isLinkPending(data),
+    geoRoutes: data.geoRoutes ?? {},
+    deviceRoutes: data.deviceRoutes ?? {},
     qrSvg,
   });
 }
@@ -845,6 +1229,11 @@ async function handleAnalytics(slug: string, env: Env, req: Request, ctx: Execut
     ogTitle: data.ogTitle ?? null,
     ogDescription: data.ogDescription ?? null,
     publicStats: !!data.publicStats,
+    startsAt: data.startsAt ?? null,
+    fallbackUrl: data.fallbackUrl ?? null,
+    isPending: isLinkPending(data),
+    geoRoutes: data.geoRoutes ?? {},
+    deviceRoutes: data.deviceRoutes ?? {},
     qrSvg,
   });
 }
@@ -867,6 +1256,10 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
     ogTitle?: string | null;
     ogDescription?: string | null;
     publicStats?: boolean;
+    startsAt?: string | null;
+    fallbackUrl?: string | null;
+    geoRoutes?: Record<string, string> | null;
+    deviceRoutes?: { ios?: string | null; android?: string | null; desktop?: string | null } | null;
   };
   try {
     body = await req.json();
@@ -883,6 +1276,10 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
   const hasOgTitle = body.ogTitle !== undefined;
   const hasOgDesc = body.ogDescription !== undefined;
   const hasPublicStats = body.publicStats !== undefined;
+  const hasStartsAt = body.startsAt !== undefined;
+  const hasFallbackUrl = body.fallbackUrl !== undefined;
+  const hasGeoRoutes = body.geoRoutes !== undefined;
+  const hasDeviceRoutes = body.deviceRoutes !== undefined;
 
   if (
     !hasUrl &&
@@ -894,7 +1291,11 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
     !hasPasswordChange &&
     !hasOgTitle &&
     !hasOgDesc &&
-    !hasPublicStats
+    !hasPublicStats &&
+    !hasStartsAt &&
+    !hasFallbackUrl &&
+    !hasGeoRoutes &&
+    !hasDeviceRoutes
   ) {
     return err("Provide at least one field to update");
   }
@@ -949,6 +1350,50 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
     data.publicStats = body.publicStats === true;
   }
 
+  if (hasStartsAt) {
+    if (body.startsAt === null || body.startsAt === "") {
+      data.startsAt = null;
+    } else {
+      const parsed = parseScheduleInput(body.startsAt);
+      if (parsed.error) return err(parsed.error);
+      data.startsAt = parsed.value;
+    }
+  }
+
+  if (hasFallbackUrl) {
+    if (body.fallbackUrl === null || body.fallbackUrl === "") {
+      data.fallbackUrl = null;
+    } else {
+      const parsed = parseFallbackUrl(body.fallbackUrl, req.url);
+      if (parsed.error) return err(parsed.error);
+      data.fallbackUrl = parsed.url;
+    }
+  }
+
+  if (hasGeoRoutes) {
+    if (body.geoRoutes === null) {
+      data.geoRoutes = {};
+    } else {
+      const parsed = normalizeGeoRoutes(body.geoRoutes, req.url);
+      if (parsed.error) return err(parsed.error);
+      data.geoRoutes = parsed.routes;
+    }
+  }
+
+  if (hasDeviceRoutes) {
+    if (body.deviceRoutes === null) {
+      data.deviceRoutes = {};
+    } else {
+      const parsed = normalizeDeviceRoutes(body.deviceRoutes, req.url);
+      if (parsed.error) return err(parsed.error);
+      data.deviceRoutes = parsed.routes;
+    }
+  }
+
+  if (data.startsAt && data.expiresAt && new Date(data.startsAt) >= new Date(data.expiresAt)) {
+    return err("Activation start time must be before link expiration time");
+  }
+
   await saveUrlRecord(env, slug, data);
 
   return json({
@@ -962,6 +1407,11 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
     ogTitle: data.ogTitle ?? null,
     ogDescription: data.ogDescription ?? null,
     publicStats: !!data.publicStats,
+    startsAt: data.startsAt ?? null,
+    fallbackUrl: data.fallbackUrl ?? null,
+    isPending: isLinkPending(data),
+    geoRoutes: data.geoRoutes ?? {},
+    deviceRoutes: data.deviceRoutes ?? {},
     message: "Link updated successfully",
   });
 }
@@ -1075,6 +1525,19 @@ async function handleImport(req: Request, env: Env, ctx: ExecutionContext) {
         ? item.clicks
         : 0;
 
+    let startsAt: string | null = null;
+    if (typeof item.startsAt === "string" && item.startsAt.trim()) {
+      const parsed = parseScheduleInput(item.startsAt);
+      if (!parsed.error && parsed.value) startsAt = parsed.value;
+    }
+    let fallbackUrl: string | null = null;
+    if (item.fallbackUrl) {
+      const parsed = parseFallbackUrl(item.fallbackUrl, req.url);
+      if (!parsed.error && parsed.url) fallbackUrl = parsed.url;
+    }
+    const geoRoutes = normalizeGeoRoutes(item.geoRoutes, req.url).routes;
+    const deviceRoutes = normalizeDeviceRoutes(item.deviceRoutes, req.url).routes;
+
     const record: URLData = {
       originalUrl: validUrl.url,
       createdAt: new Date().toISOString(),
@@ -1095,6 +1558,10 @@ async function handleImport(req: Request, env: Env, ctx: ExecutionContext) {
       ogTitle: normalizeOgText(item.ogTitle, 100),
       ogDescription: normalizeOgText(item.ogDescription, 220),
       publicStats: item.publicStats === true,
+      startsAt,
+      fallbackUrl,
+      geoRoutes,
+      deviceRoutes,
     };
 
     await saveUrlRecord(env, slug, record);
@@ -1167,7 +1634,23 @@ async function handleRedirect(
 
   const data: URLData = JSON.parse(raw);
 
+  if (isLinkPending(data)) {
+    if (data.fallbackUrl) {
+      return Response.redirect(data.fallbackUrl, 302);
+    }
+    return new Response(
+      renderStatusPage({
+        status: 425,
+        codeLabel: "425 · Not Active Yet",
+        title: "Link Not Active Yet",
+        message: "This shortened link is scheduled to activate at a future time. Please check back later.",
+      }),
+      { status: 425, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } }
+    );
+  }
+
   if (isLinkExpired(data)) {
+    dispatchWebhookEvent(env, ctx, "link.expired", slug, data, req, data.originalUrl);
     return new Response(
       renderStatusPage({
         status: 410,
@@ -1180,6 +1663,7 @@ async function handleRedirect(
   }
 
   if (isLinkExhausted(data)) {
+    dispatchWebhookEvent(env, ctx, "link.limit_reached", slug, data, req, data.originalUrl);
     return new Response(
       renderStatusPage({
         status: 410,
@@ -1194,6 +1678,9 @@ async function handleRedirect(
   const ua = req.headers.get("User-Agent") ?? "";
   const reqUrl = new URL(req.url);
   const shortUrl = `https://${reqUrl.host}/${slug}`;
+  const country = getVisitorCountry(req);
+  const os = detectOsCategory(ua);
+  const { targetUrl } = resolveDestinationUrl(data, country, os);
 
   // Handle POST unlock submission for password-protected links
   if (req.method === "POST") {
@@ -1229,12 +1716,17 @@ async function handleRedirect(
     }
 
     applyHumanHit(data, req);
+    const hitLimitNow = !!(data.maxClicks && data.clicks >= data.maxClicks);
     if (data.maxClicks) {
       await saveUrlRecord(env, slug, data);
     } else {
       ctx.waitUntil(saveUrlRecord(env, slug, data));
     }
-    return Response.redirect(data.originalUrl, 303);
+    dispatchWebhookEvent(env, ctx, "link.clicked", slug, data, req, targetUrl);
+    if (hitLimitNow) {
+      dispatchWebhookEvent(env, ctx, "link.limit_reached", slug, data, req, targetUrl);
+    }
+    return Response.redirect(targetUrl, 303);
   }
 
   // Handle social preview bots / unfurlers cleanly without inflating human click stats or burning single-use links
@@ -1261,7 +1753,7 @@ async function handleRedirect(
       );
     }
 
-    return Response.redirect(data.originalUrl, 302);
+    return Response.redirect(targetUrl, 302);
   }
 
   // Password gate on GET when link is password protected
@@ -1274,13 +1766,18 @@ async function handleRedirect(
 
   // Track human analytics
   applyHumanHit(data, req);
+  const hitLimitNow = !!(data.maxClicks && data.clicks >= data.maxClicks);
   if (data.maxClicks) {
     await saveUrlRecord(env, slug, data);
   } else {
     ctx.waitUntil(saveUrlRecord(env, slug, data));
   }
+  dispatchWebhookEvent(env, ctx, "link.clicked", slug, data, req, targetUrl);
+  if (hitLimitNow) {
+    dispatchWebhookEvent(env, ctx, "link.limit_reached", slug, data, req, targetUrl);
+  }
 
-  return Response.redirect(data.originalUrl, 302);
+  return Response.redirect(targetUrl, 302);
 }
 
 async function handlePublicStats(slug: string, req: Request, env: Env): Promise<Response> {
@@ -1338,6 +1835,106 @@ async function handlePublicStats(slug: string, req: Request, env: Env): Promise<
     }),
     { status: 200, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-cache" } }
   );
+}
+
+// ─── Webhook Settings Handlers ────────────────────────────────────────────────
+
+async function handleGetWebhookSettings(req: Request, env: Env, ctx: ExecutionContext) {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+  const config = await getWebhookConfig(env);
+  return json({ config: config || null });
+}
+
+async function handleSaveWebhookSettings(req: Request, env: Env, ctx: ExecutionContext) {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+
+  let body: Partial<WebhookConfig>;
+  try {
+    body = await req.json();
+  } catch {
+    return err("Invalid JSON body");
+  }
+
+  const url = typeof body.url === "string" ? body.url.trim() : "";
+  if (body.enabled !== false && !url) {
+    return err("Webhook URL is required when enabled");
+  }
+  if (url && !url.startsWith("http://") && !url.startsWith("https://")) {
+    return err("Webhook URL must start with http:// or https://");
+  }
+
+  const secret = typeof body.secret === "string" ? body.secret.trim() : null;
+  const events = {
+    onClicked: body.events?.onClicked ?? true,
+    onLimitReached: body.events?.onLimitReached ?? true,
+    onExpired: body.events?.onExpired ?? true,
+  };
+  const enabled = body.enabled !== false;
+
+  const config: WebhookConfig = {
+    url,
+    secret,
+    events,
+    enabled,
+    updatedAt: new Date().toISOString(),
+  };
+
+  await env.URL_KV.put(WEBHOOK_SETTINGS_KEY, JSON.stringify(config));
+  return json({ ok: true, config });
+}
+
+async function handleTestWebhook(req: Request, env: Env, ctx: ExecutionContext) {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+
+  let body: { url?: string; secret?: string } = {};
+  try {
+    body = await req.json();
+  } catch {}
+
+  let targetUrl = typeof body.url === "string" ? body.url.trim() : "";
+  let targetSecret = typeof body.secret === "string" ? body.secret.trim() : null;
+
+  if (!targetUrl) {
+    const savedConfig = await getWebhookConfig(env);
+    if (!savedConfig || !savedConfig.url) {
+      return err("No webhook URL configured or provided to test");
+    }
+    targetUrl = savedConfig.url;
+    if (targetSecret === null && savedConfig.secret) {
+      targetSecret = savedConfig.secret;
+    }
+  }
+
+  if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+    return err("Webhook URL must start with http:// or https://");
+  }
+
+  const testPayload: WebhookDispatchPayload = {
+    event: "test.ping",
+    timestamp: new Date().toISOString(),
+    link: {
+      slug: "test-ping",
+      originalUrl: "https://example.com/test",
+      targetUrl: "https://example.com/test",
+      clicks: 42,
+      maxClicks: 100,
+      label: "Test Webhook Ping",
+      tags: ["test", "webhook"],
+    },
+    visitor: {
+      country: "US",
+      device: "desktop (ios)",
+      referrer: "https://github.com/VarshuDev/tinylink",
+      ipHash: "a1b2c3d4e5f6",
+      userAgent: "TinyLink/3.1 Webhook Engine",
+    },
+  };
+
+  const res = await sendWebhookPost(targetUrl, targetSecret, testPayload);
+  return json(res);
 }
 
 // ─── Frontend HTML ────────────────────────────────────────────────────────────
@@ -1408,6 +2005,9 @@ export default {
     if (path === "/api/health" && req.method === "GET") {
       return json({ ok: true, authRequired: !!env.ADMIN_TOKEN, service: "tinylink" });
     }
+    if (path === "/api/settings/webhooks" && req.method === "GET") return handleGetWebhookSettings(req, env, ctx);
+    if (path === "/api/settings/webhooks" && req.method === "POST") return handleSaveWebhookSettings(req, env, ctx);
+    if (path === "/api/settings/webhooks/test" && req.method === "POST") return handleTestWebhook(req, env, ctx);
     if (path === "/api/list" && req.method === "GET") return handleList(env, req, ctx);
     if (path === "/api/shorten" && req.method === "POST") return handleShorten(req, env, ctx);
     if (path === "/api/bulk-delete" && req.method === "POST") return handleBulkDelete(req, env, ctx);

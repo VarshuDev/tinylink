@@ -21,8 +21,11 @@ Enter your passphrase when prompted, then unlock your dashboard once in the brow
 
 ## 2. In-App Quick Setup & Power Features
 
+- Click the **Outgoing Webhooks icon** in the top-right header bar to configure real-time notifications for **Discord embeds**, **Slack blocks**, or JSON webhooks on click, expiration, or click caps.
 - Click the **Keyboard / Shortcuts icon** in the top-right header bar to open **Personal Shortcuts** inside TinyLink (pre-bound to your live origin with one-click copy buttons and a draggable bookmarklet).
 - Expand **Advanced Options** below the destination box whenever you want to add:
+  - **Smart Traffic Routing & Geotargeting** (redirect by visitor country code `US`, `IN`, `GB` or device `iOS` / `Android`)
+  - **Activation Scheduling** (set future launch date/time with fallback URL or branded `425 Not Active Yet` page)
   - **Label / Note** & comma-separated **Tags** (clickable `#tag` filter bar appears automatically)
   - **Click Limit / Burn-after-read** (`1` to `1,000,000` clicks; preview bots do not consume the quota)
   - **Link Password** (salted SHA-256 unlock gate before redirect)

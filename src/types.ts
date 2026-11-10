@@ -21,6 +21,44 @@ export interface URLData {
   ogTitle?: string | null;
   ogDescription?: string | null;
   publicStats?: boolean;
+  // Phase 4: Smart Traffic Routing & Scheduling
+  startsAt?: string | null;
+  fallbackUrl?: string | null;
+  geoRoutes?: Record<string, string>;
+  deviceRoutes?: { ios?: string | null; android?: string | null; desktop?: string | null };
+}
+
+export interface WebhookConfig {
+  url: string;
+  secret?: string | null;
+  events: {
+    onClicked?: boolean;
+    onLimitReached?: boolean;
+    onExpired?: boolean;
+  };
+  enabled: boolean;
+  updatedAt?: string;
+}
+
+export interface WebhookDispatchPayload {
+  event: "link.clicked" | "link.limit_reached" | "link.expired" | "test.ping";
+  timestamp: string;
+  link: {
+    slug: string;
+    originalUrl: string;
+    targetUrl: string;
+    clicks: number;
+    maxClicks: number | null;
+    label: string | null;
+    tags: string[];
+  };
+  visitor: {
+    country: string;
+    device: string;
+    referrer: string;
+    ipHash: string;
+    userAgent: string;
+  };
 }
 
 export interface URLMetadata {
@@ -34,6 +72,7 @@ export interface URLMetadata {
   hasPassword?: boolean;
   publicStats?: boolean;
   botClicks?: number;
+  startsAt?: string | null;
 }
 
 export interface URLListEntry {
@@ -52,6 +91,12 @@ export interface URLListEntry {
   ogDescription: string | null;
   publicStats: boolean;
   botClicks: number;
+  // Phase 4: Smart Traffic Routing
+  startsAt: string | null;
+  fallbackUrl: string | null;
+  isPending: boolean;
+  geoRoutes: Record<string, string>;
+  deviceRoutes: { ios?: string | null; android?: string | null; desktop?: string | null };
 }
 
 export interface TimelineBucket {
@@ -81,6 +126,12 @@ export interface AnalyticsResponse {
   ogDescription: string | null;
   publicStats: boolean;
   qrSvg: string;
+  // Phase 4: Smart Traffic Routing
+  startsAt: string | null;
+  fallbackUrl: string | null;
+  isPending: boolean;
+  geoRoutes: Record<string, string>;
+  deviceRoutes: { ios?: string | null; android?: string | null; desktop?: string | null };
 }
 
 export interface ImportLinkInput {
@@ -96,6 +147,11 @@ export interface ImportLinkInput {
   ogTitle?: string | null;
   ogDescription?: string | null;
   publicStats?: boolean;
+  // Phase 4: Smart Traffic Routing
+  startsAt?: string | null;
+  fallbackUrl?: string | null;
+  geoRoutes?: Record<string, string>;
+  deviceRoutes?: { ios?: string | null; android?: string | null; desktop?: string | null };
 }
 
 export interface Env {

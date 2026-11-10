@@ -48,10 +48,10 @@
   <rect x="344" y="40" width="76" height="22" rx="6" fill="#10253A" stroke="#38BDF8" stroke-opacity="0.4"/>
   <text x="382" y="55" text-anchor="middle" class="mono" font-size="10.5" font-weight="600" fill="#38BDF8">2. ROUTE</text>
   <text x="344" y="84" class="sans" font-size="15" font-weight="700" fill="#F8FAFC">Cloudflare Worker</text>
-  <text x="344" y="106" class="mono" font-size="11" fill="#94A3B8">KV Lookup + 302 / 410</text>
-  <text x="344" y="126" class="sans" font-size="12" fill="#CBD5E1">• Password &amp; click caps</text>
-  <text x="344" y="145" class="sans" font-size="12" fill="#CBD5E1">• Bot preview / OG cards</text>
-  <text x="344" y="164" class="sans" font-size="12" fill="#CBD5E1">• Auth 429 rate guard</text>
+  <text x="344" y="106" class="mono" font-size="11" fill="#94A3B8">KV Lookup + 302 / 410 / 425</text>
+  <text x="344" y="126" class="sans" font-size="12" fill="#CBD5E1">• Geo &amp; Device Targeting</text>
+  <text x="344" y="145" class="sans" font-size="12" fill="#CBD5E1">• Activation Schedules</text>
+  <text x="344" y="164" class="sans" font-size="12" fill="#CBD5E1">• Webhook Event Stream</text>
 
   <!-- Arrow 2 -> 3 -->
   <line x1="574" y1="110" x2="632" y2="110" stroke="#38BDF8" stroke-width="2" class="wire"/>
@@ -60,8 +60,8 @@
   <!-- Card 3: Async Telemetry and QR -->
   <rect x="636" y="26" width="240" height="168" rx="12" fill="#111827" stroke="#2A364F"/>
   <rect x="650" y="40" width="96" height="22" rx="6" fill="#261D12" stroke="#F59E0B" stroke-opacity="0.45"/>
-  <text x="698" y="55" text-anchor="middle" class="mono" font-size="10.5" font-weight="600" fill="#F59E0B">3. INSPECT</text>
-  <text x="650" y="84" class="sans" font-size="15" font-weight="700" fill="#F8FAFC">Live Telemetry</text>
+  <text x="698" y="55" text-anchor="middle" class="mono" font-size="10.5" font-weight="600" fill="#F59E0B">3. AUTOMATE</text>
+  <text x="650" y="84" class="sans" font-size="15" font-weight="700" fill="#F8FAFC">Webhooks &amp; Stats</text>
 
   <!-- Mini animated timeline chart -->
   <rect x="650" y="96" width="96" height="54" rx="6" fill="#090D16" stroke="#1E293B"/>
@@ -70,9 +70,9 @@
   <rect class="b3" x="700" y="114" width="12" height="28" rx="3" fill="#38BDF8"/>
   <rect class="b4" x="720" y="100" width="12" height="42" rx="3" fill="#22C55E"/>
 
-  <text x="758" y="112" class="sans" font-size="11.5" fill="#CBD5E1">Countries</text>
-  <text x="758" y="129" class="sans" font-size="11.5" fill="#CBD5E1">Bot shield</text>
-  <text x="758" y="146" class="sans" font-size="11.5" fill="#CBD5E1">SVG &amp; PNG</text>
+  <text x="758" y="112" class="sans" font-size="11.5" fill="#CBD5E1">Discord/Slack</text>
+  <text x="758" y="129" class="sans" font-size="11.5" fill="#CBD5E1">HMAC Sign</text>
+  <text x="758" y="146" class="sans" font-size="11.5" fill="#CBD5E1">Live Telemetry</text>
 
   <text x="650" y="172" class="mono" font-size="10.5" fill="#94A3B8">Async ctx.waitUntil()</text>
 </svg>

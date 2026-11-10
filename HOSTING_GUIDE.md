@@ -1,7 +1,7 @@
 # TinyLink — Hosting & Deployment Guide
 URL Shortener on Cloudflare Workers (Free Tier)
 
-**Current version: 3.0** — modular TypeScript codebase with OLED Dark/Light themes, Vault auth + brute-force rate limiting, burn-after-read click limits, salted SHA-256 link passwords, UTM builder, labels/tags, custom OG cards, visitor country tracking, preview-bot filtering, opt-in `/stats/:slug` pages, SVG/PNG QR Studio, bulk delete, JSON backup/import, and PWA Service Worker support.
+**Current version: 3.1** — modular TypeScript codebase with Smart Conditional Edge Routing (Geotargeting, Device overrides, Activation Scheduling), Outgoing Webhooks (Discord, Slack, HMAC-SHA256 signature), OLED Dark/Light themes, Vault auth + brute-force rate limiting, burn-after-read click limits, salted SHA-256 link passwords, UTM builder, labels/tags, custom OG cards, visitor country tracking, preview-bot filtering, opt-in `/stats/:slug` pages, SVG/PNG QR Studio, bulk delete, JSON backup/import, and PWA Service Worker support.
 
 ---
 
@@ -87,10 +87,12 @@ npx wrangler deploy
 Live endpoints served automatically:
 - `GET /` — Dashboard UI (supports `?url=...` and `?text=...` prefill)
 - `GET /stats/:slug` — Opt-in read-only public analytics page (`404` unless `publicStats: true`)
-- `GET /:slug` — Edge redirect (`302`), OG social preview (for known bots), password prompt (`200`), `410` (Expired / Click Limit Reached), or `404` (Not Found)
+- `GET /:slug` — Edge redirect (`302`), OG social preview (for known bots), password prompt (`200`), `410` (Expired / Click Limit Reached), `425` (Scheduled / Not Active Yet), or `404` (Not Found)
 - `POST /:slug` — Password verification form submission (`303` redirect on match, `401` on mismatch)
 - `GET /manifest.webmanifest`, `GET /icon.svg`, & `GET /sw.js` — PWA install, Service Worker shell, & mobile Share Target
 - `GET /api/health` — Unauthenticated status ping
+- `GET /api/settings/webhooks` & `POST /api/settings/webhooks` — Webhook configuration
+- `POST /api/settings/webhooks/test` — Instant webhook connectivity probe
 
 ---
 
@@ -100,19 +102,35 @@ Live endpoints served automatically:
 BASE="https://url-shortener.your-subdomain.workers.dev"
 TOKEN="<YOUR_ADMIN_TOKEN>"
 
-# Create a tagged short link expiring in 7 days with public stats & max clicks
+# Create a smart link with geotargeting, device routing, and scheduled activation
 curl -X POST "$BASE/api/shorten" \
   -H "Content-Type: application/json" \
   -H "X-Auth-Token: $TOKEN" \
   -d '{
-    "url": "https://example.com/long-url",
-    "custom": "demo",
-    "expiresIn": "7",
-    "label": "Demo Link",
-    "tags": ["docs", "launch"],
-    "maxClicks": 100,
-    "publicStats": true
+    "url": "https://example.com/global",
+    "custom": "smart-demo",
+    "geoRoutes": { "IN": "https://example.com/india", "GB": "https://example.com/uk" },
+    "deviceRoutes": { "ios": "https://apps.apple.com/app/123", "android": "https://play.google.com/store/apps/123" },
+    "startsAt": "2026-12-01T00:00:00Z",
+    "fallbackUrl": "https://example.com/coming-soon",
+    "label": "Smart Global Link"
   }'
+
+# Configure outgoing webhook event stream (Discord, Slack, or generic HTTP)
+curl -X POST "$BASE/api/settings/webhooks" \
+  -H "Content-Type: application/json" \
+  -H "X-Auth-Token: $TOKEN" \
+  -d '{
+    "url": "https://discord.com/api/webhooks/...",
+    "secret": "my-hmac-secret",
+    "events": { "onClicked": true, "onLimitReached": true, "onExpired": true },
+    "enabled": true
+  }'
+
+# Send test ping to verify webhook connectivity
+curl -X POST "$BASE/api/settings/webhooks/test" \
+  -H "Content-Type: application/json" \
+  -H "X-Auth-Token: $TOKEN"
 
 # List all links
 curl "$BASE/api/list" -H "X-Auth-Token: $TOKEN"

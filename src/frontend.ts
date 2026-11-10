@@ -1284,8 +1284,15 @@ export function renderDashboardHtml(authRequired: boolean): string {
   .meta-chip.lock { background: var(--link-soft); border-color: transparent; color: var(--link); }
   .meta-chip.limit { background: var(--warning-soft); border-color: transparent; color: var(--warning); }
   .meta-chip.stats { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
+  .meta-chip.geo { background: rgba(168, 85, 247, 0.14); border-color: transparent; color: #C084FC; }
+  .meta-chip.device { background: rgba(56, 189, 248, 0.14); border-color: transparent; color: var(--link); }
+  .meta-chip.pending { background: rgba(56, 189, 248, 0.14); border-color: transparent; color: var(--link); }
   .status-pill.exhausted { background: var(--warning-soft); color: var(--warning); }
   .status-pill.exhausted .status-dot { background: var(--warning); }
+  .status-pill.pending { background: var(--link-soft); color: var(--link); }
+  .status-pill.pending .status-dot { background: var(--link); }
+  .geo-row { display: flex; align-items: center; gap: 8px; }
+  .alert-box.alert-success { background: var(--accent-soft); border-color: rgba(34, 197, 94, 0.35); color: var(--accent); }
   .mobile-item-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
   .breakdown-grid-3 {
     display: grid;
@@ -1386,6 +1393,9 @@ export function renderDashboardHtml(authRequired: boolean): string {
     </a>
 
     <div class="topbar-actions">
+      <button type="button" class="btn btn-ghost btn-icon" id="webhooksBtn" hidden aria-label="Outgoing Webhooks &amp; Automation" title="Outgoing Webhooks &amp; Automation">
+        <svg width="17" height="17" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M48,128a80,80,0,0,1,160,0"/><path d="M76,128a52,52,0,0,1,104,0"/><path d="M104,128a24,24,0,0,1,48,0"/><circle cx="128" cy="184" r="16"/></svg>
+      </button>
       <button type="button" class="btn btn-ghost btn-icon" id="shortcutsBtn" hidden aria-label="Personal shortcuts &amp; quick setup" title="Bookmarklet, Omnibox &amp; Phone Shortcuts">
         <svg width="17" height="17" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="32" y="64" width="192" height="128" rx="12"/><line x1="68" y1="104" x2="76" y2="104"/><line x1="104" y1="104" x2="112" y2="104"/><line x1="140" y1="104" x2="148" y2="104"/><line x1="176" y1="104" x2="188" y2="104"/><line x1="76" y1="148" x2="180" y2="148"/></svg>
       </button>
@@ -1581,7 +1591,38 @@ export function renderDashboardHtml(authRequired: boolean): string {
             </div>
           </div>
 
-          <label class="check-row" for="publicStatsCheck">
+          <div class="adv-subhead" style="margin-top:14px;margin-bottom:6px;">
+            <span>Smart Routing &amp; Activation Scheduling</span>
+          </div>
+
+          <div class="adv-grid">
+            <div class="adv-field">
+              <label for="startsAtInput" class="adv-label">Activation Schedule (Starts At)</label>
+              <input type="datetime-local" id="startsAtInput" class="adv-input">
+            </div>
+            <div class="adv-field">
+              <label for="fallbackUrlInput" class="adv-label">Scheduled Fallback URL (optional)</label>
+              <input type="url" id="fallbackUrlInput" class="adv-input" placeholder="https://example.com/teaser (or 425 status page)">
+            </div>
+            <div class="adv-field">
+              <label for="routeIosInput" class="adv-label">iOS Destination Override</label>
+              <input type="url" id="routeIosInput" class="adv-input" placeholder="https://apps.apple.com/app/...">
+            </div>
+            <div class="adv-field">
+              <label for="routeAndroidInput" class="adv-label">Android Destination Override</label>
+              <input type="url" id="routeAndroidInput" class="adv-input" placeholder="https://play.google.com/store/apps/...">
+            </div>
+          </div>
+
+          <div style="margin-top:10px;">
+            <div class="adv-subhead" style="margin-bottom:6px;">
+              <span>Country Geotargeting Rules</span>
+              <button type="button" class="btn btn-secondary btn-sm" id="addGeoRouteBtn" style="min-height:28px;font-size:0.74rem;">+ Add Country</button>
+            </div>
+            <div id="geoRoutesContainer" style="display:flex;flex-direction:column;gap:8px;"></div>
+          </div>
+
+          <label class="check-row" for="publicStatsCheck" style="margin-top:12px;">
             <input type="checkbox" id="publicStatsCheck">
             <span>Enable shareable read-only stats page (<span class="mono" style="color:var(--link);">/stats/:slug</span>)</span>
           </label>
@@ -1811,6 +1852,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
   var themeBtn = document.getElementById('themeBtn');
   var themeIcon = document.getElementById('themeIcon');
   var themeColorMeta = document.getElementById('themeColorMeta');
+  var webhooksBtn = document.getElementById('webhooksBtn');
   var shortcutsBtn = document.getElementById('shortcutsBtn');
   var lockBtn = document.getElementById('lockBtn');
   var authVault = document.getElementById('authVault');
@@ -1853,6 +1895,12 @@ export function renderDashboardHtml(authRequired: boolean): string {
   var ogTitleInput = document.getElementById('ogTitleInput');
   var ogDescInput = document.getElementById('ogDescInput');
   var publicStatsCheck = document.getElementById('publicStatsCheck');
+  var startsAtInput = document.getElementById('startsAtInput');
+  var fallbackUrlInput = document.getElementById('fallbackUrlInput');
+  var routeIosInput = document.getElementById('routeIosInput');
+  var routeAndroidInput = document.getElementById('routeAndroidInput');
+  var addGeoRouteBtn = document.getElementById('addGeoRouteBtn');
+  var geoRoutesContainer = document.getElementById('geoRoutesContainer');
 
   var resultBar = document.getElementById('resultBar');
   var resultQr = document.getElementById('resultQr');
@@ -1990,6 +2038,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
     appWorkspace.hidden = true;
     lockBtn.hidden = true;
     shortcutsBtn.hidden = true;
+    webhooksBtn.hidden = true;
     authVault.hidden = false;
     if (errorMsg) {
       authErrorText.textContent = errorMsg;
@@ -2056,6 +2105,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
     appWorkspace.hidden = false;
     lockBtn.hidden = !AUTH_REQUIRED;
     shortcutsBtn.hidden = false;
+    webhooksBtn.hidden = false;
     applyPendingPrefill();
   }
 
@@ -2151,6 +2201,36 @@ export function renderDashboardHtml(authRequired: boolean): string {
   });
 
   // ── Advanced Options & UTM Builder ──
+  function addGeoRow(container, countryCode, url) {
+    var row = document.createElement('div');
+    row.className = 'geo-row';
+    row.innerHTML =
+      '<input type="text" maxlength="2" class="adv-input mono geo-code-input" value="' + escapeHtml(countryCode || '') + '" placeholder="US" style="width:65px;text-transform:uppercase;" title="2-letter ISO country code (e.g. US, IN, GB, DE)">' +
+      '<input type="url" class="adv-input geo-url-input" value="' + escapeHtml(url || '') + '" placeholder="https://example.com/country-landing" style="flex:1;" title="Target destination for this country">' +
+      '<button type="button" class="btn btn-ghost btn-icon geo-remove-btn" title="Remove country rule" style="min-width:32px;height:36px;padding:0;">' +
+        '<svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"><line x1="200" y1="56" x2="56" y2="200"/><line x1="200" y1="200" x2="56" y2="56"/></svg>' +
+      '</button>';
+
+    var removeBtn = row.querySelector('.geo-remove-btn');
+    removeBtn.addEventListener('click', function() {
+      row.remove();
+      updateAdvCount();
+    });
+
+    var codeInput = row.querySelector('.geo-code-input');
+    var urlInput = row.querySelector('.geo-url-input');
+    codeInput.addEventListener('input', updateAdvCount);
+    urlInput.addEventListener('input', updateAdvCount);
+
+    container.appendChild(row);
+    if (!countryCode) codeInput.focus();
+  }
+
+  addGeoRouteBtn.addEventListener('click', function() {
+    addGeoRow(geoRoutesContainer, '', '');
+    updateAdvCount();
+  });
+
   function updateAdvCount() {
     var count = 0;
     if (labelInput.value.trim()) count++;
@@ -2160,6 +2240,13 @@ export function renderDashboardHtml(authRequired: boolean): string {
     if (utmSource.value.trim() || utmMedium.value.trim() || utmCampaign.value.trim()) count++;
     if (ogTitleInput.value.trim() || ogDescInput.value.trim()) count++;
     if (publicStatsCheck.checked) count++;
+    if (startsAtInput.value) count++;
+    if (fallbackUrlInput.value.trim()) count++;
+    if (routeIosInput.value.trim()) count++;
+    if (routeAndroidInput.value.trim()) count++;
+    var geoCount = geoRoutesContainer.querySelectorAll('.geo-row').length;
+    if (geoCount > 0) count += geoCount;
+
     if (count > 0) {
       advActiveCount.textContent = count + ' set';
       advActiveCount.hidden = false;
@@ -2180,7 +2267,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
     updateAdvCount();
   });
 
-  [labelInput, tagsInput, maxClicksCustom, linkPasswordInput, utmSource, utmMedium, utmCampaign, ogTitleInput, ogDescInput].forEach(function(el) {
+  [labelInput, tagsInput, maxClicksCustom, linkPasswordInput, utmSource, utmMedium, utmCampaign, ogTitleInput, ogDescInput, startsAtInput, fallbackUrlInput, routeIosInput, routeAndroidInput].forEach(function(el) {
     el.addEventListener('input', updateAdvCount);
   });
   publicStatsCheck.addEventListener('change', updateAdvCount);
@@ -2307,6 +2394,30 @@ export function renderDashboardHtml(authRequired: boolean): string {
     if (ogDescInput.value.trim()) payload.ogDescription = ogDescInput.value.trim();
     if (publicStatsCheck.checked) payload.publicStats = true;
 
+    if (startsAtInput.value) {
+      var d = new Date(startsAtInput.value);
+      if (!isNaN(d.getTime())) payload.startsAt = d.toISOString();
+    }
+    if (fallbackUrlInput.value.trim()) payload.fallbackUrl = fallbackUrlInput.value.trim();
+
+    var devRoutes = {};
+    if (routeIosInput.value.trim()) devRoutes.ios = routeIosInput.value.trim();
+    if (routeAndroidInput.value.trim()) devRoutes.android = routeAndroidInput.value.trim();
+    if (Object.keys(devRoutes).length > 0) payload.deviceRoutes = devRoutes;
+
+    var geoRoutes = {};
+    var geoRows = geoRoutesContainer.querySelectorAll('.geo-row');
+    for (var gi = 0; gi < geoRows.length; gi++) {
+      var cInput = geoRows[gi].querySelector('.geo-code-input');
+      var uInput = geoRows[gi].querySelector('.geo-url-input');
+      if (cInput && uInput) {
+        var code = cInput.value.trim().toUpperCase();
+        var gUrl = uInput.value.trim();
+        if (code && gUrl) geoRoutes[code] = gUrl;
+      }
+    }
+    if (Object.keys(geoRoutes).length > 0) payload.geoRoutes = geoRoutes;
+
     shortenBtn.disabled = true;
     shortenBtn.querySelector('span').textContent = 'Shortening…';
 
@@ -2332,6 +2443,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
       shortenForm.reset();
       expiresValue.value = 'never';
       maxClicksCustom.hidden = true;
+      geoRoutesContainer.innerHTML = '';
       var pills = expiryPills.querySelectorAll('[data-expiry]');
       for (var i = 0; i < pills.length; i++) {
         pills[i].setAttribute('aria-checked', pills[i].getAttribute('data-expiry') === 'never' ? 'true' : 'false');
@@ -2354,7 +2466,12 @@ export function renderDashboardHtml(authRequired: boolean): string {
         ogTitle: data.ogTitle || null,
         ogDescription: data.ogDescription || null,
         publicStats: !!data.publicStats,
-        botClicks: 0
+        botClicks: 0,
+        startsAt: data.startsAt || null,
+        fallbackUrl: data.fallbackUrl || null,
+        isPending: !!data.isPending,
+        geoRoutes: data.geoRoutes || {},
+        deviceRoutes: data.deviceRoutes || {}
       });
       renderLinksView();
       checkDuplicateHint();
@@ -2576,6 +2693,9 @@ export function renderDashboardHtml(authRequired: boolean): string {
   }
 
   function buildStatusBadge(u) {
+    if (u.isPending) {
+      return '<span class="status-pill pending"><span class="status-dot"></span>Scheduled</span>';
+    }
     if (isLinkExhausted(u)) {
       return '<span class="status-pill exhausted"><span class="status-dot"></span>Exhausted</span>';
     }
@@ -2589,6 +2709,15 @@ export function renderDashboardHtml(authRequired: boolean): string {
     var chips = [];
     if (u.hasPassword) chips.push('<span class="meta-chip lock">' + ICONS.lockSm + '<span>Locked</span></span>');
     if (u.maxClicks) chips.push('<span class="meta-chip limit">' + (u.clicks || 0) + '/' + u.maxClicks + ' max</span>');
+    if (u.geoRoutes && Object.keys(u.geoRoutes).length > 0) {
+      chips.push('<span class="meta-chip geo">' + ICONS.globe + '<span>' + Object.keys(u.geoRoutes).length + ' geos</span></span>');
+    }
+    if (u.deviceRoutes && (u.deviceRoutes.ios || u.deviceRoutes.android || u.deviceRoutes.desktop)) {
+      chips.push('<span class="meta-chip device">' + ICONS.mobile + '<span>Devices</span></span>');
+    }
+    if (u.startsAt && u.isPending) {
+      chips.push('<span class="meta-chip pending">Starts ' + fmtDate(u.startsAt) + '</span>');
+    }
     if (u.publicStats) chips.push('<span class="meta-chip stats">Public stats</span>');
     if (u.tags && u.tags.length) {
       for (var i = 0; i < u.tags.length; i++) {
@@ -3211,6 +3340,169 @@ export function renderDashboardHtml(authRequired: boolean): string {
     openShortcutsModal();
   });
 
+  // ── Outgoing Webhooks Modal ──
+  async function openWebhooksModal() {
+    modalLabel.textContent = 'Outgoing Webhooks';
+    modalSlug.textContent = 'Real-time Automation';
+    modalSlug.hidden = false;
+
+    modalBody.innerHTML =
+      '<div class="tool-card">' +
+        '<div class="tool-head">' +
+          '<div class="tool-title">Outgoing Webhook Event Stream</div>' +
+          '<div class="tool-desc">Dispatch real-time webhooks on link clicks, expiration, and click caps. Automatically formats for Discord embeds, Slack blocks, or standard JSON with HMAC-SHA256 signature.</div>' +
+        '</div>' +
+        '<div class="alert-box" id="webhookAlert" role="alert" hidden><span id="webhookAlertText"></span></div>' +
+        '<form id="webhookForm" class="edit-stack" novalidate style="margin-top:14px;">' +
+          '<label class="check-row" for="webhookEnabledCheck" style="margin-bottom:8px;">' +
+            '<input type="checkbox" id="webhookEnabledCheck" checked>' +
+            '<span style="font-weight:600;color:var(--text);">Enable outgoing webhook dispatch</span>' +
+          '</label>' +
+          '<div class="adv-field">' +
+            '<label for="webhookUrlInput" class="adv-label">Webhook Destination URL</label>' +
+            '<input type="url" id="webhookUrlInput" class="input-field mono" placeholder="https://discord.com/api/webhooks/... or https://hooks.slack.com/..." required>' +
+          '</div>' +
+          '<div class="adv-field">' +
+            '<label for="webhookSecretInput" class="adv-label">HMAC Secret Key (optional, for X-TinyLink-Signature)</label>' +
+            '<input type="password" id="webhookSecretInput" class="adv-input mono" placeholder="Optional signing secret" autocomplete="off">' +
+          '</div>' +
+          '<div class="adv-field">' +
+            '<span class="adv-label">Subscribed Events</span>' +
+            '<div style="display:flex;flex-direction:column;gap:8px;margin-top:6px;">' +
+              '<label class="check-row" for="eventClickedCheck">' +
+                '<input type="checkbox" id="eventClickedCheck" checked>' +
+                '<span><strong>link.clicked</strong> — fired when a visitor follows any short link</span>' +
+              '</label>' +
+              '<label class="check-row" for="eventLimitCheck">' +
+                '<input type="checkbox" id="eventLimitCheck" checked>' +
+                '<span><strong>link.limit_reached</strong> — fired when click cap / burn-after-read is reached</span>' +
+              '</label>' +
+              '<label class="check-row" for="eventExpiredCheck">' +
+                '<input type="checkbox" id="eventExpiredCheck" checked>' +
+                '<span><strong>link.expired</strong> — fired when visit attempted on an expired link</span>' +
+              '</label>' +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap;">' +
+            '<button type="button" class="btn btn-secondary" id="testWebhookBtn">' +
+              '<span>Send Test Ping</span>' +
+            '</button>' +
+            '<div style="display:flex;gap:8px;">' +
+              '<button type="button" class="btn btn-ghost" id="cancelWebhookBtn">Cancel</button>' +
+              '<button type="submit" class="btn btn-primary" id="saveWebhookBtn">Save Settings</button>' +
+            '</div>' +
+          '</div>' +
+        '</form>' +
+      '</div>';
+
+    openModalElement();
+
+    var webhookAlert = document.getElementById('webhookAlert');
+    var webhookAlertText = document.getElementById('webhookAlertText');
+    var webhookForm = document.getElementById('webhookForm');
+    var webhookEnabledCheck = document.getElementById('webhookEnabledCheck');
+    var webhookUrlInput = document.getElementById('webhookUrlInput');
+    var webhookSecretInput = document.getElementById('webhookSecretInput');
+    var eventClickedCheck = document.getElementById('eventClickedCheck');
+    var eventLimitCheck = document.getElementById('eventLimitCheck');
+    var eventExpiredCheck = document.getElementById('eventExpiredCheck');
+    var testWebhookBtn = document.getElementById('testWebhookBtn');
+    var cancelWebhookBtn = document.getElementById('cancelWebhookBtn');
+    var saveWebhookBtn = document.getElementById('saveWebhookBtn');
+
+    cancelWebhookBtn.addEventListener('click', closeModalElement);
+
+    try {
+      var res = await api('/api/settings/webhooks');
+      if (res.config) {
+        webhookEnabledCheck.checked = res.config.enabled !== false;
+        webhookUrlInput.value = res.config.url || '';
+        webhookSecretInput.value = res.config.secret || '';
+        eventClickedCheck.checked = res.config.events?.onClicked !== false;
+        eventLimitCheck.checked = res.config.events?.onLimitReached !== false;
+        eventExpiredCheck.checked = res.config.events?.onExpired !== false;
+      }
+    } catch (e) {}
+
+    testWebhookBtn.addEventListener('click', async function() {
+      webhookAlert.hidden = true;
+      var url = webhookUrlInput.value.trim();
+      var secret = webhookSecretInput.value.trim();
+      testWebhookBtn.disabled = true;
+      testWebhookBtn.textContent = 'Sending…';
+
+      try {
+        var testRes = await api('/api/settings/webhooks/test', {
+          method: 'POST',
+          body: JSON.stringify({ url: url || undefined, secret: secret || undefined })
+        });
+        if (testRes.ok) {
+          webhookAlertText.textContent = 'Test ping delivered successfully! (HTTP ' + testRes.status + ')';
+          webhookAlert.className = 'alert-box alert-success';
+          webhookAlert.hidden = false;
+        } else {
+          webhookAlertText.textContent = 'Test ping failed: HTTP ' + testRes.status + (testRes.error ? ' — ' + testRes.error : '');
+          webhookAlert.className = 'alert-box';
+          webhookAlert.hidden = false;
+        }
+      } catch (err) {
+        webhookAlertText.textContent = 'Test error: ' + err.message;
+        webhookAlert.className = 'alert-box';
+        webhookAlert.hidden = false;
+      } finally {
+        testWebhookBtn.disabled = false;
+        testWebhookBtn.textContent = 'Send Test Ping';
+      }
+    });
+
+    webhookForm.addEventListener('submit', async function(ev) {
+      ev.preventDefault();
+      webhookAlert.hidden = true;
+
+      var url = webhookUrlInput.value.trim();
+      var enabled = webhookEnabledCheck.checked;
+      if (enabled && (!url || (!url.startsWith('http://') && !url.startsWith('https://')))) {
+        webhookAlertText.textContent = 'Webhook URL must start with http:// or https://';
+        webhookAlert.className = 'alert-box';
+        webhookAlert.hidden = false;
+        return;
+      }
+
+      saveWebhookBtn.disabled = true;
+      saveWebhookBtn.textContent = 'Saving…';
+
+      try {
+        await api('/api/settings/webhooks', {
+          method: 'POST',
+          body: JSON.stringify({
+            url: url,
+            secret: webhookSecretInput.value.trim() || null,
+            enabled: enabled,
+            events: {
+              onClicked: eventClickedCheck.checked,
+              onLimitReached: eventLimitCheck.checked,
+              onExpired: eventExpiredCheck.checked
+            }
+          })
+        });
+        showToast('Webhook settings saved', 'success');
+        closeModalElement();
+      } catch (err) {
+        webhookAlertText.textContent = 'Save error: ' + err.message;
+        webhookAlert.className = 'alert-box';
+        webhookAlert.hidden = false;
+      } finally {
+        saveWebhookBtn.disabled = false;
+        saveWebhookBtn.textContent = 'Save Settings';
+      }
+    });
+  }
+
+  webhooksBtn.addEventListener('click', function() {
+    lastTriggerEl = webhooksBtn;
+    openWebhooksModal();
+  });
+
   // ── Open Link Inspector Modal ──
   async function openInspectorModal(slug, mode) {
     modalLabel.textContent = 'Inspector';
@@ -3235,11 +3527,13 @@ export function renderDashboardHtml(authRequired: boolean): string {
       var totalDev = topDevices.reduce(function(s, pair) { return s + pair[1]; }, 0) || 1;
       var devColors = { desktop: '#38BDF8', mobile: '#22C55E', tablet: '#F59E0B' };
 
-      var statusBadge = data.isExhausted
-        ? '<span class="status-pill exhausted"><span class="status-dot"></span>Exhausted</span>'
-        : (data.isExpired
-            ? '<span class="status-pill expired"><span class="status-dot"></span>Expired</span>'
-            : '<span class="status-pill active"><span class="status-dot"></span>' + (data.lastClicked ? 'Active' : 'Ready (0 clicks)') + '</span>');
+      var statusBadge = data.isPending
+        ? '<span class="status-pill pending"><span class="status-dot"></span>Scheduled</span>'
+        : (data.isExhausted
+            ? '<span class="status-pill exhausted"><span class="status-dot"></span>Exhausted</span>'
+            : (data.isExpired
+                ? '<span class="status-pill expired"><span class="status-dot"></span>Expired</span>'
+                : '<span class="status-pill active"><span class="status-dot"></span>' + (data.lastClicked ? 'Active' : 'Ready (0 clicks)') + '</span>'));
 
       var refSection = topReferrers.length
         ? '<div class="ref-list">' + topReferrers.map(function(item) {
@@ -3391,7 +3685,35 @@ export function renderDashboardHtml(authRequired: boolean): string {
                 '<input type="text" id="editOgDescInput" class="adv-input" maxlength="220" value="' + escapeHtml(data.ogDescription || '') + '" placeholder="Custom social card description">' +
               '</div>' +
             '</div>' +
-            '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">' +
+            '<div class="adv-subhead" style="margin-top:10px;margin-bottom:6px;">' +
+              '<span>Smart Routing &amp; Activation Scheduling</span>' +
+            '</div>' +
+            '<div class="adv-grid">' +
+              '<div class="adv-field">' +
+                '<label for="editStartsAtInput" class="adv-label">Activation Schedule (Starts At)</label>' +
+                '<input type="datetime-local" id="editStartsAtInput" class="adv-input" value="' + (data.startsAt ? data.startsAt.slice(0, 16) : '') + '">' +
+              '</div>' +
+              '<div class="adv-field">' +
+                '<label for="editFallbackUrlInput" class="adv-label">Fallback URL (when not active yet)</label>' +
+                '<input type="url" id="editFallbackUrlInput" class="adv-input" value="' + escapeHtml(data.fallbackUrl || '') + '" placeholder="https://example.com/teaser">' +
+              '</div>' +
+              '<div class="adv-field">' +
+                '<label for="editRouteIosInput" class="adv-label">iOS Destination Override</label>' +
+                '<input type="url" id="editRouteIosInput" class="adv-input" value="' + escapeHtml(data.deviceRoutes?.ios || '') + '" placeholder="https://apps.apple.com/app/...">' +
+              '</div>' +
+              '<div class="adv-field">' +
+                '<label for="editRouteAndroidInput" class="adv-label">Android Destination Override</label>' +
+                '<input type="url" id="editRouteAndroidInput" class="adv-input" value="' + escapeHtml(data.deviceRoutes?.android || '') + '" placeholder="https://play.google.com/store/apps/...">' +
+              '</div>' +
+            '</div>' +
+            '<div style="margin-top:8px;">' +
+              '<div class="adv-subhead" style="margin-bottom:6px;">' +
+                '<span>Country Geotargeting Rules</span>' +
+                '<button type="button" class="btn btn-secondary btn-sm" id="editAddGeoRouteBtn" style="min-height:28px;font-size:0.74rem;">+ Add Country</button>' +
+              '</div>' +
+              '<div id="editGeoRoutesContainer" style="display:flex;flex-direction:column;gap:8px;"></div>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:10px;">' +
               '<label class="check-row" for="editPublicStatsCheck">' +
                 '<input type="checkbox" id="editPublicStatsCheck"' + (data.publicStats ? ' checked' : '') + '>' +
                 '<span>Shareable read-only stats page (<span class="mono" style="color:var(--link);">/stats/' + slugEsc + '</span>)</span>' +
@@ -3453,9 +3775,25 @@ export function renderDashboardHtml(authRequired: boolean): string {
       var editOgTitleInput = document.getElementById('editOgTitleInput');
       var editOgDescInput = document.getElementById('editOgDescInput');
       var editPublicStatsCheck = document.getElementById('editPublicStatsCheck');
+      var editStartsAtInput = document.getElementById('editStartsAtInput');
+      var editFallbackUrlInput = document.getElementById('editFallbackUrlInput');
+      var editRouteIosInput = document.getElementById('editRouteIosInput');
+      var editRouteAndroidInput = document.getElementById('editRouteAndroidInput');
+      var editAddGeoRouteBtn = document.getElementById('editAddGeoRouteBtn');
+      var editGeoRoutesContainer = document.getElementById('editGeoRoutesContainer');
       var saveEditBtn = document.getElementById('saveEditBtn');
       var editError = document.getElementById('editError');
       var editErrorText = document.getElementById('editErrorText');
+
+      if (data.geoRoutes) {
+        Object.entries(data.geoRoutes).forEach(function(pair) {
+          addGeoRow(editGeoRoutesContainer, pair[0], pair[1]);
+        });
+      }
+
+      editAddGeoRouteBtn.addEventListener('click', function() {
+        addGeoRow(editGeoRoutesContainer, '', '');
+      });
 
       editPasswordMode.addEventListener('change', function() {
         var isSet = editPasswordMode.value === 'set';
@@ -3506,6 +3844,37 @@ export function renderDashboardHtml(authRequired: boolean): string {
           publicStats: editPublicStatsCheck.checked
         };
 
+        if (editStartsAtInput.value) {
+          var dt = new Date(editStartsAtInput.value);
+          if (!isNaN(dt.getTime())) updatePayload.startsAt = dt.toISOString();
+        } else {
+          updatePayload.startsAt = null;
+        }
+
+        if (editFallbackUrlInput.value.trim()) {
+          updatePayload.fallbackUrl = editFallbackUrlInput.value.trim();
+        } else {
+          updatePayload.fallbackUrl = null;
+        }
+
+        var nextDevRoutes = {};
+        if (editRouteIosInput.value.trim()) nextDevRoutes.ios = editRouteIosInput.value.trim();
+        if (editRouteAndroidInput.value.trim()) nextDevRoutes.android = editRouteAndroidInput.value.trim();
+        updatePayload.deviceRoutes = nextDevRoutes;
+
+        var nextGeoRoutes = {};
+        var editGeoRows = editGeoRoutesContainer.querySelectorAll('.geo-row');
+        for (var egi = 0; egi < editGeoRows.length; egi++) {
+          var eCode = editGeoRows[egi].querySelector('.geo-code-input');
+          var eUrl = editGeoRows[egi].querySelector('.geo-url-input');
+          if (eCode && eUrl) {
+            var cVal = eCode.value.trim().toUpperCase();
+            var uVal = eUrl.value.trim();
+            if (cVal && uVal) nextGeoRoutes[cVal] = uVal;
+          }
+        }
+        updatePayload.geoRoutes = nextGeoRoutes;
+
         var pwdMode = editPasswordMode.value;
         if (pwdMode === 'set') {
           if (!editPasswordInput.value) {
@@ -3537,7 +3906,12 @@ export function renderDashboardHtml(authRequired: boolean): string {
             tags: updated.tags || [],
             ogTitle: updated.ogTitle,
             ogDescription: updated.ogDescription,
-            publicStats: !!updated.publicStats
+            publicStats: !!updated.publicStats,
+            startsAt: updated.startsAt,
+            fallbackUrl: updated.fallbackUrl,
+            isPending: !!updated.isPending,
+            geoRoutes: updated.geoRoutes || {},
+            deviceRoutes: updated.deviceRoutes || {}
           });
           showToast('Link updated', 'success');
           closeModalElement();

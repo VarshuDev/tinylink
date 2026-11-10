@@ -1,7 +1,7 @@
 import type { TimelineBucket } from "./types";
 
 export interface StatusPageOptions {
-  status: 404 | 410;
+  status: 404 | 410 | 425;
   codeLabel: string;
   title: string;
   message: string;
@@ -127,11 +127,14 @@ const BASE_THEME_CSS = `
 
 export function renderStatusPage(opts: StatusPageOptions): string {
   const isExpired = opts.status === 410;
-  const accentColor = isExpired ? "#F59E0B" : "#EF4444";
-  const accentBg = isExpired ? "rgba(245, 158, 11, 0.14)" : "rgba(239, 68, 68, 0.14)";
+  const isEarly = opts.status === 425;
+  const accentColor = isExpired ? "#F59E0B" : (isEarly ? "#38BDF8" : "#EF4444");
+  const accentBg = isExpired ? "rgba(245, 158, 11, 0.14)" : (isEarly ? "rgba(56, 189, 248, 0.14)" : "rgba(239, 68, 68, 0.14)");
   const iconSvg = isExpired
     ? `<svg width="28" height="28" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="128" cy="128" r="96"/><polyline points="128 72 128 128 184 128"/></svg>`
-    : `<svg width="28" height="28" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="112" cy="112" r="80"/><line x1="168.57" y1="168.57" x2="224" y2="224"/><line x1="88" y1="112" x2="136" y2="112"/></svg>`;
+    : (isEarly
+        ? `<svg width="28" height="28" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="40" y="40" width="176" height="176" rx="8"/><line x1="176" y1="24" x2="176" y2="56"/><line x1="80" y1="24" x2="80" y2="56"/><line x1="40" y1="88" x2="216" y2="88"/><circle cx="128" cy="148" r="32"/><polyline points="128 132 128 148 144 148"/></svg>`
+        : `<svg width="28" height="28" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="112" cy="112" r="80"/><line x1="168.57" y1="168.57" x2="224" y2="224"/><line x1="88" y1="112" x2="136" y2="112"/></svg>`);
 
   return `<!DOCTYPE html>
 <html lang="en" data-theme="dark">

@@ -32,7 +32,9 @@ TinyLink serves the **JSON API**, **edge redirects**, **read-only public stats**
 
 | Category | What You Get |
 |----------|--------------|
-| **Edge Redirects & Pages** | Sub-5ms `302` redirects globally, trailing-slash normalization, branded `404` & `410` (expired / limit-reached) pages |
+| **Smart Conditional Routing** | Geotargeting (`cf.country`), Device targeting (`ios` / `android` / `desktop` overrides), and Activation Schedule window (`startsAt` / `expiresAt` with `fallbackUrl` or branded `425 Not Active Yet` page) |
+| **Outgoing Webhook Stream** | Real-time event webhooks (`link.clicked`, `link.limit_reached`, `link.expired`, `test.ping`) with automated **Discord embeds**, **Slack blocks**, or JSON with HMAC-SHA256 signature (`X-TinyLink-Signature`) |
+| **Edge Redirects & Pages** | Sub-5ms `302` redirects globally, trailing-slash normalization, branded `404`, `410` (expired / limit-reached), and `425` (scheduled / pending) pages |
 | **Smart Link Controls** | Click caps & **burn-after-read** (`maxClicks`), salted **SHA-256 link passwords**, labels, `#tags` filtering, duplicate URL hints, and a **UTM Campaign Builder** |
 | **Rich Telemetry & Bot Shield** | Exact UTC hourly/daily timeline, referrers, device split, **visitor countries** (`cf.country`), and preview-bot filtering so Slack/WhatsApp unfurls never burn `maxClicks` |
 | **Social Cards & Public Stats** | Custom `og:title` & `og:description` preview metadata for unfurlers plus opt-in shareable `/stats/:slug` pages (masks locked destinations automatically) |
@@ -104,7 +106,7 @@ url-shortener/
 ├── src/
 │   ├── index.ts              # Router, vault auth, rate limiter, KV storage, redirect & API handlers
 │   ├── frontend.ts           # Server-rendered OLED Dark/Light console, UTM/QR studio & bulk tools
-│   ├── pages.ts              # Status pages (404/410), password gate, OG preview card & /stats/:slug
+│   ├── pages.ts              # Status pages (404/410/425), password gate, OG preview card & /stats/:slug
 │   ├── types.ts              # Shared TypeScript interfaces for KV records, API payloads & env
 │   └── qrcode.d.ts           # QRCode module TypeScript declarations
 ├── test/

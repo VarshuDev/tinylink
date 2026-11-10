@@ -548,4 +548,251 @@ describe("TinyLink Worker", () => {
       count: 2,
     });
   });
+
+  it("supports smart routing: geotargeting and device targeting overrides", async () => {
+    const env = makeEnv();
+    const { ctx, flush } = makeCtx();
+    const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+
+    const res = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://example.com/default",
+          custom: "smart-link",
+          geoRoutes: {
+            IN: "https://example.com/india",
+            GB: "https://example.com/uk",
+          },
+          deviceRoutes: {
+            ios: "https://apps.apple.com/app/tinylink",
+            android: "https://play.google.com/store/apps/tinylink",
+          },
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(res.status).toBe(200);
+
+    // 1. Visitor with iOS user agent -> routed to iOS target
+    const iosHit = await worker.fetch!(
+      makeRequest("/smart-link", {
+        headers: { "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)" },
+      }),
+      env,
+      ctx
+    );
+    expect(iosHit.status).toBe(302);
+    expect(iosHit.headers.get("Location")?.replace(/\/$/, "")).toBe("https://apps.apple.com/app/tinylink");
+
+    // 2. Visitor with Android user agent -> routed to Android target
+    const androidHit = await worker.fetch!(
+      makeRequest("/smart-link", {
+        headers: { "User-Agent": "Mozilla/5.0 (Linux; Android 13; Pixel 7)" },
+      }),
+      env,
+      ctx
+    );
+    expect(androidHit.status).toBe(302);
+    expect(androidHit.headers.get("Location")?.replace(/\/$/, "")).toBe("https://play.google.com/store/apps/tinylink");
+
+    // 3. Desktop visitor from India -> routed to India geo target
+    const indiaHit = await worker.fetch!(
+      makeRequest("/smart-link", {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+        cf: { country: "IN" },
+      }),
+      env,
+      ctx
+    );
+    expect(indiaHit.status).toBe(302);
+    expect(indiaHit.headers.get("Location")?.replace(/\/$/, "")).toBe("https://example.com/india");
+
+    // 4. Desktop visitor from US -> falls back to default originalUrl
+    const usHit = await worker.fetch!(
+      makeRequest("/smart-link", {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+        cf: { country: "US" },
+      }),
+      env,
+      ctx
+    );
+    expect(usHit.status).toBe(302);
+    expect(usHit.headers.get("Location")?.replace(/\/$/, "")).toBe("https://example.com/default");
+
+    await flush();
+  });
+
+  it("handles activation schedules: pending links render 425 page or redirect to fallbackUrl", async () => {
+    const env = makeEnv();
+    const { ctx, flush } = makeCtx();
+    const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+
+    const futureDate = new Date(Date.now() + 24 * 3600 * 1000).toISOString();
+
+    // 1. Scheduled link without fallback -> renders HTTP 425 Not Active Yet page
+    await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://example.com/secret-launch",
+          custom: "future-launch",
+          startsAt: futureDate,
+        }),
+      }),
+      env,
+      ctx
+    );
+
+    const hitPending = await worker.fetch!(makeRequest("/future-launch"), env, ctx);
+    expect(hitPending.status).toBe(425);
+    const html425 = await hitPending.text();
+    expect(html425).toContain("425 · Not Active Yet");
+    expect(html425).toContain("scheduled to activate");
+
+    // 2. Scheduled link with fallbackUrl -> redirects to fallbackUrl
+    await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://example.com/secret-launch",
+          custom: "future-with-fallback",
+          startsAt: futureDate,
+          fallbackUrl: "https://example.com/coming-soon",
+        }),
+      }),
+      env,
+      ctx
+    );
+
+    const hitFallback = await worker.fetch!(makeRequest("/future-with-fallback"), env, ctx);
+    expect(hitFallback.status).toBe(302);
+    expect(hitFallback.headers.get("Location")?.replace(/\/$/, "")).toBe("https://example.com/coming-soon");
+
+    // 3. Updating schedule via PUT /api/urls/:slug
+    const updateRes = await worker.fetch!(
+      makeRequest("/api/urls/future-launch", {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          startsAt: null, // activate immediately
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(updateRes.status).toBe(200);
+
+    const hitNowActive = await worker.fetch!(makeRequest("/future-launch"), env, ctx);
+    expect(hitNowActive.status).toBe(302);
+    expect(hitNowActive.headers.get("Location")?.replace(/\/$/, "")).toBe("https://example.com/secret-launch");
+
+    await flush();
+  });
+
+  it("manages webhook configurations, tests connectivity, and fires events", async () => {
+    const env = makeEnv();
+    const { ctx, flush } = makeCtx();
+    const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+
+    // Initially no webhook configured
+    const getInitial = await worker.fetch!(makeRequest("/api/settings/webhooks", { headers }), env, ctx);
+    expect(getInitial.status).toBe(200);
+    expect((await getInitial.json()) as { config: unknown }).toEqual({ config: null });
+
+    // Save webhook config
+    const saveRes = await worker.fetch!(
+      makeRequest("/api/settings/webhooks", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://webhook.site/test-endpoint",
+          secret: "super-secret-hmac-key",
+          events: { onClicked: true, onLimitReached: true, onExpired: true },
+          enabled: true,
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(saveRes.status).toBe(200);
+    const saveJson = (await saveRes.json()) as { ok: boolean; config: { url: string; enabled: boolean } };
+    expect(saveJson.ok).toBe(true);
+    expect(saveJson.config.url).toBe("https://webhook.site/test-endpoint");
+    expect(saveJson.config.enabled).toBe(true);
+
+    // Mock global fetch to test webhook dispatch
+    const originalFetch = globalThis.fetch;
+    const dispatchedRequests: { url: string; headers: Record<string, string>; body: string }[] = [];
+
+    globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const urlStr = typeof input === "string" ? input : (input as Request).url;
+      if (urlStr.includes("webhook.site")) {
+        const bodyStr = typeof init?.body === "string" ? init.body : "";
+        const hdrObj: Record<string, string> = {};
+        if (init?.headers) {
+          const h = new Headers(init.headers as HeadersInit);
+          h.forEach((v, k) => {
+            hdrObj[k] = v;
+          });
+        }
+        dispatchedRequests.push({ url: urlStr, headers: hdrObj, body: bodyStr });
+        return new Response(JSON.stringify({ ok: true }), { status: 200, statusText: "OK" });
+      }
+      return originalFetch(input, init);
+    };
+
+    try {
+      // Test ping
+      const pingRes = await worker.fetch!(
+        makeRequest("/api/settings/webhooks/test", { method: "POST", headers }),
+        env,
+        ctx
+      );
+      expect(pingRes.status).toBe(200);
+      const pingJson = (await pingRes.json()) as { ok: boolean; status: number };
+      expect(pingJson.ok).toBe(true);
+      expect(dispatchedRequests.length).toBe(1);
+      expect(dispatchedRequests[0].headers["x-tinylink-event"]).toBe("test.ping");
+      expect(dispatchedRequests[0].headers["x-tinylink-signature"]).toMatch(/^sha256=[0-9a-f]{64}$/);
+
+      // Shorten link and click it to trigger link.clicked webhook
+      await worker.fetch!(
+        makeRequest("/api/shorten", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            url: "https://example.com/webhook-tracked",
+            custom: "hook-test",
+          }),
+        }),
+        env,
+        ctx
+      );
+
+      await worker.fetch!(
+        makeRequest("/hook-test", {
+          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)", Referer: "https://twitter.com" },
+          cf: { country: "DE" },
+        }),
+        env,
+        ctx
+      );
+
+      await flush();
+
+      expect(dispatchedRequests.length).toBe(2);
+      expect(dispatchedRequests[1].headers["x-tinylink-event"]).toBe("link.clicked");
+      const clickedPayload = JSON.parse(dispatchedRequests[1].body);
+      expect(clickedPayload.link.slug).toBe("hook-test");
+      expect(clickedPayload.visitor.country).toBe("DE");
+      expect(clickedPayload.visitor.referrer).toBe("twitter.com");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });
