@@ -87,7 +87,7 @@ const APP_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 5
   <path d="M214 298a72 72 0 0 0 101.82 0l50.91-50.91a72 72 0 0 0-101.82-101.82L239.45 170.7M298 214a72 72 0 0 0-101.82 0l-50.91 50.91a72 72 0 0 0 101.82 101.82l25.46-25.43" fill="none" stroke="#22C55E" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 
-const SERVICE_WORKER_JS = `const CACHE_NAME = 'tinylink-shell-v2';
+const SERVICE_WORKER_JS = `const CACHE_NAME = 'tinylink-shell-v3';
 const SHELL_ASSETS = ['/icon.svg', '/manifest.webmanifest', '/assets/theme.js', '/assets/app.js'];
 
 self.addEventListener('install', (event) => {

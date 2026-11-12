@@ -131,7 +131,7 @@ describe("TinyLink Worker", () => {
     expect(sw.status).toBe(200);
     expect(sw.headers.get("Content-Type")).toContain("javascript");
     const swText = await sw.text();
-    expect(swText).toContain("tinylink-shell-v2");
+    expect(swText).toContain("tinylink-shell-v3");
 
     const manifest = await worker.fetch!(makeRequest("/manifest.webmanifest"), env, ctx);
     expect(manifest.status).toBe(200);

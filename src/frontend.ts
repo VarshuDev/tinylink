@@ -39,6 +39,8 @@ export function renderDashboardHtml(authRequired: boolean): string {
     --danger-soft: rgba(239, 68, 68, 0.14);
     --warning: #F59E0B;
     --warning-soft: rgba(245, 158, 11, 0.14);
+    --geo: #C084FC;
+    --geo-soft: rgba(168, 85, 247, 0.14);
     --ring: #38BDF8;
     --scrim: rgba(2, 6, 23, 0.78);
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
@@ -67,6 +69,8 @@ export function renderDashboardHtml(authRequired: boolean): string {
     --danger-soft: rgba(220, 38, 38, 0.12);
     --warning: #D97706;
     --warning-soft: rgba(217, 119, 6, 0.12);
+    --geo: #7E22CE;
+    --geo-soft: rgba(126, 34, 206, 0.12);
     --ring: #0284C7;
     --scrim: rgba(15, 23, 42, 0.62);
     --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
@@ -516,20 +520,34 @@ export function renderDashboardHtml(authRequired: boolean): string {
     margin-bottom: 20px;
   }
   .kpi-card {
+    appearance: none;
+    text-align: left;
+    width: 100%;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    padding: 16px 18px;
+    padding: 15px 17px;
     display: flex;
     flex-direction: column;
     gap: 8px;
+    transition: border-color 150ms ease, background-color 150ms ease, transform 120ms ease, box-shadow 150ms ease;
+  }
+  .kpi-card:hover {
+    border-color: color-mix(in srgb, var(--link) 45%, var(--border));
+    background: color-mix(in srgb, var(--surface-2) 45%, var(--surface));
+    transform: translateY(-1px);
+  }
+  .kpi-card:active { transform: translateY(0); }
+  .kpi-card.is-active {
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent);
   }
   .kpi-top {
     display: flex;
     align-items: center;
     justify-content: space-between;
     color: var(--text-muted);
-    font-size: 0.76rem;
+    font-size: 0.74rem;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -547,6 +565,12 @@ export function renderDashboardHtml(authRequired: boolean): string {
   .kpi-icon.green { background: var(--accent-soft); color: var(--accent); }
   .kpi-icon.sky { background: var(--link-soft); color: var(--link); }
   .kpi-icon.amber { background: var(--warning-soft); color: var(--warning); }
+  .kpi-foot {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
   .kpi-val {
     font-family: var(--font-mono);
     font-size: 1.65rem;
@@ -554,9 +578,104 @@ export function renderDashboardHtml(authRequired: boolean): string {
     line-height: 1.1;
     color: var(--text);
   }
+  .kpi-hint {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    opacity: 0.85;
+  }
+
+  /* ── Studio Live Preview Strip ── */
+  .studio-preview-strip {
+    margin-top: 10px;
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 0.77rem;
+  }
+  .preview-link-group {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+  }
+  .preview-kicker {
+    font-size: 0.69rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .preview-url-mono {
+    font-family: var(--font-mono);
+    font-size: 0.79rem;
+    font-weight: 600;
+    color: var(--link);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .preview-url-mono.is-invalid { color: var(--danger); }
+  .preview-meta-pill {
+    font-family: var(--font-mono);
+    font-size: 0.71rem;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .preview-meta-pill.is-valid { color: var(--accent); }
+
+  /* ── Data Dropdown Menu ── */
+  .dropdown-wrap { position: relative; }
+  .dropdown-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    min-width: 196px;
+    padding: 6px;
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-lg);
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    animation: fadeSlideIn 120ms ease;
+  }
+  .dropdown-item {
+    width: 100%;
+    min-height: 38px;
+    padding: 7px 10px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text);
+    font-size: 0.82rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    text-align: left;
+    transition: background-color 120ms ease;
+  }
+  .dropdown-item:hover { background: var(--surface-2); }
+  .dropdown-divider {
+    height: 1px;
+    margin: 4px 2px;
+    background: var(--border-subtle);
+  }
 
   /* ── Links Command Center ── */
-  .command-card { overflow: hidden; }
+  .command-card { overflow: visible; }
   .command-toolbar {
     padding: 16px 20px;
     border-bottom: 1px solid var(--border);
@@ -1122,7 +1241,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
 
   .adv-panel {
     margin-top: 10px;
-    padding: 16px;
+    padding: 14px 16px 16px;
     border-radius: var(--radius-md);
     background: var(--surface-2);
     border: 1px solid var(--border);
@@ -1131,6 +1250,108 @@ export function renderDashboardHtml(authRequired: boolean): string {
     gap: 14px;
     animation: fadeSlideIn 150ms ease;
   }
+  .adv-tabs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    border: 1px solid var(--border-subtle);
+    overflow-x: auto;
+  }
+  .adv-tab-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 6px 11px;
+    border-radius: 6px;
+    min-height: 34px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    transition: background-color 140ms ease, color 140ms ease;
+  }
+  .adv-tab-btn:hover { color: var(--text); }
+  .adv-tab-btn[aria-selected="true"] {
+    background: var(--surface-3);
+    color: var(--text);
+    box-shadow: var(--shadow-sm);
+  }
+  .adv-tab-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--accent);
+    display: inline-block;
+  }
+  .adv-tab-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* ── Modal Segmented Tabs ── */
+  .modal-dialog {
+    max-width: 700px;
+  }
+  .modal-tabs {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+  }
+  .modal-tab-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.82rem;
+    font-weight: 600;
+    min-height: 38px;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    transition: background-color 140ms ease, color 140ms ease;
+  }
+  .modal-tab-btn:hover { color: var(--text); }
+  .modal-tab-btn[aria-selected="true"] {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow-sm);
+  }
+  .modal-tab-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .modal-quick-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--link-soft) 55%, var(--surface-2));
+    border: 1px solid color-mix(in srgb, var(--link) 30%, var(--border));
+    flex-wrap: wrap;
+  }
+  .modal-quick-url {
+    font-family: var(--font-mono);
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--link);
+    text-decoration: none;
+    word-break: break-all;
+  }
+  .modal-quick-url:hover { text-decoration: underline; }
   .adv-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -1273,9 +1494,19 @@ export function renderDashboardHtml(authRequired: boolean): string {
   .meta-chip.lock { background: var(--link-soft); border-color: transparent; color: var(--link); }
   .meta-chip.limit { background: var(--warning-soft); border-color: transparent; color: var(--warning); }
   .meta-chip.stats { background: var(--accent-soft); border-color: transparent; color: var(--accent); }
-  .meta-chip.geo { background: rgba(168, 85, 247, 0.14); border-color: transparent; color: #C084FC; }
-  .meta-chip.device { background: rgba(56, 189, 248, 0.14); border-color: transparent; color: var(--link); }
-  .meta-chip.pending { background: rgba(56, 189, 248, 0.14); border-color: transparent; color: var(--link); }
+  .meta-chip.geo { background: var(--geo-soft); border-color: transparent; color: var(--geo); }
+  .meta-chip.device { background: var(--link-soft); border-color: transparent; color: var(--link); }
+  .meta-chip.pending { background: var(--link-soft); border-color: transparent; color: var(--link); }
+  .row-highlight td,
+  .mobile-item.row-highlight {
+    animation: rowFlash 1.8s ease;
+  }
+  .clicks-cell-sub {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
   .status-pill.exhausted { background: var(--warning-soft); color: var(--warning); }
   .status-pill.exhausted .status-dot { background: var(--warning); }
   .status-pill.pending { background: var(--link-soft); color: var(--link); }
@@ -1327,6 +1558,10 @@ export function renderDashboardHtml(authRequired: boolean): string {
   @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
   @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+  @keyframes rowFlash {
+    0% { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+    100% { background: transparent; }
+  }
 
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -1348,10 +1583,13 @@ export function renderDashboardHtml(authRequired: boolean): string {
     .slug-prefix { max-width: 140px; }
     .adv-grid, .utm-grid { grid-template-columns: 1fr; }
     .modal-stats-grid { grid-template-columns: 1fr; }
-    .toolbar-controls { width: 100%; justify-content: flex-start; }
+    .toolbar-controls { width: 100%; flex-basis: 100%; justify-content: flex-start; }
+    .command-title-group { flex-basis: 100%; }
     .search-box { max-width: none; width: 100%; flex-basis: 100%; }
     .edit-row { flex-direction: column; }
     .tag-filter-bar, .bulk-bar { padding-left: 14px; padding-right: 14px; }
+    .modal-tab-btn { font-size: 0.78rem; min-height: 40px; padding: 6px 8px; }
+    .dropdown-menu { right: 0; left: auto; }
   }
 
   @media (max-width: 480px) {
@@ -1360,12 +1598,19 @@ export function renderDashboardHtml(authRequired: boolean): string {
     .brand-tag { font-size: 0.64rem; padding: 2px 6px; }
     .container { padding: 16px 14px 32px; }
     .studio { padding: 18px 16px; }
+    .kpi-card { padding: 13px 14px; }
+    .kpi-val { font-size: 1.45rem; }
     .mobile-actions { gap: 6px; }
-    .mobile-actions .btn { gap: 4px; padding: 0 4px; font-size: 0.74rem; }
+    .mobile-actions .btn { gap: 4px; padding: 0 4px; font-size: 0.74rem; min-height: 40px; }
   }
   @media (max-width: 420px) {
+    .topbar-inner { padding: 10px 12px; gap: 6px; }
+    .brand { gap: 6px; min-width: 0; }
+    .brand-name { font-size: 0.96rem; }
+    .brand-tag { font-size: 0.58rem; padding: 2px 5px; }
+    .topbar-actions { gap: 4px; flex-shrink: 0; }
+    .topbar-actions .btn-icon, #lockBtn { width: 34px; min-height: 34px; padding: 0; }
     .lock-label { display: none; }
-    #lockBtn { width: 36px; min-height: 36px; padding: 0; }
   }
 </style>
 </head>
@@ -1518,103 +1763,128 @@ export function renderDashboardHtml(authRequired: boolean): string {
           </div>
         </div>
 
+        <div class="studio-preview-strip" id="studioLivePreview" hidden>
+          <div class="preview-link-group">
+            <span class="preview-kicker">Short link</span>
+            <span class="preview-url-mono" id="studioPreviewUrl">/auto</span>
+          </div>
+          <span class="preview-meta-pill" id="studioPreviewMeta">Ready to shorten</span>
+        </div>
+
         <div class="adv-toggle-row">
           <button type="button" class="adv-toggle-btn" id="advancedToggleBtn" aria-expanded="false" aria-controls="advancedPanel">
             <svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="64 96 128 160 192 96"/></svg>
-            <span>Advanced Options (Tags, Click Limits, Password, UTM &amp; OG)</span>
+            <span>Advanced Options (Limits, Routing, Schedule &amp; UTM)</span>
             <span class="adv-active-count" id="advActiveCount" hidden>0 set</span>
           </button>
         </div>
 
         <div class="adv-panel" id="advancedPanel" hidden>
-          <div class="adv-grid">
-            <div class="adv-field">
-              <label for="labelInput" class="adv-label">Label / Note</label>
-              <input type="text" id="labelInput" class="adv-input" maxlength="60" placeholder="Optional title or note">
-            </div>
-            <div class="adv-field">
-              <label for="tagsInput" class="adv-label">Tags (comma-separated)</label>
-              <input type="text" id="tagsInput" class="adv-input mono" placeholder="work, docs, social">
-            </div>
-            <div class="adv-field">
-              <label for="maxClicksSelect" class="adv-label">Click Limit (Burn-after-read)</label>
-              <div style="display:flex;gap:8px;">
-                <select id="maxClicksSelect" class="sort-select" style="flex:1;min-height:38px;">
-                  <option value="">Unlimited</option>
-                  <option value="1">1 click (Burn after read)</option>
-                  <option value="5">5 clicks</option>
-                  <option value="10">10 clicks</option>
-                  <option value="50">50 clicks</option>
-                  <option value="100">100 clicks</option>
-                  <option value="custom">Custom count...</option>
-                </select>
-                <input type="number" id="maxClicksCustom" class="adv-input mono" min="1" max="1000000" placeholder="Count" hidden style="width:110px;">
+          <div class="adv-tabs" role="tablist" aria-label="Advanced link option sections">
+            <button type="button" class="adv-tab-btn" role="tab" id="advTabGeneral" aria-selected="true" aria-controls="advPanelGeneral" data-adv-tab="general">
+              <span>Organize &amp; Limits</span>
+              <span class="adv-tab-dot" id="advDotGeneral" hidden aria-hidden="true"></span>
+            </button>
+            <button type="button" class="adv-tab-btn" role="tab" id="advTabRouting" aria-selected="false" aria-controls="advPanelRouting" data-adv-tab="routing" tabindex="-1">
+              <span>Routing &amp; Schedule</span>
+              <span class="adv-tab-dot" id="advDotRouting" hidden aria-hidden="true"></span>
+            </button>
+            <button type="button" class="adv-tab-btn" role="tab" id="advTabUtm" aria-selected="false" aria-controls="advPanelUtm" data-adv-tab="utm" tabindex="-1">
+              <span>UTM &amp; Social</span>
+              <span class="adv-tab-dot" id="advDotUtm" hidden aria-hidden="true"></span>
+            </button>
+          </div>
+
+          <div class="adv-tab-panel" role="tabpanel" id="advPanelGeneral" aria-labelledby="advTabGeneral">
+            <div class="adv-grid">
+              <div class="adv-field">
+                <label for="labelInput" class="adv-label">Label / Note</label>
+                <input type="text" id="labelInput" class="adv-input" maxlength="60" placeholder="Optional title or note">
+              </div>
+              <div class="adv-field">
+                <label for="tagsInput" class="adv-label">Tags (comma-separated)</label>
+                <input type="text" id="tagsInput" class="adv-input mono" placeholder="work, docs, social">
+              </div>
+              <div class="adv-field">
+                <label for="maxClicksSelect" class="adv-label">Click Limit (Burn-after-read)</label>
+                <div style="display:flex;gap:8px;">
+                  <select id="maxClicksSelect" class="sort-select" style="flex:1;min-height:38px;">
+                    <option value="">Unlimited</option>
+                    <option value="1">1 click (Burn after read)</option>
+                    <option value="5">5 clicks</option>
+                    <option value="10">10 clicks</option>
+                    <option value="50">50 clicks</option>
+                    <option value="100">100 clicks</option>
+                    <option value="custom">Custom count...</option>
+                  </select>
+                  <input type="number" id="maxClicksCustom" class="adv-input mono" min="1" max="1000000" placeholder="Count" hidden style="width:110px;">
+                </div>
+              </div>
+              <div class="adv-field">
+                <label for="linkPasswordInput" class="adv-label">Link Password (optional)</label>
+                <input type="password" id="linkPasswordInput" class="adv-input mono" maxlength="128" placeholder="Require password before redirect" autocomplete="new-password">
               </div>
             </div>
-            <div class="adv-field">
-              <label for="linkPasswordInput" class="adv-label">Link Password (optional)</label>
-              <input type="password" id="linkPasswordInput" class="adv-input mono" maxlength="128" placeholder="Require password before redirect" autocomplete="new-password">
+
+            <label class="check-row" for="publicStatsCheck">
+              <input type="checkbox" id="publicStatsCheck">
+              <span>Enable shareable read-only stats page (<span class="mono" style="color:var(--link);">/stats/:slug</span>)</span>
+            </label>
+          </div>
+
+          <div class="adv-tab-panel" role="tabpanel" id="advPanelRouting" aria-labelledby="advTabRouting" hidden>
+            <div class="adv-grid">
+              <div class="adv-field">
+                <label for="startsAtInput" class="adv-label">Activation Schedule (Starts At)</label>
+                <input type="datetime-local" id="startsAtInput" class="adv-input">
+              </div>
+              <div class="adv-field">
+                <label for="fallbackUrlInput" class="adv-label">Scheduled Fallback URL (optional)</label>
+                <input type="url" id="fallbackUrlInput" class="adv-input" placeholder="https://example.com/teaser (or 425 status page)">
+              </div>
+              <div class="adv-field">
+                <label for="routeIosInput" class="adv-label">iOS Destination Override</label>
+                <input type="url" id="routeIosInput" class="adv-input" placeholder="https://apps.apple.com/app/...">
+              </div>
+              <div class="adv-field">
+                <label for="routeAndroidInput" class="adv-label">Android Destination Override</label>
+                <input type="url" id="routeAndroidInput" class="adv-input" placeholder="https://play.google.com/store/apps/...">
+              </div>
+            </div>
+
+            <div>
+              <div class="adv-subhead" style="margin-bottom:6px;">
+                <span>Country Geotargeting Rules</span>
+                <button type="button" class="btn btn-secondary btn-sm" id="addGeoRouteBtn" style="min-height:30px;font-size:0.74rem;">+ Add Country</button>
+              </div>
+              <div id="geoRoutesContainer" style="display:flex;flex-direction:column;gap:8px;"></div>
             </div>
           </div>
 
-          <div>
-            <div class="adv-subhead" style="margin-bottom:6px;">
-              <span>UTM Builder</span>
-              <button type="button" class="btn btn-secondary btn-sm" id="applyUtmBtn" style="min-height:28px;font-size:0.74rem;">Apply UTM to URL</button>
+          <div class="adv-tab-panel" role="tabpanel" id="advPanelUtm" aria-labelledby="advTabUtm" hidden>
+            <div>
+              <div class="adv-subhead" style="margin-bottom:6px;">
+                <span>UTM Builder</span>
+                <button type="button" class="btn btn-secondary btn-sm" id="applyUtmBtn" style="min-height:30px;font-size:0.74rem;">Apply UTM to URL</button>
+              </div>
+              <div class="utm-grid">
+                <input type="text" id="utmSource" class="adv-input" placeholder="utm_source (e.g. github)" aria-label="UTM Source">
+                <input type="text" id="utmMedium" class="adv-input" placeholder="utm_medium (e.g. social)" aria-label="UTM Medium">
+                <input type="text" id="utmCampaign" class="adv-input" placeholder="utm_campaign (e.g. launch)" aria-label="UTM Campaign">
+              </div>
             </div>
-            <div class="utm-grid">
-              <input type="text" id="utmSource" class="adv-input" placeholder="utm_source (e.g. github)" aria-label="UTM Source">
-              <input type="text" id="utmMedium" class="adv-input" placeholder="utm_medium (e.g. social)" aria-label="UTM Medium">
-              <input type="text" id="utmCampaign" class="adv-input" placeholder="utm_campaign (e.g. launch)" aria-label="UTM Campaign">
+
+            <div class="adv-grid">
+              <div class="adv-field">
+                <label for="ogTitleInput" class="adv-label">Social Preview Title (og:title)</label>
+                <input type="text" id="ogTitleInput" class="adv-input" maxlength="100" placeholder="Custom card title for link previews">
+              </div>
+              <div class="adv-field">
+                <label for="ogDescInput" class="adv-label">Social Preview Description (og:description)</label>
+                <input type="text" id="ogDescInput" class="adv-input" maxlength="220" placeholder="Custom summary shown in Slack/WhatsApp/X">
+              </div>
             </div>
           </div>
-
-          <div class="adv-grid">
-            <div class="adv-field">
-              <label for="ogTitleInput" class="adv-label">Social Preview Title (og:title)</label>
-              <input type="text" id="ogTitleInput" class="adv-input" maxlength="100" placeholder="Custom card title for link previews">
-            </div>
-            <div class="adv-field">
-              <label for="ogDescInput" class="adv-label">Social Preview Description (og:description)</label>
-              <input type="text" id="ogDescInput" class="adv-input" maxlength="220" placeholder="Custom summary shown in Slack/WhatsApp/X">
-            </div>
-          </div>
-
-          <div class="adv-subhead" style="margin-top:14px;margin-bottom:6px;">
-            <span>Smart Routing &amp; Activation Scheduling</span>
-          </div>
-
-          <div class="adv-grid">
-            <div class="adv-field">
-              <label for="startsAtInput" class="adv-label">Activation Schedule (Starts At)</label>
-              <input type="datetime-local" id="startsAtInput" class="adv-input">
-            </div>
-            <div class="adv-field">
-              <label for="fallbackUrlInput" class="adv-label">Scheduled Fallback URL (optional)</label>
-              <input type="url" id="fallbackUrlInput" class="adv-input" placeholder="https://example.com/teaser (or 425 status page)">
-            </div>
-            <div class="adv-field">
-              <label for="routeIosInput" class="adv-label">iOS Destination Override</label>
-              <input type="url" id="routeIosInput" class="adv-input" placeholder="https://apps.apple.com/app/...">
-            </div>
-            <div class="adv-field">
-              <label for="routeAndroidInput" class="adv-label">Android Destination Override</label>
-              <input type="url" id="routeAndroidInput" class="adv-input" placeholder="https://play.google.com/store/apps/...">
-            </div>
-          </div>
-
-          <div style="margin-top:10px;">
-            <div class="adv-subhead" style="margin-bottom:6px;">
-              <span>Country Geotargeting Rules</span>
-              <button type="button" class="btn btn-secondary btn-sm" id="addGeoRouteBtn" style="min-height:28px;font-size:0.74rem;">+ Add Country</button>
-            </div>
-            <div id="geoRoutesContainer" style="display:flex;flex-direction:column;gap:8px;"></div>
-          </div>
-
-          <label class="check-row" for="publicStatsCheck" style="margin-top:12px;">
-            <input type="checkbox" id="publicStatsCheck">
-            <span>Enable shareable read-only stats page (<span class="mono" style="color:var(--link);">/stats/:slug</span>)</span>
-          </label>
         </div>
       </form>
 
@@ -1642,42 +1912,54 @@ export function renderDashboardHtml(authRequired: boolean): string {
 
     <!-- 4 Bento KPI Cards -->
     <section class="kpi-grid" id="statsRow" hidden aria-label="Link metrics summary">
-      <div class="kpi-card">
-        <div class="kpi-top">
+      <button type="button" class="kpi-card" data-kpi-action="all" title="Show all links">
+        <span class="kpi-top">
           <span>Total Links</span>
           <span class="kpi-icon sky" aria-hidden="true">
             <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><path d="M122.34,71.43l29.38-29.37a44,44,0,0,1,62.22,62.22l-41.37,41.38a44,44,0,0,1-62.23,0"/><path d="M133.66,184.57l-29.38,29.37a44,44,0,0,1-62.22-62.22l41.37-41.38a44,44,0,0,1,62.23,0"/></svg>
           </span>
-        </div>
-        <div class="kpi-val tabular" id="statLinks">0</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-top">
+        </span>
+        <span class="kpi-foot">
+          <span class="kpi-val tabular" id="statLinks">0</span>
+          <span class="kpi-hint">Show all</span>
+        </span>
+      </button>
+      <button type="button" class="kpi-card" data-kpi-action="active" title="Filter active links">
+        <span class="kpi-top">
           <span>Active</span>
           <span class="kpi-icon green" aria-hidden="true">
             <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><polyline points="88 136 112 160 168 104"/><circle cx="128" cy="128" r="96"/></svg>
           </span>
-        </div>
-        <div class="kpi-val tabular" id="statActive">0</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-top">
+        </span>
+        <span class="kpi-foot">
+          <span class="kpi-val tabular" id="statActive">0</span>
+          <span class="kpi-hint">Filter live</span>
+        </span>
+      </button>
+      <button type="button" class="kpi-card" data-kpi-action="clicks" title="Sort by highest clicks">
+        <span class="kpi-top">
           <span>Total Clicks</span>
           <span class="kpi-icon sky" aria-hidden="true">
             <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><polyline points="224 128 192 128 168 48 88 208 64 128 32 128"/></svg>
           </span>
-        </div>
-        <div class="kpi-val tabular" id="statClicks">0</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-top">
+        </span>
+        <span class="kpi-foot">
+          <span class="kpi-val tabular" id="statClicks">0</span>
+          <span class="kpi-hint">Top first</span>
+        </span>
+      </button>
+      <button type="button" class="kpi-card" data-kpi-action="expired" title="Filter expired or capped links">
+        <span class="kpi-top">
           <span>Expired / Used</span>
           <span class="kpi-icon amber" aria-hidden="true">
             <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><circle cx="128" cy="128" r="96"/><polyline points="128 72 128 128 176 128"/></svg>
           </span>
-        </div>
-        <div class="kpi-val tabular" id="statExpired">0</div>
-      </div>
+        </span>
+        <span class="kpi-foot">
+          <span class="kpi-val tabular" id="statExpired">0</span>
+          <span class="kpi-hint">Filter inactive</span>
+        </span>
+      </button>
     </section>
 
     <!-- Links Command Center -->
@@ -1712,16 +1994,28 @@ export function renderDashboardHtml(authRequired: boolean): string {
             <option value="oldest">Oldest</option>
           </select>
 
-          <button type="button" class="btn btn-secondary btn-sm" id="exportBtn" title="Export links as CSV">
-            <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M216,152v56a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V152"/><polyline points="88 112 128 152 168 112"/><line x1="128" y1="40" x2="128" y2="152"/></svg>
-            <span>CSV</span>
-          </button>
-          <button type="button" class="btn btn-secondary btn-sm" id="exportJsonBtn" title="Export full JSON backup">
-            <span>JSON</span>
-          </button>
-          <button type="button" class="btn btn-secondary btn-sm" id="importJsonBtn" title="Import links from JSON backup">
-            <span>Import</span>
-          </button>
+          <div class="dropdown-wrap">
+            <button type="button" class="btn btn-secondary btn-sm" id="backupMenuBtn" aria-expanded="false" aria-haspopup="menu" aria-controls="backupMenu">
+              <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M216,152v56a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V152"/><polyline points="88 112 128 152 168 112"/><line x1="128" y1="40" x2="128" y2="152"/></svg>
+              <span>Data</span>
+              <svg width="12" height="12" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="64 96 128 160 192 96"/></svg>
+            </button>
+            <div class="dropdown-menu" id="backupMenu" role="menu" hidden>
+              <button type="button" class="dropdown-item" role="menuitem" id="exportBtn">
+                <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M216,152v56a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V152"/><polyline points="88 112 128 152 168 112"/><line x1="128" y1="40" x2="128" y2="152"/></svg>
+                <span>Export CSV</span>
+              </button>
+              <button type="button" class="dropdown-item" role="menuitem" id="exportJsonBtn">
+                <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="80 88 32 128 80 168"/><polyline points="176 88 224 128 176 168"/><line x1="144" y1="56" x2="112" y2="200"/></svg>
+                <span>Export JSON Backup</span>
+              </button>
+              <div class="dropdown-divider" role="separator"></div>
+              <button type="button" class="dropdown-item" role="menuitem" id="importJsonBtn">
+                <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M216,152v56a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V152"/><polyline points="168 104 128 64 88 104"/><line x1="128" y1="176" x2="128" y2="64"/></svg>
+                <span>Import JSON Backup</span>
+              </button>
+            </div>
+          </div>
           <input type="file" id="importFileInput" accept=".json,application/json" hidden>
         </div>
       </div>
@@ -1835,6 +2129,8 @@ export const DASHBOARD_APP_JS = `(function() {
   var selectedSlugs = new Set();
   var bulkConfirming = false;
   var dupMatchedSlug = '';
+  var justCreatedSlug = '';
+  var highlightTimer = null;
   var latestQrSvg = '';
   var latestSlug = '';
   var lastTriggerEl = null;
@@ -1876,6 +2172,12 @@ export const DASHBOARD_APP_JS = `(function() {
   var advancedToggleBtn = document.getElementById('advancedToggleBtn');
   var advActiveCount = document.getElementById('advActiveCount');
   var advancedPanel = document.getElementById('advancedPanel');
+  var studioLivePreview = document.getElementById('studioLivePreview');
+  var studioPreviewUrl = document.getElementById('studioPreviewUrl');
+  var studioPreviewMeta = document.getElementById('studioPreviewMeta');
+  var advDotGeneral = document.getElementById('advDotGeneral');
+  var advDotRouting = document.getElementById('advDotRouting');
+  var advDotUtm = document.getElementById('advDotUtm');
   var labelInput = document.getElementById('labelInput');
   var tagsInput = document.getElementById('tagsInput');
   var maxClicksSelect = document.getElementById('maxClicksSelect');
@@ -1917,6 +2219,8 @@ export const DASHBOARD_APP_JS = `(function() {
   var clearSearchBtn = document.getElementById('clearSearchBtn');
   var statusFilterGroup = document.getElementById('statusFilterGroup');
   var sortSelect = document.getElementById('sortSelect');
+  var backupMenuBtn = document.getElementById('backupMenuBtn');
+  var backupMenu = document.getElementById('backupMenu');
   var exportBtn = document.getElementById('exportBtn');
   var exportJsonBtn = document.getElementById('exportJsonBtn');
   var importJsonBtn = document.getElementById('importJsonBtn');
@@ -2001,6 +2305,16 @@ export const DASHBOARD_APP_JS = `(function() {
     if (!iso) return '—';
     var d = new Date(iso);
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function fmtRelative(iso) {
+    if (!iso) return '';
+    var diffSec = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+    if (diffSec < 60) return 'just now';
+    if (diffSec < 3600) return Math.floor(diffSec / 60) + 'm ago';
+    if (diffSec < 86400) return Math.floor(diffSec / 3600) + 'h ago';
+    if (diffSec < 2592000) return Math.floor(diffSec / 86400) + 'd ago';
+    return fmtDate(iso);
   }
 
   function showToast(msg, type) {
@@ -2225,6 +2539,7 @@ export const DASHBOARD_APP_JS = `(function() {
       buttons[i].setAttribute('aria-checked', active ? 'true' : 'false');
     }
     expiresValue.value = btn.getAttribute('data-expiry');
+    updateStudioPreview();
   }
 
   expiryPills.addEventListener('click', function(e) {
@@ -2278,28 +2593,121 @@ export const DASHBOARD_APP_JS = `(function() {
   });
 
   function updateAdvCount() {
-    var count = 0;
-    if (labelInput.value.trim()) count++;
-    if (tagsInput.value.trim()) count++;
-    if (maxClicksSelect.value) count++;
-    if (linkPasswordInput.value.length > 0) count++;
-    if (utmSource.value.trim() || utmMedium.value.trim() || utmCampaign.value.trim()) count++;
-    if (ogTitleInput.value.trim() || ogDescInput.value.trim()) count++;
-    if (publicStatsCheck.checked) count++;
-    if (startsAtInput.value) count++;
-    if (fallbackUrlInput.value.trim()) count++;
-    if (routeIosInput.value.trim()) count++;
-    if (routeAndroidInput.value.trim()) count++;
-    var geoCount = geoRoutesContainer.querySelectorAll('.geo-row').length;
-    if (geoCount > 0) count += geoCount;
+    var genCount = 0;
+    if (labelInput.value.trim()) genCount++;
+    if (tagsInput.value.trim()) genCount++;
+    if (maxClicksSelect.value) genCount++;
+    if (linkPasswordInput.value.length > 0) genCount++;
+    if (publicStatsCheck.checked) genCount++;
 
+    var routeCount = 0;
+    if (startsAtInput.value) routeCount++;
+    if (fallbackUrlInput.value.trim()) routeCount++;
+    if (routeIosInput.value.trim()) routeCount++;
+    if (routeAndroidInput.value.trim()) routeCount++;
+    var geoCount = geoRoutesContainer.querySelectorAll('.geo-row').length;
+    if (geoCount > 0) routeCount += geoCount;
+
+    var utmCount = 0;
+    if (utmSource.value.trim() || utmMedium.value.trim() || utmCampaign.value.trim()) utmCount++;
+    if (ogTitleInput.value.trim() || ogDescInput.value.trim()) utmCount++;
+
+    if (advDotGeneral) advDotGeneral.hidden = genCount === 0;
+    if (advDotRouting) advDotRouting.hidden = routeCount === 0;
+    if (advDotUtm) advDotUtm.hidden = utmCount === 0;
+
+    var count = genCount + routeCount + utmCount;
     if (count > 0) {
       advActiveCount.textContent = count + ' set';
       advActiveCount.hidden = false;
     } else {
       advActiveCount.hidden = true;
     }
+    updateStudioPreview();
   }
+
+  function updateStudioPreview() {
+    if (!studioLivePreview || !studioPreviewUrl || !studioPreviewMeta) return;
+    var rawUrl = urlInput.value.trim();
+    var slug = customSlugInput.value.trim();
+    var expiry = expiresValue.value;
+    var hasAdv = !advActiveCount.hidden;
+    if (!rawUrl && !slug && expiry === 'never' && !hasAdv) {
+      studioLivePreview.hidden = true;
+      return;
+    }
+    studioLivePreview.hidden = false;
+    var slugValid = !slug || /^[a-zA-Z0-9_-]{2,50}$/.test(slug);
+    var previewDisplaySlug = slug ? '/' + slug : '/<auto-6-char>';
+    studioPreviewUrl.textContent = window.location.origin + previewDisplaySlug;
+    studioPreviewUrl.classList.toggle('is-invalid', !slugValid);
+
+    var badges = [];
+    if (!slugValid) {
+      studioPreviewMeta.textContent = 'Alias must be 2-50 chars (A-Z, 0-9, _ or -)';
+      studioPreviewMeta.className = 'preview-meta-pill';
+      return;
+    }
+    if (rawUrl) {
+      try {
+        var parsed = new URL(rawUrl);
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+          badges.push(parsed.hostname);
+        } else {
+          badges.push('Use http:// or https://');
+        }
+      } catch (ex) {
+        badges.push('Enter full https:// URL');
+      }
+    }
+    if (expiry && expiry !== 'never') badges.push('Expires ' + expiry + 'd');
+    if (linkPasswordInput.value) badges.push('Password');
+    if (maxClicksSelect.value) {
+      var cap = maxClicksSelect.value === 'custom' ? (maxClicksCustom.value || '?') : maxClicksSelect.value;
+      badges.push('Cap ' + cap);
+    }
+    if (startsAtInput.value) badges.push('Scheduled');
+    if (routeIosInput.value.trim() || routeAndroidInput.value.trim()) badges.push('Device route');
+    var geoLen = geoRoutesContainer.querySelectorAll('.geo-row').length;
+    if (geoLen > 0) badges.push('Geo (' + geoLen + ')');
+
+    studioPreviewMeta.textContent = badges.length ? badges.join(' · ') : 'Ready to shorten';
+    studioPreviewMeta.className = 'preview-meta-pill' + (rawUrl && /^https?:\\/\\//i.test(rawUrl) && slugValid ? ' is-valid' : '');
+  }
+
+  var advTabButtons = advancedPanel ? advancedPanel.querySelectorAll('[data-adv-tab]') : [];
+  function switchAdvTab(tabKey) {
+    var map = {
+      general: document.getElementById('advPanelGeneral'),
+      routing: document.getElementById('advPanelRouting'),
+      utm: document.getElementById('advPanelUtm')
+    };
+    for (var i = 0; i < advTabButtons.length; i++) {
+      var btn = advTabButtons[i];
+      var key = btn.getAttribute('data-adv-tab');
+      var active = key === tabKey;
+      btn.setAttribute('aria-selected', active ? 'true' : 'false');
+      btn.tabIndex = active ? 0 : -1;
+      if (map[key]) map[key].hidden = !active;
+    }
+  }
+  for (var ati = 0; ati < advTabButtons.length; ati++) {
+    advTabButtons[ati].addEventListener('click', function() {
+      switchAdvTab(this.getAttribute('data-adv-tab'));
+    });
+    advTabButtons[ati].addEventListener('keydown', function(e) {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      e.preventDefault();
+      var list = Array.prototype.slice.call(advTabButtons);
+      var idx = list.indexOf(this);
+      var nextIdx = e.key === 'ArrowRight' ? (idx + 1) % list.length : (idx - 1 + list.length) % list.length;
+      switchAdvTab(list[nextIdx].getAttribute('data-adv-tab'));
+      list[nextIdx].focus();
+    });
+  }
+
+  urlInput.addEventListener('input', updateStudioPreview);
+  customSlugInput.addEventListener('input', updateStudioPreview);
 
   advancedToggleBtn.addEventListener('click', function() {
     var isOpen = !advancedPanel.hidden;
@@ -2519,6 +2927,9 @@ export const DASHBOARD_APP_JS = `(function() {
         geoRoutes: data.geoRoutes || {},
         deviceRoutes: data.deviceRoutes || {}
       });
+      justCreatedSlug = data.slug;
+      clearTimeout(highlightTimer);
+      highlightTimer = setTimeout(function() { justCreatedSlug = ''; }, 2400);
       renderLinksView();
       checkDuplicateHint();
       showToast('Short link created', 'success');
@@ -2793,6 +3204,13 @@ export const DASHBOARD_APP_JS = `(function() {
     statClicks.textContent = totalClicks.toLocaleString();
     statExpired.textContent = expiredCount.toLocaleString();
 
+    var kpiCards = statsRow.querySelectorAll('[data-kpi-action]');
+    for (var ki = 0; ki < kpiCards.length; ki++) {
+      var kAct = kpiCards[ki].getAttribute('data-kpi-action');
+      var kActive = (kAct === 'clicks' && currentSort === 'clicks') || (kAct !== 'clicks' && currentFilter === kAct);
+      kpiCards[ki].classList.toggle('is-active', kActive);
+    }
+
     renderTagFilterBar();
     syncBulkBar();
 
@@ -2843,8 +3261,10 @@ export const DASHBOARD_APP_JS = `(function() {
         var urlEsc = escapeHtml(u.originalUrl);
         var checkedAttr = selectedSlugs.has(u.slug) ? ' checked' : '';
         var labelHtml = u.label ? '<div class="link-label-line" style="max-width:none;">' + escapeHtml(u.label) + '</div>' : '';
+        var rowCls = justCreatedSlug === u.slug ? ' row-highlight' : '';
+        var lastRel = u.lastClicked ? ' · Active ' + fmtRelative(u.lastClicked) : '';
 
-        return '<article class="mobile-item">' +
+        return '<article class="mobile-item' + rowCls + '">' +
           '<div class="mobile-item-head">' +
             '<div class="mobile-item-left">' +
               '<input type="checkbox" class="row-check" data-select-slug="' + slugEsc + '" aria-label="Select /' + slugEsc + '"' + checkedAttr + '>' +
@@ -2856,7 +3276,7 @@ export const DASHBOARD_APP_JS = `(function() {
           '<div class="mobile-dest" title="' + urlEsc + '">' + urlEsc + '</div>' +
           buildMetaChips(u) +
           '<div class="mobile-meta">' +
-            '<span class="tabular"><strong>' + (u.clicks || 0).toLocaleString() + '</strong>' + (u.maxClicks ? ' / ' + u.maxClicks : '') + ' clicks</span>' +
+            '<span class="tabular"><strong>' + (u.clicks || 0).toLocaleString() + '</strong>' + (u.maxClicks ? ' / ' + u.maxClicks : '') + ' clicks' + lastRel + '</span>' +
             '<span>Created ' + fmtDate(u.createdAt) + (u.expiresAt ? ' · Exp ' + fmtDate(u.expiresAt) : '') + '</span>' +
           '</div>' +
           '<div class="mobile-actions">' +
@@ -2886,12 +3306,14 @@ export const DASHBOARD_APP_JS = `(function() {
         var urlEsc = escapeHtml(u.originalUrl);
         var checkedAttr = selectedSlugs.has(u.slug) ? ' checked' : '';
         var labelHtml = u.label ? '<div class="link-label-line" title="' + escapeHtml(u.label) + '">' + escapeHtml(u.label) + '</div>' : '';
+        var trCls = justCreatedSlug === u.slug ? ' class="row-highlight"' : '';
+        var lastClickSub = u.lastClicked ? '<span class="clicks-cell-sub">' + fmtRelative(u.lastClicked) + '</span>' : '';
 
-        return '<tr>' +
+        return '<tr' + trCls + '>' +
           '<td><input type="checkbox" class="row-check" data-select-slug="' + slugEsc + '" aria-label="Select /' + slugEsc + '"' + checkedAttr + '></td>' +
           '<td><a class="slug-link" href="/' + slugEsc + '" target="_blank" rel="noopener noreferrer">/' + slugEsc + ' ' + ICONS.external + '</a></td>' +
           '<td>' + labelHtml + '<div class="dest-text" title="' + urlEsc + '">' + urlEsc + '</div>' + buildMetaChips(u) + '</td>' +
-          '<td><span class="clicks-num tabular">' + (u.clicks || 0).toLocaleString() + '</span>' + (u.maxClicks ? '<span style="color:var(--text-muted);font-size:0.74rem;"> / ' + u.maxClicks + '</span>' : '') + '</td>' +
+          '<td><span class="clicks-num tabular">' + (u.clicks || 0).toLocaleString() + '</span>' + (u.maxClicks ? '<span style="color:var(--text-muted);font-size:0.74rem;"> / ' + u.maxClicks + '</span>' : '') + lastClickSub + '</td>' +
           '<td>' + buildStatusBadge(u) + '</td>' +
           '<td><span class="tabular" style="color:var(--text-muted);font-size:0.8rem;white-space:nowrap;">' + fmtDate(u.createdAt) + '</span></td>' +
           '<td><div class="row-actions">' +
@@ -3075,6 +3497,11 @@ export const DASHBOARD_APP_JS = `(function() {
   });
 
   document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && backupMenu && !backupMenu.hidden) {
+      closeBackupMenu();
+      backupMenuBtn.focus();
+      return;
+    }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (!modal.hidden || !authVault.hidden) return;
     var tag = document.activeElement && document.activeElement.tagName;
@@ -3085,17 +3512,38 @@ export const DASHBOARD_APP_JS = `(function() {
     } else if (e.key === 'n') {
       e.preventDefault();
       urlInput.focus();
+    } else if (e.key === '?') {
+      e.preventDefault();
+      lastTriggerEl = shortcutsBtn;
+      openShortcutsModal();
     }
+  });
+
+  function applyFilterUI(nextFilter) {
+    currentFilter = nextFilter;
+    var btns = statusFilterGroup.querySelectorAll('[data-filter]');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].setAttribute('aria-pressed', btns[i].getAttribute('data-filter') === nextFilter ? 'true' : 'false');
+    }
+  }
+
+  statsRow.addEventListener('click', function(e) {
+    var card = e.target.closest('[data-kpi-action]');
+    if (!card) return;
+    var act = card.getAttribute('data-kpi-action');
+    if (act === 'clicks') {
+      currentSort = currentSort === 'clicks' ? 'newest' : 'clicks';
+      sortSelect.value = currentSort;
+    } else if (act === 'all' || act === 'active' || act === 'expired') {
+      applyFilterUI(act);
+    }
+    renderLinksView();
   });
 
   statusFilterGroup.addEventListener('click', function(e) {
     var btn = e.target.closest('[data-filter]');
     if (!btn) return;
-    currentFilter = btn.getAttribute('data-filter');
-    var btns = statusFilterGroup.querySelectorAll('[data-filter]');
-    for (var i = 0; i < btns.length; i++) {
-      btns[i].setAttribute('aria-pressed', btns[i] === btn ? 'true' : 'false');
-    }
+    applyFilterUI(btn.getAttribute('data-filter'));
     renderLinksView();
   });
 
@@ -3104,10 +3552,31 @@ export const DASHBOARD_APP_JS = `(function() {
     renderLinksView();
   });
 
+  function closeBackupMenu() {
+    if (!backupMenu || !backupMenuBtn) return;
+    backupMenu.hidden = true;
+    backupMenuBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  if (backupMenuBtn && backupMenu) {
+    backupMenuBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var nextOpen = backupMenu.hidden;
+      backupMenu.hidden = !nextOpen;
+      backupMenuBtn.setAttribute('aria-expanded', nextOpen ? 'true' : 'false');
+    });
+    document.addEventListener('click', function(e) {
+      if (!backupMenu.hidden && !backupMenu.contains(e.target) && e.target !== backupMenuBtn) {
+        closeBackupMenu();
+      }
+    });
+  }
+
   isMobileMq.addEventListener('change', renderLinksView);
 
   // ── CSV Export, JSON Export & JSON Import ──
   exportBtn.addEventListener('click', function() {
+    closeBackupMenu();
     if (!urls.length) return showToast('No links to export', 'error');
     var header = ['Slug', 'Original URL', 'Short URL', 'Label', 'Tags', 'Clicks', 'Max Clicks', 'Created At', 'Expires At', 'Status'];
     var rows = urls.map(function(u) {
@@ -3132,12 +3601,14 @@ export const DASHBOARD_APP_JS = `(function() {
   });
 
   exportJsonBtn.addEventListener('click', function() {
+    closeBackupMenu();
     if (!urls.length) return showToast('No links to export', 'error');
     downloadLinksJson(urls, 'tinylink-backup');
     showToast('Exported ' + urls.length + ' links to JSON backup', 'success');
   });
 
   importJsonBtn.addEventListener('click', function() {
+    closeBackupMenu();
     lastTriggerEl = importJsonBtn;
     importFileInput.value = '';
     importFileInput.click();
@@ -3660,50 +4131,66 @@ export const DASHBOARD_APP_JS = `(function() {
         : '';
 
       modalBody.innerHTML =
-        '<div>' +
-          '<div class="section-head"><span>Destination URL</span>' + statusBadge + '</div>' +
-          labelBlock +
-          '<div class="modal-url-box">' + origEsc + '</div>' +
-          metaChipsHtml +
+        '<div class="modal-tabs" role="tablist" aria-label="Inspector sections">' +
+          '<button type="button" class="modal-tab-btn" role="tab" id="tabAnalyticsBtn" aria-selected="true" aria-controls="panelAnalytics">' + ICONS.chart + '<span>Analytics &amp; QR</span></button>' +
+          '<button type="button" class="modal-tab-btn" role="tab" id="tabSettingsBtn" aria-selected="false" aria-controls="panelSettings" tabindex="-1">' + ICONS.pencil + '<span>Settings &amp; Danger Zone</span></button>' +
         '</div>' +
 
-        '<div class="modal-stats-grid">' +
-          '<div class="modal-stat"><div class="modal-stat-label">Total Clicks</div><div class="modal-stat-val tabular" style="color:var(--accent);">' + (data.clicks || 0).toLocaleString() + (data.maxClicks ? '<span style="font-size:0.82rem;color:var(--text-muted);font-weight:500;"> / ' + data.maxClicks + '</span>' : '') + '</div>' + botNoteHtml + '</div>' +
-          '<div class="modal-stat"><div class="modal-stat-label">Last Clicked</div><div class="modal-stat-val tabular" style="font-size:0.88rem;">' + (data.lastClicked ? fmtDate(data.lastClicked) : 'Never') + '</div></div>' +
-          '<div class="modal-stat"><div class="modal-stat-label">Expires</div><div class="modal-stat-val tabular" style="font-size:0.88rem;color:' + (data.isExpired ? 'var(--danger)' : 'var(--text)') + ';">' + (data.expiresAt ? fmtDate(data.expiresAt) : 'Never') + '</div></div>' +
-        '</div>' +
-
-        '<div>' +
-          '<div class="section-head"><span>Click Timeline</span><span class="chart-readout" id="chartReadout">Hover or focus a bar</span></div>' +
-          buildSvgTimeline(data.clickTimeline) +
-        '</div>' +
-
-        '<div class="breakdown-grid-3">' +
-          '<div><div class="section-head"><span>Devices</span></div>' + devSection + '</div>' +
-          '<div><div class="section-head"><span>Top Referrers</span></div>' + refSection + '</div>' +
-          '<div><div class="section-head"><span>Top Countries</span></div>' + countrySection + '</div>' +
-        '</div>' +
-
-        '<div>' +
-          '<div class="section-head"><span>QR Studio</span></div>' +
-          '<div class="qr-studio">' +
-            '<div class="qr-studio-box" id="modalQrBox"></div>' +
-            '<div class="qr-studio-meta">' +
-              '<a class="qr-studio-link" href="' + escapeHtml(shortFull) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(shortFull) + '</a>' +
-              '<div class="qr-btn-row">' +
-                '<button type="button" class="btn btn-secondary btn-sm" id="modalCopyBtn">' + ICONS.copy + '<span>Copy Link</span></button>' +
-                '<button type="button" class="btn btn-secondary btn-sm" id="modalDlSvgBtn">' + ICONS.download + '<span>SVG</span></button>' +
-                '<button type="button" class="btn btn-secondary btn-sm" id="modalDlPngBtn">' + ICONS.download + '<span>PNG</span></button>' +
-              '</div>' +
+        '<div class="modal-tab-panel" role="tabpanel" id="panelAnalytics" aria-labelledby="tabAnalyticsBtn">' +
+          '<div class="modal-quick-bar">' +
+            '<a class="modal-quick-url" href="' + escapeHtml(shortFull) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(shortFull) + '</a>' +
+            '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+              statusBadge +
+              '<button type="button" class="btn btn-secondary btn-sm" id="modalQuickCopyBtn">' + ICONS.copy + '<span>Copy</span></button>' +
             '</div>' +
           '</div>' +
-          publicStatsRowHtml +
+
+          '<div>' +
+            '<div class="section-head"><span>Destination URL</span></div>' +
+            labelBlock +
+            '<div class="modal-url-box">' + origEsc + '</div>' +
+            metaChipsHtml +
+          '</div>' +
+
+          '<div class="modal-stats-grid">' +
+            '<div class="modal-stat"><div class="modal-stat-label">Total Clicks</div><div class="modal-stat-val tabular" style="color:var(--accent);">' + (data.clicks || 0).toLocaleString() + (data.maxClicks ? '<span style="font-size:0.82rem;color:var(--text-muted);font-weight:500;"> / ' + data.maxClicks + '</span>' : '') + '</div>' + botNoteHtml + '</div>' +
+            '<div class="modal-stat"><div class="modal-stat-label">Last Clicked</div><div class="modal-stat-val tabular" style="font-size:0.88rem;">' + (data.lastClicked ? fmtDate(data.lastClicked) : 'Never') + '</div></div>' +
+            '<div class="modal-stat"><div class="modal-stat-label">Expires</div><div class="modal-stat-val tabular" style="font-size:0.88rem;color:' + (data.isExpired ? 'var(--danger)' : 'var(--text)') + ';">' + (data.expiresAt ? fmtDate(data.expiresAt) : 'Never') + '</div></div>' +
+          '</div>' +
+
+          '<div>' +
+            '<div class="section-head"><span>Click Timeline</span><span class="chart-readout" id="chartReadout">Hover or focus a bar</span></div>' +
+            buildSvgTimeline(data.clickTimeline) +
+          '</div>' +
+
+          '<div class="breakdown-grid-3">' +
+            '<div><div class="section-head"><span>Devices</span></div>' + devSection + '</div>' +
+            '<div><div class="section-head"><span>Top Referrers</span></div>' + refSection + '</div>' +
+            '<div><div class="section-head"><span>Top Countries</span></div>' + countrySection + '</div>' +
+          '</div>' +
+
+          '<div>' +
+            '<div class="section-head"><span>QR Studio</span></div>' +
+            '<div class="qr-studio">' +
+              '<div class="qr-studio-box" id="modalQrBox"></div>' +
+              '<div class="qr-studio-meta">' +
+                '<a class="qr-studio-link" href="' + escapeHtml(shortFull) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(shortFull) + '</a>' +
+                '<div class="qr-btn-row">' +
+                  '<button type="button" class="btn btn-secondary btn-sm" id="modalCopyBtn">' + ICONS.copy + '<span>Copy Link</span></button>' +
+                  '<button type="button" class="btn btn-secondary btn-sm" id="modalDlSvgBtn">' + ICONS.download + '<span>SVG</span></button>' +
+                  '<button type="button" class="btn btn-secondary btn-sm" id="modalDlPngBtn">' + ICONS.download + '<span>PNG</span></button>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+            publicStatsRowHtml +
+          '</div>' +
         '</div>' +
 
-        '<div>' +
-          '<div class="section-head"><span>Update Link Settings</span></div>' +
-          '<div class="alert-box" id="editError" role="alert" hidden><span id="editErrorText"></span></div>' +
-          '<form id="editForm" class="edit-stack" novalidate>' +
+        '<div class="modal-tab-panel" role="tabpanel" id="panelSettings" aria-labelledby="tabSettingsBtn" hidden>' +
+          '<div>' +
+            '<div class="section-head"><span>Update Link Settings</span></div>' +
+            '<div class="alert-box" id="editError" role="alert" hidden><span id="editErrorText"></span></div>' +
+            '<form id="editForm" class="edit-stack" novalidate>' +
             '<div class="adv-field">' +
               '<label for="editUrlInput" class="adv-label">Destination URL</label>' +
               '<input type="url" id="editUrlInput" class="input-field" value="' + origEsc + '" placeholder="https://new-destination.com" required>' +
@@ -3799,7 +4286,35 @@ export const DASHBOARD_APP_JS = `(function() {
             '<button type="button" class="btn btn-secondary btn-sm" id="cancelDeleteBtn" hidden>Cancel</button>' +
             '<button type="button" class="btn btn-danger-solid btn-sm" id="confirmDeleteBtn" hidden>Confirm Delete</button>' +
           '</div>' +
+        '</div>' +
         '</div>';
+
+      var tabAnalyticsBtn = document.getElementById('tabAnalyticsBtn');
+      var tabSettingsBtn = document.getElementById('tabSettingsBtn');
+      var panelAnalytics = document.getElementById('panelAnalytics');
+      var panelSettings = document.getElementById('panelSettings');
+
+      function switchModalTab(tabName) {
+        var isSettings = tabName === 'settings';
+        tabAnalyticsBtn.setAttribute('aria-selected', isSettings ? 'false' : 'true');
+        tabAnalyticsBtn.tabIndex = isSettings ? -1 : 0;
+        tabSettingsBtn.setAttribute('aria-selected', isSettings ? 'true' : 'false');
+        tabSettingsBtn.tabIndex = isSettings ? 0 : -1;
+        panelAnalytics.hidden = isSettings;
+        panelSettings.hidden = !isSettings;
+      }
+
+      tabAnalyticsBtn.addEventListener('click', function() { switchModalTab('analytics'); });
+      tabSettingsBtn.addEventListener('click', function() { switchModalTab('settings'); });
+      [tabAnalyticsBtn, tabSettingsBtn].forEach(function(tabEl, tIdx, arr) {
+        tabEl.addEventListener('keydown', function(e) {
+          if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+          e.preventDefault();
+          var nextBtn = arr[(tIdx + 1) % arr.length];
+          switchModalTab(nextBtn === tabSettingsBtn ? 'settings' : 'analytics');
+          nextBtn.focus();
+        });
+      });
 
       var modalQrBox = document.getElementById('modalQrBox');
       renderSafeSvg(modalQrBox, data.qrSvg || '');
@@ -3817,6 +4332,13 @@ export const DASHBOARD_APP_JS = `(function() {
       }
 
       // Wire QR & Copy buttons
+      var modalQuickCopyBtn = document.getElementById('modalQuickCopyBtn');
+      if (modalQuickCopyBtn) {
+        modalQuickCopyBtn.addEventListener('click', async function() {
+          await copyText(shortFull);
+          showToast('Copied ' + shortFull, 'success');
+        });
+      }
       document.getElementById('modalCopyBtn').addEventListener('click', async function() {
         await copyText(shortFull);
         showToast('Copied ' + shortFull, 'success');
@@ -4040,9 +4562,13 @@ export const DASHBOARD_APP_JS = `(function() {
       });
 
       if (mode === 'edit') {
+        switchModalTab('settings');
         editUrlInput.focus();
       } else if (mode === 'delete') {
+        switchModalTab('settings');
         enterDeleteConfirm();
+      } else {
+        switchModalTab('analytics');
       }
     } catch (err) {
       if (err.status === 401) {

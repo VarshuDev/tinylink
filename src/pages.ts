@@ -530,15 +530,16 @@ export function renderPublicStatsPage(opts: PublicStatsPageOptions): string {
     ${BASE_THEME_CSS}
     .wrap { max-width: 780px; margin: 0 auto; padding: 28px 18px 48px; display: flex; flex-direction: column; gap: 16px; }
     .head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
-    .brand { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text); font-family: 'Fira Code', monospace; font-weight: 700; font-size: 1rem; }
-    .badge { font-size: 0.72rem; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-muted); }
-    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+    .brand { display: inline-flex; align-items: center; gap: 9px; text-decoration: none; color: var(--text); font-family: 'Fira Code', monospace; font-weight: 700; font-size: 1rem; }
+    .brand-mark { width: 28px; height: 28px; border-radius: 7px; background: var(--accent-soft); border: 1px solid rgba(34, 197, 94, 0.3); display: inline-flex; align-items: center; justify-content: center; color: var(--cta); }
+    .badge { font-size: 0.72rem; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); }
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; display: flex; flex-direction: column; gap: 18px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03); }
     .hero-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-    .slug-title { font-family: 'Fira Code', monospace; font-size: 1.2rem; font-weight: 700; color: var(--link); text-decoration: none; }
+    .slug-title { font-family: 'Fira Code', monospace; font-size: 1.25rem; font-weight: 700; color: var(--link); text-decoration: none; }
     .slug-title:hover { text-decoration: underline; }
-    .pill-ok { background: var(--accent-soft); color: var(--cta); padding: 3px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
-    .pill-danger { background: var(--danger-soft); color: var(--danger); padding: 3px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
-    .dest-box { padding: 10px 12px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; font-family: 'Fira Code', monospace; font-size: 0.8rem; color: var(--text-muted); word-break: break-all; }
+    .pill-ok { background: var(--accent-soft); color: var(--cta); padding: 4px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+    .pill-danger { background: var(--danger-soft); color: var(--danger); padding: 4px 10px; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+    .dest-box { padding: 11px 13px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; font-family: 'Fira Code', monospace; font-size: 0.8rem; color: var(--text-muted); word-break: break-all; }
     .tag-row { display: flex; gap: 6px; flex-wrap: wrap; }
     .tag-chip { font-family: 'Fira Code', monospace; font-size: 0.72rem; padding: 2px 8px; border-radius: 6px; background: var(--link-soft); color: var(--link); }
     .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
@@ -554,10 +555,12 @@ export function renderPublicStatsPage(opts: PublicStatsPageOptions): string {
     .bar-track { height: 4px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
     .bar-fill { height: 100%; background: var(--link); border-radius: 999px; }
     .muted-sm { font-size: 0.82rem; color: var(--text-muted); }
-    .qr-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
-    .qr-box { width: 96px; height: 96px; background: #FFF; padding: 6px; border-radius: 8px; flex-shrink: 0; }
+    .qr-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding-top: 6px; border-top: 1px solid var(--border-subtle); }
+    .qr-box { width: 96px; height: 96px; background: #FFF; padding: 6px; border-radius: 8px; flex-shrink: 0; border: 1px solid var(--border); }
     .qr-box svg { width: 100%; height: 100%; display: block; }
     @media (max-width: 720px) {
+      .wrap { padding: 18px 14px 36px; }
+      .card { padding: 16px; }
       .kpis { grid-template-columns: repeat(2, 1fr); }
       .grid-2 { grid-template-columns: 1fr; }
     }
@@ -566,7 +569,12 @@ export function renderPublicStatsPage(opts: PublicStatsPageOptions): string {
 <body>
   <div class="wrap">
     <header class="head">
-      <a href="/" class="brand">TinyLink</a>
+      <a href="/" class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"><path d="M122.34,71.43l29.38-29.37a44,44,0,0,1,62.22,62.22l-41.37,41.38a44,44,0,0,1-62.23,0"/><path d="M133.66,184.57l-29.38,29.37a44,44,0,0,1-62.22-62.22l41.37-41.38a44,44,0,0,1,62.23,0"/></svg>
+        </span>
+        <span>TinyLink</span>
+      </a>
       <span class="badge">Public Link Telemetry (Read-Only)</span>
     </header>
     <main class="card">
