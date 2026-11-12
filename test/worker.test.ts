@@ -89,11 +89,18 @@ function makeCtx(): { ctx: ExecutionContext; flush: () => Promise<void> } {
   };
 }
 
-function makeEnv(adminToken = "test-secret-token"): Env {
-  return {
+function makeEnv(overrides?: string | Partial<Env>): Env {
+  const base: Env = {
     URL_KV: new MockKVNamespace() as unknown as KVNamespace,
-    ADMIN_TOKEN: adminToken,
+    ADMIN_TOKEN: "test-secret-token",
   };
+  if (typeof overrides === "string") {
+    return { ...base, ADMIN_TOKEN: overrides };
+  }
+  if (overrides) {
+    return { ...base, ...overrides };
+  }
+  return base;
 }
 
 function makeRequest(
@@ -124,7 +131,7 @@ describe("TinyLink Worker", () => {
     expect(sw.status).toBe(200);
     expect(sw.headers.get("Content-Type")).toContain("javascript");
     const swText = await sw.text();
-    expect(swText).toContain("tinylink-shell-v1");
+    expect(swText).toContain("tinylink-shell-v2");
 
     const manifest = await worker.fetch!(makeRequest("/manifest.webmanifest"), env, ctx);
     expect(manifest.status).toBe(200);
@@ -137,7 +144,7 @@ describe("TinyLink Worker", () => {
     const { ctx } = makeCtx();
     const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
 
-    for (const slug of ["stats", "sw.js", "api"]) {
+    for (const slug of ["stats", "sw.js", "api", "assets"]) {
       const bad = await worker.fetch!(
         makeRequest("/api/shorten", {
           method: "POST",
@@ -345,7 +352,7 @@ describe("TinyLink Worker", () => {
     expect(direct.status).toBe(302);
   });
 
-  it("compiles all rendered inline HTML scripts without JS syntax errors", async () => {
+  it("serves external static scripts cleanly with strict non-inline CSP", async () => {
     const env = makeEnv();
     const { ctx } = makeCtx();
     const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
@@ -373,13 +380,22 @@ describe("TinyLink Worker", () => {
 
     for (const res of pages) {
       expect(res.status).toBe(200);
+      const csp = res.headers.get("Content-Security-Policy") || "";
+      expect(csp).toMatch(/(?:^|;\s*)script-src 'self'(?:;|$)/);
       const html = await res.text();
       const matches = Array.from(html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi));
-      expect(matches.length).toBeGreaterThan(0);
       for (const m of matches) {
-        const scriptBody = m[1];
-        expect(() => new Function(scriptBody)).not.toThrow();
+        expect(m[1].trim()).toBe("");
       }
+    }
+
+    for (const assetPath of ["/assets/theme.js", "/assets/app.js", "/assets/unlock.js"]) {
+      const assetRes = await worker.fetch!(makeRequest(assetPath), env, ctx);
+      expect(assetRes.status).toBe(200);
+      expect(assetRes.headers.get("Content-Type")).toContain("javascript");
+      const jsBody = await assetRes.text();
+      expect(jsBody.length).toBeGreaterThan(20);
+      expect(() => new Function(jsBody)).not.toThrow();
     }
   });
 
@@ -720,18 +736,44 @@ describe("TinyLink Worker", () => {
       ctx
     );
     expect(saveRes.status).toBe(200);
-    const saveJson = (await saveRes.json()) as { ok: boolean; config: { url: string; enabled: boolean } };
+    const saveJson = (await saveRes.json()) as {
+      ok: boolean;
+      config: { url: string; enabled: boolean; hasSecret: boolean; secret?: string };
+    };
     expect(saveJson.ok).toBe(true);
     expect(saveJson.config.url).toBe("https://webhook.site/test-endpoint");
     expect(saveJson.config.enabled).toBe(true);
+    expect(saveJson.config.hasSecret).toBe(true);
+    expect(saveJson.config.secret).toBeUndefined();
+
+    const getMasked = await worker.fetch!(makeRequest("/api/settings/webhooks", { headers }), env, ctx);
+    const maskedJson = (await getMasked.json()) as { config: { hasSecret: boolean; secret?: string } };
+    expect(maskedJson.config.hasSecret).toBe(true);
+    expect(maskedJson.config.secret).toBeUndefined();
+
+    // Preserves secret when omitted, and clears secret when clearSecret is true
+    const keepRes = await worker.fetch!(
+      makeRequest("/api/settings/webhooks", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://webhook.site/test-endpoint",
+          events: { onClicked: true, onLimitReached: true, onExpired: true },
+          enabled: true,
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect((await keepRes.json() as { config: { hasSecret: boolean } }).config.hasSecret).toBe(true);
 
     // Mock global fetch to test webhook dispatch
     const originalFetch = globalThis.fetch;
-    const dispatchedRequests: { url: string; headers: Record<string, string>; body: string }[] = [];
+    const dispatchedRequests: { url: string; headers: Record<string, string>; body: string; redirect?: string }[] = [];
 
     globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const urlStr = typeof input === "string" ? input : (input as Request).url;
-      if (urlStr.includes("webhook.site")) {
+      if (urlStr.includes("webhook.site") || urlStr.includes("evil-discord.com")) {
         const bodyStr = typeof init?.body === "string" ? init.body : "";
         const hdrObj: Record<string, string> = {};
         if (init?.headers) {
@@ -740,14 +782,17 @@ describe("TinyLink Worker", () => {
             hdrObj[k] = v;
           });
         }
-        dispatchedRequests.push({ url: urlStr, headers: hdrObj, body: bodyStr });
+        dispatchedRequests.push({ url: urlStr, headers: hdrObj, body: bodyStr, redirect: init?.redirect });
+        if (urlStr.includes("redirect-trap")) {
+          return new Response(null, { status: 302, statusText: "Found" });
+        }
         return new Response(JSON.stringify({ ok: true }), { status: 200, statusText: "OK" });
       }
       return originalFetch(input, init);
     };
 
     try {
-      // Test ping
+      // Test ping using saved webhook & saved secret
       const pingRes = await worker.fetch!(
         makeRequest("/api/settings/webhooks/test", { method: "POST", headers }),
         env,
@@ -757,8 +802,37 @@ describe("TinyLink Worker", () => {
       const pingJson = (await pingRes.json()) as { ok: boolean; status: number };
       expect(pingJson.ok).toBe(true);
       expect(dispatchedRequests.length).toBe(1);
+      expect(dispatchedRequests[0].redirect).toBe("manual");
       expect(dispatchedRequests[0].headers["x-tinylink-event"]).toBe("test.ping");
       expect(dispatchedRequests[0].headers["x-tinylink-signature"]).toMatch(/^sha256=[0-9a-f]{64}$/);
+
+      // Ad-hoc test URL must NOT leak the previously stored secret, and spoofed host does not get Discord format
+      await worker.fetch!(
+        makeRequest("/api/settings/webhooks/test", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ url: "https://evil-discord.com/api/webhooks/123" }),
+        }),
+        env,
+        ctx
+      );
+      expect(dispatchedRequests.length).toBe(2);
+      expect(dispatchedRequests[1].headers["x-tinylink-event"]).toBe("test.ping");
+      expect(dispatchedRequests[1].headers["x-tinylink-signature"]).toBeUndefined();
+
+      // Redirect response from webhook endpoint is rejected
+      const redirRes = await worker.fetch!(
+        makeRequest("/api/settings/webhooks/test", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ url: "https://webhook.site/redirect-trap" }),
+        }),
+        env,
+        ctx
+      );
+      const redirJson = (await redirRes.json()) as { ok: boolean; statusText: string };
+      expect(redirJson.ok).toBe(false);
+      expect(redirJson.statusText).toBe("Redirect Blocked");
 
       // Shorten link and click it to trigger link.clicked webhook
       await worker.fetch!(
@@ -785,14 +859,382 @@ describe("TinyLink Worker", () => {
 
       await flush();
 
-      expect(dispatchedRequests.length).toBe(2);
-      expect(dispatchedRequests[1].headers["x-tinylink-event"]).toBe("link.clicked");
-      const clickedPayload = JSON.parse(dispatchedRequests[1].body);
+      expect(dispatchedRequests.length).toBe(4);
+      expect(dispatchedRequests[3].headers["x-tinylink-event"]).toBe("link.clicked");
+      const clickedPayload = JSON.parse(dispatchedRequests[3].body);
       expect(clickedPayload.link.slug).toBe("hook-test");
       expect(clickedPayload.visitor.country).toBe("DE");
       expect(clickedPayload.visitor.referrer).toBe("twitter.com");
+
+      // Clear secret explicitly
+      const clearRes = await worker.fetch!(
+        makeRequest("/api/settings/webhooks", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            url: "https://webhook.site/test-endpoint",
+            clearSecret: true,
+            enabled: true,
+          }),
+        }),
+        env,
+        ctx
+      );
+      expect((await clearRes.json() as { config: { hasSecret: boolean } }).config.hasSecret).toBe(false);
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  it("enforces fail-closed auth, cookie sessions, removes ?token=, and prevents cross-site CSRF", async () => {
+    const envUnset = makeEnv({ ADMIN_TOKEN: undefined });
+    const { ctx } = makeCtx();
+
+    // Fail closed when ADMIN_TOKEN is unset without ALLOW_PUBLIC_ADMIN=true
+    const lockedRes = await worker.fetch!(makeRequest("/api/list"), envUnset, ctx);
+    expect(lockedRes.status).toBe(503);
+
+    const sessionUnset = await worker.fetch!(makeRequest("/api/auth/session"), envUnset, ctx);
+    expect(sessionUnset.status).toBe(503);
+
+    // Explicit opt-in public admin mode works when enabled
+    const envPublic = makeEnv({ ADMIN_TOKEN: undefined, ALLOW_PUBLIC_ADMIN: "true" });
+    const publicList = await worker.fetch!(makeRequest("/api/list"), envPublic, ctx);
+    expect(publicList.status).toBe(200);
+
+    // Query parameter ?token= is rejected
+    const env = makeEnv();
+    const qsAuth = await worker.fetch!(makeRequest("/api/list?token=test-secret-token"), env, ctx);
+    expect(qsAuth.status).toBe(401);
+
+    // GET /api/auth/session without credentials does not fail-limit or authenticate
+    const noSess = await worker.fetch!(makeRequest("/api/auth/session"), env, ctx);
+    expect(noSess.status).toBe(200);
+    expect(await noSess.json()).toEqual({ authRequired: true, authenticated: false, configured: true });
+
+    // POST /api/auth/login mints HttpOnly SameSite=Strict Secure cookie
+    const badLogin = await worker.fetch!(
+      makeRequest("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: "wrong" }),
+      }),
+      env,
+      ctx
+    );
+    expect(badLogin.status).toBe(401);
+
+    const goodLogin = await worker.fetch!(
+      makeRequest("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Origin: "https://tl.example.com" },
+        body: JSON.stringify({ token: "test-secret-token" }),
+      }),
+      env,
+      ctx
+    );
+    expect(goodLogin.status).toBe(200);
+    const setCookie = goodLogin.headers.get("Set-Cookie") || "";
+    expect(setCookie).toContain("tl_session=v1.");
+    expect(setCookie).toContain("HttpOnly");
+    expect(setCookie).toContain("SameSite=Strict");
+    expect(setCookie).toContain("Path=/api");
+    expect(setCookie).toContain("Secure");
+
+    const cookiePair = setCookie.split(";")[0];
+
+    // Cookie grants access to /api/auth/session and protected routes
+    const authedSess = await worker.fetch!(
+      makeRequest("/api/auth/session", { headers: { Cookie: cookiePair } }),
+      env,
+      ctx
+    );
+    expect(await authedSess.json()).toEqual({ authRequired: true, authenticated: true, configured: true });
+
+    const authedList = await worker.fetch!(
+      makeRequest("/api/list", { headers: { Cookie: cookiePair } }),
+      env,
+      ctx
+    );
+    expect(authedList.status).toBe(200);
+
+    // Tampered signature rejected
+    const forgedCookie = cookiePair.slice(0, -2) + (cookiePair.endsWith("AA") ? "BB" : "AA");
+    const forgedRes = await worker.fetch!(
+      makeRequest("/api/list", { headers: { Cookie: forgedCookie } }),
+      env,
+      ctx
+    );
+    expect(forgedRes.status).toBe(401);
+
+    // Cross-origin CSRF blocked even with valid cookie
+    const csrfOriginBlock = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: cookiePair,
+          Origin: "https://evil.example",
+        },
+        body: JSON.stringify({ url: "https://example.org" }),
+      }),
+      env,
+      ctx
+    );
+    expect(csrfOriginBlock.status).toBe(403);
+
+    const csrfFetchSiteBlock = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Cookie: cookiePair,
+          "Sec-Fetch-Site": "cross-site",
+        },
+        body: JSON.stringify({ url: "https://example.org" }),
+      }),
+      env,
+      ctx
+    );
+    expect(csrfFetchSiteBlock.status).toBe(403);
+
+    // CORS omits wildcard and rejects unknown Origin preflights
+    const healthRes = await worker.fetch!(makeRequest("/api/health"), env, ctx);
+    expect(healthRes.headers.get("Access-Control-Allow-Origin")).toBeNull();
+
+    const evilOptions = await worker.fetch!(
+      makeRequest("/api/shorten", { method: "OPTIONS", headers: { Origin: "https://evil.example" } }),
+      env,
+      ctx
+    );
+    expect(evilOptions.status).toBe(403);
+    expect(evilOptions.headers.get("Access-Control-Allow-Origin")).toBeNull();
+
+    const sameOptions = await worker.fetch!(
+      makeRequest("/api/shorten", { method: "OPTIONS", headers: { Origin: "https://tl.example.com" } }),
+      env,
+      ctx
+    );
+    expect(sameOptions.status).toBe(204);
+    expect(sameOptions.headers.get("Access-Control-Allow-Origin")).toBe("https://tl.example.com");
+
+    // Forged X-Forwarded-For does not bypass CF-Connecting-IP rate-limit bucket
+    for (let i = 0; i < 10; i++) {
+      await worker.fetch!(
+        makeRequest("/api/list", {
+          headers: { "CF-Connecting-IP": "198.51.100.77", "X-Forwarded-For": `10.0.0.${i}`, "X-Auth-Token": "bad" },
+        }),
+        env,
+        ctx
+      );
+    }
+    const blockedIp = await worker.fetch!(
+      makeRequest("/api/list", {
+        headers: { "CF-Connecting-IP": "198.51.100.77", "X-Forwarded-For": "203.0.113.99", "X-Auth-Token": "bad" },
+      }),
+      env,
+      ctx
+    );
+    expect(blockedIp.status).toBe(429);
+
+    // Logout expires session cookie
+    const logoutRes = await worker.fetch!(
+      makeRequest("/api/auth/logout", { method: "POST", headers: { Cookie: cookiePair } }),
+      env,
+      ctx
+    );
+    expect(logoutRes.status).toBe(200);
+    expect(logoutRes.headers.get("Set-Cookie")).toContain("Max-Age=0");
+  });
+
+  it("blocks SSRF targets, credentials in URLs, private IPs, oversized bodies, and invalid slugs", async () => {
+    const env = makeEnv();
+    const { ctx } = makeCtx();
+    const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+
+    const badUrls = [
+      "http://127.0.0.1/admin",
+      "http://localhost:8787/",
+      "http://169.254.169.254/latest/meta-data/",
+      "http://10.0.0.1/internal",
+      "http://172.16.0.10/db",
+      "http://192.168.1.1/router",
+      "http://100.64.0.1/cgnat",
+      "http://[::1]/",
+      "http://[::ffff:127.0.0.1]/",
+      "http://[fd00:ec2::254]/latest/meta-data/",
+      "http://0x7f000001/",
+      "http://2130706433/",
+      "http://metadata/",
+      "https://user:pass@example.com/",
+      "https://tl.example.com/self-loop",
+      "javascript:alert(1)",
+      `https://example.com/${"a".repeat(4100)}`,
+    ];
+
+    for (const badUrl of badUrls) {
+      const res = await worker.fetch!(
+        makeRequest("/api/shorten", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ url: badUrl }),
+        }),
+        env,
+        ctx
+      );
+      expect(res.status, `Expected 400 for URL: ${badUrl}`).toBe(400);
+    }
+
+    // Also validate webhook URLs block insecure HTTP and metadata endpoints
+    for (const badWebhook of ["http://webhook.site/plain", "https://169.254.169.254/hook", "https://[::1]/hook"]) {
+      const res = await worker.fetch!(
+        makeRequest("/api/settings/webhooks", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ url: badWebhook, enabled: true }),
+        }),
+        env,
+        ctx
+      );
+      expect(res.status, `Expected 400 for webhook: ${badWebhook}`).toBe(400);
+    }
+
+    // Body size limit returns 413
+    const hugeRes = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ url: "https://example.org", label: "x".repeat(140_000) }),
+      }),
+      env,
+      ctx
+    );
+    expect(hugeRes.status).toBe(413);
+
+    // Invalid slugs rejected cleanly before KV lookup
+    const badDelete = await worker.fetch!(
+      makeRequest("/api/urls/settings:webhooks", { method: "DELETE", headers }),
+      env,
+      ctx
+    );
+    expect(badDelete.status).toBe(400);
+  });
+
+  it("uses PBKDF2 v2 hashing, upgrades legacy v1 hashes, rate limits unlock attempts, and bounds analytics keys", async () => {
+    const env = makeEnv();
+    const { ctx, flush } = makeCtx();
+    const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+
+    // 1. Newly created password link uses v2:100000: PBKDF2 hash
+    await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ url: "https://example.org/v2-doc", custom: "v2-lock", password: "correct-horse" }),
+      }),
+      env,
+      ctx
+    );
+    const storedV2 = JSON.parse((await env.URL_KV.get("u:v2-lock")) || "{}") as { passwordHash: string };
+    expect(storedV2.passwordHash).toMatch(/^v2:100000:[0-9a-f]{32}:[0-9a-f]{64}$/);
+
+    // 2. Repeated wrong passwords lock out with 429 on attempt 11
+    for (let i = 0; i < 10; i++) {
+      const fail = await worker.fetch!(
+        makeRequest("/v2-lock", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "CF-Connecting-IP": "198.51.100.44",
+          },
+          body: "password=wrong",
+        }),
+        env,
+        ctx
+      );
+      expect(fail.status).toBe(401);
+    }
+
+    const lockedOut = await worker.fetch!(
+      makeRequest("/v2-lock", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "CF-Connecting-IP": "198.51.100.44",
+        },
+        body: "password=correct-horse",
+      }),
+      env,
+      ctx
+    );
+    expect(lockedOut.status).toBe(429);
+
+    // 3. Seed legacy v1 hash and verify backward-compat unlock + opportunistic upgrade to v2
+    const salt = "0123456789abcdef0123456789abcdef";
+    const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${salt}:legacy-pass`));
+    const hexDigest = Array.from(new Uint8Array(digest))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    await env.URL_KV.put(
+      "u:legacy-v1",
+      JSON.stringify({
+        originalUrl: "https://example.org/legacy",
+        createdAt: new Date().toISOString(),
+        expiresAt: null,
+        clicks: 0,
+        clickTimeline: [],
+        referrers: {},
+        devices: {},
+        countries: {},
+        passwordHash: `v1:${salt}:${hexDigest}`,
+      })
+    );
+
+    const legacyUnlock = await worker.fetch!(
+      makeRequest("/legacy-v1", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "CF-Connecting-IP": "198.51.100.45",
+        },
+        body: "password=legacy-pass",
+      }),
+      env,
+      ctx
+    );
+    await flush();
+    expect(legacyUnlock.status).toBe(303);
+    const upgraded = JSON.parse((await env.URL_KV.get("u:legacy-v1")) || "{}") as { passwordHash: string };
+    expect(upgraded.passwordHash).toMatch(/^v2:100000:/);
+
+    // 4. Analytics cardinality cap keeps distinct referrers <= 100 while preserving total click count
+    await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ url: "https://example.org/many-refs", custom: "capped-refs" }),
+      }),
+      env,
+      ctx
+    );
+    for (let i = 0; i < 110; i++) {
+      await worker.fetch!(
+        makeRequest("/capped-refs", {
+          headers: { Referer: `https://ref${i}.example.com/page` },
+        }),
+        env,
+        ctx
+      );
+    }
+    await flush();
+
+    const cappedAnalytics = await worker.fetch!(makeRequest("/api/analytics/capped-refs", { headers }), env, ctx);
+    const cappedJson = (await cappedAnalytics.json()) as {
+      clicks: number;
+      referrers: Record<string, number>;
+    };
+    expect(cappedJson.clicks).toBe(110);
+    expect(Object.keys(cappedJson.referrers).length).toBeLessThanOrEqual(100);
+    expect(cappedJson.referrers.other).toBeGreaterThan(0);
   });
 });

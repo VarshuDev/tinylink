@@ -1,6 +1,6 @@
 export function renderDashboardHtml(authRequired: boolean): string {
   return `<!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="dark" data-auth-required="${authRequired ? "true" : "false"}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -15,18 +15,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script>
-  (function() {
-    try {
-      var saved = localStorage.getItem('tl_theme');
-      if (saved === 'light' || saved === 'dark') {
-        document.documentElement.setAttribute('data-theme', saved);
-      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-        document.documentElement.setAttribute('data-theme', 'light');
-      }
-    } catch (e) {}
-  })();
-</script>
+<script src="/assets/theme.js"></script>
 <style>
   :root,
   [data-theme="dark"] {
@@ -1779,9 +1768,13 @@ export function renderDashboardHtml(authRequired: boolean): string {
 <!-- Toast -->
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script>
-(function() {
-  var AUTH_REQUIRED = ${authRequired ? "true" : "false"};
+<script src="/assets/app.js" defer></script>
+</body>
+</html>`;
+}
+
+export const DASHBOARD_APP_JS = `(function() {
+  var AUTH_REQUIRED = document.documentElement.getAttribute('data-auth-required') !== 'false';
 
   // ── SVG Icon Library (Phosphor-style, 1.75px stroke) ──
   var ICONS = {
@@ -1806,8 +1799,8 @@ export function renderDashboardHtml(authRequired: boolean): string {
   };
 
   // ── State ──
-  var adminToken = '';
-  try { adminToken = localStorage.getItem('tl_admin_token') || ''; } catch (e) {}
+  try { localStorage.removeItem('tl_admin_token'); } catch (e) {}
+  var sessionActive = false;
   var pendingPrefillUrl = '';
   try {
     var sp = new URLSearchParams(window.location.search);
@@ -1958,6 +1951,52 @@ export function renderDashboardHtml(authRequired: boolean): string {
       .replace(/'/g, '&#39;');
   }
 
+  function csvSafeCell(val) {
+    var s = String(val == null ? '' : val);
+    if (/^[\\s]*[=+\\-@\\t\\r]/.test(s)) {
+      s = "'" + s;
+    }
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+
+  function renderSafeSvg(container, svgMarkup) {
+    if (!container) return;
+    container.textContent = '';
+    if (!svgMarkup || typeof svgMarkup !== 'string') return;
+    try {
+      var parser = new DOMParser();
+      var doc = parser.parseFromString(svgMarkup, 'image/svg+xml');
+      if (!doc || doc.querySelector('parsererror')) return;
+      var root = doc.documentElement;
+      if (!root || root.tagName.toLowerCase() !== 'svg') return;
+      var allowed = { svg: 1, rect: 1, path: 1, circle: 1, line: 1, polyline: 1, polygon: 1, g: 1, title: 1 };
+      var cleanAttrs = function(el) {
+        var attrs = Array.prototype.slice.call(el.attributes || []);
+        for (var i = 0; i < attrs.length; i++) {
+          var name = attrs[i].name.toLowerCase();
+          var val = String(attrs[i].value || '');
+          if (name.indexOf('on') === 0 || name === 'href' || name === 'xlink:href' || /javascript:|url\\(/i.test(val)) {
+            el.removeAttribute(attrs[i].name);
+          }
+        }
+      };
+      var walk = function(node) {
+        cleanAttrs(node);
+        var children = Array.prototype.slice.call(node.children || []);
+        for (var j = 0; j < children.length; j++) {
+          var ch = children[j];
+          if (!allowed[ch.tagName.toLowerCase()]) {
+            ch.remove();
+          } else {
+            walk(ch);
+          }
+        }
+      };
+      walk(root);
+      container.appendChild(document.importNode(root, true));
+    } catch (e) {}
+  }
+
   function fmtDate(iso) {
     if (!iso) return '—';
     var d = new Date(iso);
@@ -2091,11 +2130,13 @@ export function renderDashboardHtml(authRequired: boolean): string {
   function applyPendingPrefill() {
     if (!pendingPrefillUrl) return;
     urlInput.value = pendingPrefillUrl;
+    var hostHint = '';
+    try { hostHint = new URL(pendingPrefillUrl).hostname; } catch (e) {}
     pendingPrefillUrl = '';
     setShortenError('');
     checkDuplicateHint();
     setTimeout(function() { customSlugInput.focus(); }, 30);
-    showToast('URL pre-filled — press Enter to shorten', 'success');
+    showToast('Prefilled URL for ' + (hostHint || 'destination') + ' — verify before shortening', 'success');
   }
 
   function showWorkspace() {
@@ -2109,11 +2150,11 @@ export function renderDashboardHtml(authRequired: boolean): string {
     applyPendingPrefill();
   }
 
-  lockBtn.addEventListener('click', function() {
-    adminToken = '';
+  lockBtn.addEventListener('click', async function() {
+    try { await api('/api/auth/logout', { method: 'POST' }); } catch (e) {}
+    sessionActive = false;
     urls = [];
     selectedSlugs.clear();
-    try { localStorage.removeItem('tl_admin_token'); } catch (e) {}
     adminTokenInput.value = '';
     resultBar.hidden = true;
     showVault();
@@ -2125,8 +2166,10 @@ export function renderDashboardHtml(authRequired: boolean): string {
   async function api(path, opts) {
     opts = opts || {};
     var headers = { 'Content-Type': 'application/json' };
-    if (adminToken) headers['X-Auth-Token'] = adminToken;
-    var res = await fetch(path, Object.assign({}, opts, { headers: Object.assign(headers, opts.headers || {}) }));
+    var res = await fetch(path, Object.assign({}, opts, {
+      credentials: 'same-origin',
+      headers: Object.assign(headers, opts.headers || {})
+    }));
     var data = {};
     try { data = await res.json(); } catch (e) {}
     if (res.status === 401) {
@@ -2152,18 +2195,21 @@ export function renderDashboardHtml(authRequired: boolean): string {
     }
     unlockBtn.disabled = true;
     unlockBtn.querySelector('span').textContent = 'Verifying…';
-    adminToken = val;
     try {
+      await api('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ token: val })
+      });
       var data = await api('/api/list');
-      try { localStorage.setItem('tl_admin_token', adminToken); } catch (e) {}
+      sessionActive = true;
+      adminTokenInput.value = '';
       urls = data.urls || [];
       showWorkspace();
       checkDuplicateHint();
       renderLinksView();
       showToast('Console unlocked', 'success');
     } catch (err) {
-      adminToken = '';
-      try { localStorage.removeItem('tl_admin_token'); } catch (e) {}
+      sessionActive = false;
       showVault(err.status === 401 ? 'Invalid admin token. Please check and try again.' : err.message);
     } finally {
       unlockBtn.disabled = false;
@@ -2427,9 +2473,9 @@ export function renderDashboardHtml(authRequired: boolean): string {
         body: JSON.stringify(payload)
       });
 
-      latestQrSvg = data.qrSvg || '';
       latestSlug = data.slug || 'tinylink';
-      resultQr.innerHTML = latestQrSvg;
+      renderSafeSvg(resultQr, data.qrSvg || '');
+      latestQrSvg = resultQr.innerHTML || '';
       var kickerParts = ['Link Ready'];
       if (data.expiresAt) kickerParts.push('Expires ' + fmtDate(data.expiresAt));
       if (data.maxClicks) kickerParts.push('Max ' + data.maxClicks + (data.maxClicks === 1 ? ' click' : ' clicks'));
@@ -2583,8 +2629,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
     } catch (err) {
       isLoading = false;
       if (err.status === 401) {
-        adminToken = '';
-        try { localStorage.removeItem('tl_admin_token'); } catch (e) {}
+        sessionActive = false;
         showVault('Authentication required. Please enter your admin token.');
       } else {
         linksContainer.innerHTML =
@@ -3066,18 +3111,18 @@ export function renderDashboardHtml(authRequired: boolean): string {
     if (!urls.length) return showToast('No links to export', 'error');
     var header = ['Slug', 'Original URL', 'Short URL', 'Label', 'Tags', 'Clicks', 'Max Clicks', 'Created At', 'Expires At', 'Status'];
     var rows = urls.map(function(u) {
-      var st = isLinkExhausted(u) ? 'Exhausted' : (isLinkExpired(u) ? 'Expired' : 'Active');
+      var st = isLinkExhausted(u) ? 'Exhausted' : (isLinkExpired(u) ? 'Expired' : (u.isPending ? 'Scheduled' : 'Active'));
       return [
-        '"' + u.slug.replace(/"/g, '""') + '"',
-        '"' + u.originalUrl.replace(/"/g, '""') + '"',
-        '"' + window.location.origin + '/' + u.slug + '"',
-        '"' + (u.label || '').replace(/"/g, '""') + '"',
-        '"' + (u.tags || []).join(',').replace(/"/g, '""') + '"',
+        csvSafeCell(u.slug),
+        csvSafeCell(u.originalUrl),
+        csvSafeCell(window.location.origin + '/' + u.slug),
+        csvSafeCell(u.label || ''),
+        csvSafeCell((u.tags || []).join(',')),
         u.clicks || 0,
         u.maxClicks || '',
-        '"' + (u.createdAt || '') + '"',
-        '"' + (u.expiresAt || '') + '"',
-        st
+        csvSafeCell(u.createdAt || ''),
+        csvSafeCell(u.expiresAt || ''),
+        csvSafeCell(st)
       ].join(',');
     });
     var csv = [header.join(',')].concat(rows).join('\\n');
@@ -3365,6 +3410,9 @@ export function renderDashboardHtml(authRequired: boolean): string {
           '<div class="adv-field">' +
             '<label for="webhookSecretInput" class="adv-label">HMAC Secret Key (optional, for X-TinyLink-Signature)</label>' +
             '<input type="password" id="webhookSecretInput" class="adv-input mono" placeholder="Optional signing secret" autocomplete="off">' +
+            '<label id="webhookClearSecretWrap" style="display:none;align-items:center;gap:8px;margin-top:6px;font-size:12px;color:var(--text-secondary);cursor:pointer;">' +
+              '<input type="checkbox" id="webhookClearSecretCheck"> Clear saved signing secret' +
+            '</label>' +
           '</div>' +
           '<div class="adv-field">' +
             '<span class="adv-label">Subscribed Events</span>' +
@@ -3412,12 +3460,25 @@ export function renderDashboardHtml(authRequired: boolean): string {
 
     cancelWebhookBtn.addEventListener('click', closeModalElement);
 
+    var webhookClearSecretWrap = document.getElementById('webhookClearSecretWrap');
+    var webhookClearSecretCheck = document.getElementById('webhookClearSecretCheck');
+
     try {
       var res = await api('/api/settings/webhooks');
       if (res.config) {
         webhookEnabledCheck.checked = res.config.enabled !== false;
         webhookUrlInput.value = res.config.url || '';
-        webhookSecretInput.value = res.config.secret || '';
+        var hasSavedSecret = Boolean(res.config.hasSecret);
+        webhookSecretInput.value = '';
+        webhookSecretInput.placeholder = hasSavedSecret
+          ? 'Signing secret configured (leave blank to keep)'
+          : 'Optional signing secret';
+        if (webhookClearSecretWrap) {
+          webhookClearSecretWrap.style.display = hasSavedSecret ? 'flex' : 'none';
+        }
+        if (webhookClearSecretCheck) {
+          webhookClearSecretCheck.checked = false;
+        }
         eventClickedCheck.checked = res.config.events?.onClicked !== false;
         eventLimitCheck.checked = res.config.events?.onLimitReached !== false;
         eventExpiredCheck.checked = res.config.events?.onExpired !== false;
@@ -3471,19 +3532,27 @@ export function renderDashboardHtml(authRequired: boolean): string {
       saveWebhookBtn.disabled = true;
       saveWebhookBtn.textContent = 'Saving…';
 
+      var newSecret = webhookSecretInput.value.trim();
+      var clearSecret = Boolean(webhookClearSecretCheck && webhookClearSecretCheck.checked);
+      var webhookPayload = {
+        url: url,
+        enabled: enabled,
+        events: {
+          onClicked: eventClickedCheck.checked,
+          onLimitReached: eventLimitCheck.checked,
+          onExpired: eventExpiredCheck.checked
+        }
+      };
+      if (clearSecret) {
+        webhookPayload.clearSecret = true;
+      } else if (newSecret) {
+        webhookPayload.secret = newSecret;
+      }
+
       try {
         await api('/api/settings/webhooks', {
           method: 'POST',
-          body: JSON.stringify({
-            url: url,
-            secret: webhookSecretInput.value.trim() || null,
-            enabled: enabled,
-            events: {
-              onClicked: eventClickedCheck.checked,
-              onLimitReached: eventLimitCheck.checked,
-              onExpired: eventExpiredCheck.checked
-            }
-          })
+          body: JSON.stringify(webhookPayload)
         });
         showToast('Webhook settings saved', 'success');
         closeModalElement();
@@ -3618,7 +3687,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
         '<div>' +
           '<div class="section-head"><span>QR Studio</span></div>' +
           '<div class="qr-studio">' +
-            '<div class="qr-studio-box">' + (data.qrSvg || '') + '</div>' +
+            '<div class="qr-studio-box" id="modalQrBox"></div>' +
             '<div class="qr-studio-meta">' +
               '<a class="qr-studio-link" href="' + escapeHtml(shortFull) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(shortFull) + '</a>' +
               '<div class="qr-btn-row">' +
@@ -3732,6 +3801,10 @@ export function renderDashboardHtml(authRequired: boolean): string {
           '</div>' +
         '</div>';
 
+      var modalQrBox = document.getElementById('modalQrBox');
+      renderSafeSvg(modalQrBox, data.qrSvg || '');
+      var safeModalQrSvg = modalQrBox ? modalQrBox.innerHTML : '';
+
       // Wire chart focus/hover readout
       var readout = document.getElementById('chartReadout');
       var bars = modalBody.querySelectorAll('.chart-bar-group');
@@ -3756,10 +3829,10 @@ export function renderDashboardHtml(authRequired: boolean): string {
         });
       }
       document.getElementById('modalDlSvgBtn').addEventListener('click', function() {
-        downloadSvg(data.qrSvg, slug + '-qr.svg');
+        downloadSvg(safeModalQrSvg, slug + '-qr.svg');
       });
       document.getElementById('modalDlPngBtn').addEventListener('click', function() {
-        downloadPngFromSvg(data.qrSvg, slug + '-qr.png');
+        downloadPngFromSvg(safeModalQrSvg, slug + '-qr.png');
       });
 
       // Wire Edit form
@@ -3985,14 +4058,31 @@ export function renderDashboardHtml(authRequired: boolean): string {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(function() {});
   }
-  if (!AUTH_REQUIRED || adminToken) {
-    showWorkspace();
-    loadLinks();
-  } else {
+  async function bootstrapAuth() {
+    if (!AUTH_REQUIRED) {
+      sessionActive = true;
+      showWorkspace();
+      loadLinks();
+      return;
+    }
+    try {
+      var res = await fetch('/api/auth/session', { credentials: 'same-origin' });
+      var session = null;
+      try { session = await res.json(); } catch (e) {}
+      if (res.ok && session && (session.authenticated || !session.authRequired)) {
+        sessionActive = true;
+        showWorkspace();
+        loadLinks();
+        return;
+      }
+      if (session && session.configured === false && session.error) {
+        sessionActive = false;
+        showVault(session.error);
+        return;
+      }
+    } catch (e) {}
+    sessionActive = false;
     showVault();
   }
-})();
-</script>
-</body>
-</html>`;
-}
+  bootstrapAuth();
+})();`;

@@ -49,22 +49,35 @@ export function escapeHtml(str: string): string {
     .replace(/'/g, "&#39;");
 }
 
-const THEME_INIT_SCRIPT = `<script>
-  (function() {
-    try {
-      var saved = localStorage.getItem('tl_theme');
-      var theme = 'dark';
-      if (saved === 'light' || saved === 'dark') {
-        theme = saved;
-      } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
-        theme = 'light';
-      }
-      document.documentElement.setAttribute('data-theme', theme);
-      var meta = document.getElementById('themeColorMeta');
-      if (meta) meta.setAttribute('content', theme === 'light' ? '#F8FAFC' : '#090D16');
-    } catch (e) {}
-  })();
-</script>`;
+export const THEME_INIT_JS = `(function() {
+  try {
+    var saved = localStorage.getItem('tl_theme');
+    var theme = 'dark';
+    if (saved === 'light' || saved === 'dark') {
+      theme = saved;
+    } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+      theme = 'light';
+    }
+    document.documentElement.setAttribute('data-theme', theme);
+    var meta = document.getElementById('themeColorMeta');
+    if (meta) meta.setAttribute('content', theme === 'light' ? '#F8FAFC' : '#090D16');
+  } catch (e) {}
+})();`;
+
+export const UNLOCK_PAGE_JS = `(function() {
+  var btn = document.getElementById('togglePwdBtn');
+  var inp = document.getElementById('linkPassword');
+  if (btn && inp) {
+    btn.addEventListener('click', function() {
+      var isPwd = inp.type === 'password';
+      inp.type = isPwd ? 'text' : 'password';
+      btn.setAttribute('aria-pressed', isPwd ? 'true' : 'false');
+      btn.setAttribute('aria-label', isPwd ? 'Hide password' : 'Show password');
+    });
+  }
+})();`;
+
+const THEME_INIT_SCRIPT = `<script src="/assets/theme.js"></script>`;
 
 const BASE_THEME_CSS = `
   :root,
@@ -400,20 +413,7 @@ export function renderPasswordPage(opts: PasswordPageOptions): string {
       </button>
     </form>
   </main>
-  <script>
-    (function() {
-      var btn = document.getElementById('togglePwdBtn');
-      var inp = document.getElementById('linkPassword');
-      if (btn && inp) {
-        btn.addEventListener('click', function() {
-          var isPwd = inp.type === 'password';
-          inp.type = isPwd ? 'text' : 'password';
-          btn.setAttribute('aria-pressed', isPwd ? 'true' : 'false');
-          btn.setAttribute('aria-label', isPwd ? 'Hide password' : 'Show password');
-        });
-      }
-    })();
-  </script>
+  <script src="/assets/unlock.js" defer></script>
 </body>
 </html>`;
 }

@@ -1,7 +1,7 @@
 # TinyLink — Hosting & Deployment Guide
 URL Shortener on Cloudflare Workers (Free Tier)
 
-**Current version: 3.1** — modular TypeScript codebase with Smart Conditional Edge Routing (Geotargeting, Device overrides, Activation Scheduling), Outgoing Webhooks (Discord, Slack, HMAC-SHA256 signature), OLED Dark/Light themes, Vault auth + brute-force rate limiting, burn-after-read click limits, salted SHA-256 link passwords, UTM builder, labels/tags, custom OG cards, visitor country tracking, preview-bot filtering, opt-in `/stats/:slug` pages, SVG/PNG QR Studio, bulk delete, JSON backup/import, and PWA Service Worker support.
+**Current version: 3.2** — security-hardened modular TypeScript codebase with signed `HttpOnly` cookie sessions, fail-closed `ADMIN_TOKEN`, strict non-inline CSP (`/assets/*.js`), same-origin CORS/CSRF protection, PBKDF2-HMAC-SHA256 link passwords + per-link `429` brute-force lockouts, comprehensive IPv4/IPv6 SSRF protection, Smart Conditional Edge Routing, masked-secret Outgoing Webhooks, OLED Dark/Light themes, burn-after-read click limits, UTM builder, labels/tags, custom OG cards, visitor country tracking, preview-bot filtering, opt-in `/stats/:slug` pages, sanitized SVG/PNG QR Studio, CSV formula-safe export, bulk delete, JSON backup/import, and PWA Service Worker support.
 
 ---
 
@@ -69,10 +69,12 @@ Protect dashboard management and API writes:
 npx wrangler secret put ADMIN_TOKEN
 ```
 
-- When `ADMIN_TOKEN` is **set**, the dashboard opens with **Unlock TinyLink Console** (Private Vault) and persists the token in `localStorage` (`tl_admin_token`) until locked.
-- Requests send `X-Auth-Token` (also accepts `Authorization: Bearer ...`).
-- Repeated failed admin authentication attempts from an IP are temporarily rate-limited in KV (`rl:*` keys, HTTP `429` with `Retry-After` after `10` failed attempts in `300s`). A valid authentication clears the failure counter.
-- To rotate later, run `npx wrangler secret put ADMIN_TOKEN` with a new passphrase.
+- TinyLink **fails closed** (`503`) when `ADMIN_TOKEN` is unset (unless `ALLOW_PUBLIC_ADMIN = "true"` is explicitly configured for local sandboxes).
+- When `ADMIN_TOKEN` is **set**, the dashboard opens with **Unlock TinyLink Console** (Private Vault) and exchanges your token via `POST /api/auth/login` for a signed `HttpOnly; SameSite=Strict` session cookie scoped to `/api`. Nothing is stored in `localStorage`.
+- API clients and automation scripts authenticate via `X-Auth-Token` or `Authorization: Bearer ...` headers (`?token=` query parameters are rejected).
+- Mutating `/api/*` endpoints enforce same-origin `Origin` and `Sec-Fetch-Site` CSRF validation alongside strict non-wildcard CORS (extendable via `ALLOWED_ORIGINS`).
+- Repeated failed admin logins or link password unlocks from an IP (`CF-Connecting-IP`) are rate-limited in KV (`rl:*` / `rlpwd:*` keys, HTTP `429` with `Retry-After` after `10` failed attempts in `300s`). Valid authentication resets the failure counter.
+- To rotate later, run `npx wrangler secret put ADMIN_TOKEN` with a new passphrase (this immediately invalidates previously signed session cookies).
 
 ---
 
@@ -91,8 +93,9 @@ Live endpoints served automatically:
 - `POST /:slug` — Password verification form submission (`303` redirect on match, `401` on mismatch)
 - `GET /manifest.webmanifest`, `GET /icon.svg`, & `GET /sw.js` — PWA install, Service Worker shell, & mobile Share Target
 - `GET /api/health` — Unauthenticated status ping
-- `GET /api/settings/webhooks` & `POST /api/settings/webhooks` — Webhook configuration
-- `POST /api/settings/webhooks/test` — Instant webhook connectivity probe
+- `GET /api/auth/session`, `POST /api/auth/login`, & `POST /api/auth/logout` — Signed `HttpOnly` session lifecycle
+- `GET /api/settings/webhooks` & `POST /api/settings/webhooks` — Webhook configuration (returns `hasSecret`, never plaintext secrets)
+- `POST /api/settings/webhooks/test` — Instant webhook connectivity probe (`redirect: "manual"`)
 
 ---
 

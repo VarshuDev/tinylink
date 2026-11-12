@@ -35,12 +35,12 @@ TinyLink serves the **JSON API**, **edge redirects**, **read-only public stats**
 | **Smart Conditional Routing** | Geotargeting (`cf.country`), Device targeting (`ios` / `android` / `desktop` overrides), and Activation Schedule window (`startsAt` / `expiresAt` with `fallbackUrl` or branded `425 Not Active Yet` page) |
 | **Outgoing Webhook Stream** | Real-time event webhooks (`link.clicked`, `link.limit_reached`, `link.expired`, `test.ping`) with automated **Discord embeds**, **Slack blocks**, or JSON with HMAC-SHA256 signature (`X-TinyLink-Signature`) |
 | **Edge Redirects & Pages** | Sub-5ms `302` redirects globally, trailing-slash normalization, branded `404`, `410` (expired / limit-reached), and `425` (scheduled / pending) pages |
-| **Smart Link Controls** | Click caps & **burn-after-read** (`maxClicks`), salted **SHA-256 link passwords**, labels, `#tags` filtering, duplicate URL hints, and a **UTM Campaign Builder** |
-| **Rich Telemetry & Bot Shield** | Exact UTC hourly/daily timeline, referrers, device split, **visitor countries** (`cf.country`), and preview-bot filtering so Slack/WhatsApp unfurls never burn `maxClicks` |
+| **Smart Link Controls** | Click caps & **burn-after-read** (`maxClicks`), PBKDF2-HMAC-SHA256 **link passwords**, labels, `#tags` filtering, duplicate URL hints, and a **UTM Campaign Builder** |
+| **Rich Telemetry & Bot Shield** | Exact UTC hourly/daily timeline, bounded referrers/countries, device split, **visitor countries** (`cf.country`), and preview-bot filtering so Slack/WhatsApp unfurls never burn `maxClicks` |
 | **Social Cards & Public Stats** | Custom `og:title` & `og:description` preview metadata for unfurlers plus opt-in shareable `/stats/:slug` pages (masks locked destinations automatically) |
-| **QR Code Studio** | Crisp high-contrast SVG QR per link with 1-click **SVG** & **512px PNG** downloads |
-| **Zero-Friction Capture & PWA** | `/sw.js` Service Worker, `?url=` / `?text=` prefill, Android **PWA Share Target**, bookmarklet, Chrome `tl` omnibox shortcut, PowerShell helper |
-| **Vault Auth & Rate Limiting** | Constant-time `ADMIN_TOKEN` guard, KV-backed IP brute-force protection (`429` + `Retry-After` after `10` failed attempts), SSRF/localhost blocking |
+| **QR Code Studio** | Crisp high-contrast sanitized SVG QR per link with 1-click **SVG** & **512px PNG** downloads |
+| **Zero-Friction Capture & PWA** | `/sw.js` Service Worker, `?url=` / `?text=` prefill with origin confirmation toast, Android **PWA Share Target**, bookmarklet, Chrome `tl` omnibox shortcut, PowerShell helper |
+| **Vault Auth & Hardening** | Fail-closed `ADMIN_TOKEN` guard, signed `HttpOnly; SameSite=Strict` session cookies, same-origin CORS/CSRF enforcement, strict non-inline CSP, KV IP rate limiting (`429` + `Retry-After` on admin & password unlocks), full IPv4/IPv6 SSRF protection |
 | **Bulk Ops & Backups** | Multi-select bulk delete (`/api/bulk-delete`), CSV export, full **JSON backup export & import** (`skip`/`overwrite`), cursor-paginated KV listing (`>1,000` keys) |
 
 ---
@@ -79,7 +79,7 @@ id = "your-kv-namespace-id"
 npx wrangler secret put ADMIN_TOKEN
 ```
 
-> Always configure a strong `ADMIN_TOKEN` (16+ random characters) in production. Without it, the dashboard runs in open public-console mode for local testing.
+> TinyLink **fails closed** (`503`) unless `ADMIN_TOKEN` is configured (set a 16+ character random secret in production). Query-string admin auth (`?token=`) and `localStorage` token persistence are disabled; browser logins mint signed `HttpOnly; SameSite=Strict` session cookies under `/api/auth/*`, while scripts use `X-Auth-Token` or `Authorization: Bearer`. For unauthenticated local sandboxes only, set `ALLOW_PUBLIC_ADMIN = "true"` in `wrangler.toml`.
 
 ### 4. Type Check, Test & Deploy
 
@@ -179,7 +179,7 @@ curl -X POST "$BASE/api/bulk-delete" \
 
 ## <img src="docs/icons/security.svg" width="22" height="22" align="absmiddle" alt="" /> Development & Security Checklist
 
-- Run `npm run check && npm test` before deploying to verify strict TypeScript types, KV metadata bounds, rate limits, and inline HTML scripts.
+- Run `npm run check && npm test` before deploying to verify strict TypeScript types, KV metadata bounds, SSRF/CSRF/auth hardening, rate limits, and non-inline CSP scripts.
 - Keep `wrangler.toml`, `.dev.vars`, and `.wrangler/` out of version control (all excluded via [`.gitignore`](.gitignore)).
 - Use [`PERSONAL_SETUP.md`](PERSONAL_SETUP.md) to configure Android PWA Share Sheet, browser bookmarklets, Chrome omnibox search, and Windows PowerShell helpers.
 

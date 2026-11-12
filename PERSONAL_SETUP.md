@@ -15,7 +15,7 @@ cd url-shortener
 npx wrangler secret put ADMIN_TOKEN
 ```
 
-Enter your passphrase when prompted, then unlock your dashboard once in the browser to store it in `localStorage`.
+Enter your passphrase when prompted, then unlock your dashboard in the browser—TinyLink issues a signed `HttpOnly` session cookie (never stored in `localStorage`).
 
 ---
 
@@ -28,7 +28,7 @@ Enter your passphrase when prompted, then unlock your dashboard once in the brow
   - **Activation Scheduling** (set future launch date/time with fallback URL or branded `425 Not Active Yet` page)
   - **Label / Note** & comma-separated **Tags** (clickable `#tag` filter bar appears automatically)
   - **Click Limit / Burn-after-read** (`1` to `1,000,000` clicks; preview bots do not consume the quota)
-  - **Link Password** (salted SHA-256 unlock gate before redirect)
+  - **Link Password** (PBKDF2-HMAC-SHA256 `v2` unlock gate with brute-force lockout protection)
   - **UTM Campaign Builder** (`utm_source`, `utm_medium`, `utm_campaign`)
   - **Custom OG Card** (`og:title` & `og:description` for Slack/WhatsApp/Discord unfurls)
   - **Shareable Public Stats** (`/stats/:slug` read-only link; locked URLs remain hidden)

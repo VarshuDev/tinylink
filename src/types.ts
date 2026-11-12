@@ -40,6 +40,18 @@ export interface WebhookConfig {
   updatedAt?: string;
 }
 
+export interface PublicWebhookConfig {
+  url: string;
+  hasSecret: boolean;
+  events: {
+    onClicked?: boolean;
+    onLimitReached?: boolean;
+    onExpired?: boolean;
+  };
+  enabled: boolean;
+  updatedAt?: string;
+}
+
 export interface WebhookDispatchPayload {
   event: "link.clicked" | "link.limit_reached" | "link.expired" | "test.ping";
   timestamp: string;
@@ -157,4 +169,7 @@ export interface ImportLinkInput {
 export interface Env {
   URL_KV: KVNamespace;
   ADMIN_TOKEN?: string;
+  ALLOW_PUBLIC_ADMIN?: string;
+  ALLOWED_ORIGINS?: string;
+  IP_HASH_SECRET?: string;
 }

@@ -6,8 +6,15 @@ compatibility_flags = ["nodejs_compat"]
 # Copy this file to wrangler.toml and replace the KV namespace ID:
 #   npx wrangler kv namespace create URL_KV
 #
-# Then set a strong admin secret before deploying:
+# TinyLink fails closed if ADMIN_TOKEN is unset. Set a strong secret before deploying:
 #   npx wrangler secret put ADMIN_TOKEN
+#
+# Optional environment variables:
+# [vars]
+# ALLOW_PUBLIC_ADMIN = "true"          # Explicit opt-in ONLY for unauthenticated local/demo use
+# ALLOWED_ORIGINS = "https://..."      # Comma-separated extra CORS/CSRF origins (defaults to same-origin)
+# Optional dedicated HMAC key for IP hashing (defaults to ADMIN_TOKEN if unset):
+#   npx wrangler secret put IP_HASH_SECRET
 
 [[kv_namespaces]]
 binding = "URL_KV"
