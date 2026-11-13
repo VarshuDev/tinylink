@@ -29,6 +29,7 @@ export const RESERVED_SLUGS = new Set([
   "health",
   "favicon.ico",
   "robots.txt",
+  ".well-known",
   "manifest.webmanifest",
   "icon.svg",
   "sw.js",
@@ -304,7 +305,9 @@ function applySecurityHeaders(res: Response, req: Request, env: Env): Response {
       headers.set("Content-Security-Policy", HTML_CSP);
     }
   } else if (isRedirect) {
-    headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+    if (!headers.has("Referrer-Policy")) {
+      headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+    }
     if (!headers.has("Cache-Control")) {
       headers.set("Cache-Control", "no-store");
     }
@@ -317,7 +320,7 @@ function applySecurityHeaders(res: Response, req: Request, env: Env): Response {
   });
 }
 
-function safeRedirect(targetUrl: string, status: 302 | 303): Response {
+function safeRedirect(targetUrl: string, status: 302 | 303, cacheControl?: string): Response {
   let parsed: URL;
   try {
     parsed = new URL(targetUrl);
@@ -331,7 +334,9 @@ function safeRedirect(targetUrl: string, status: 302 | 303): Response {
     status,
     headers: {
       Location: parsed.toString(),
-      "Cache-Control": "no-store",
+      "Cache-Control": cacheControl || "no-store",
+      "Vary": "User-Agent",
+      "Referrer-Policy": "no-referrer-when-downgrade",
     },
   });
 }
@@ -769,7 +774,7 @@ function generateSlug(len = 7): string {
 }
 
 const PREVIEW_BOT_RE =
-  /slackbot|discordbot|whatsapp|telegrambot|twitterbot|facebookexternalhit|facebot|linkedinbot|pinterest|skypeuripreview|embedly|quora link preview|applebot|googlebot|bingbot|yandexbot|baiduspider|duckduckbot|petalbot|bytespider|ahrefsbot|semrushbot|mj12bot|gptbot|claudebot|ccbot/i;
+  /slackbot|discordbot|whatsapp|telegrambot|twitterbot|facebookexternalhit|facebookcatalog|facebot|instagram|linkedinbot|pinterest|skypeuripreview|embedly|quora link preview|applebot|googlebot|bingbot|yandexbot|baiduspider|duckduckbot|petalbot|bytespider|tiktokbot|snapchat|redditbot|ahrefsbot|semrushbot|mj12bot|gptbot|claudebot|ccbot/i;
 
 function isPreviewBot(ua: string): boolean {
   return PREVIEW_BOT_RE.test(ua);
@@ -2529,22 +2534,36 @@ async function handleRedirect(
       ctx.waitUntil(saveUrlRecord(env, slug, data));
     }
 
-    if (data.ogTitle || data.ogDescription || data.passwordHash || data.maxClicks) {
+    if (data.ogTitle || data.ogDescription || data.passwordHash) {
       return new Response(
         renderPreviewMetaPage({
           shortUrl,
-          title: data.ogTitle || data.label || `TinyLink — /${slug}`,
+          destinationUrl: data.passwordHash ? shortUrl : targetUrl,
+          title:
+            data.ogTitle ||
+            data.label ||
+            (data.passwordHash
+              ? "Password-Protected Link — TinyLink"
+              : `TinyLink — /${slug}`),
           description:
             data.ogDescription ||
             (data.passwordHash
               ? "Password-protected link shared via TinyLink."
               : "Shortened link powered by TinyLink."),
         }),
-        { status: 200, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } }
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "public, max-age=300",
+            "Vary": "User-Agent",
+            "Referrer-Policy": "no-referrer-when-downgrade",
+          },
+        }
       );
     }
 
-    return safeRedirect(targetUrl, 302);
+    return safeRedirect(targetUrl, 302, "private, max-age=90");
   }
 
   // Password gate on GET when link is password protected
@@ -2862,8 +2881,57 @@ async function handleRoute(
   }
 
   if (path === "/robots.txt") {
-    return new Response("User-agent: *\nDisallow: /api/\nDisallow: /stats/\n", {
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
+    const robotsTxt = [
+      "User-agent: *",
+      "Allow: /",
+      "Disallow: /api/",
+      "Disallow: /stats/",
+      "",
+      "# Social media preview crawlers",
+      "User-agent: facebookexternalhit",
+      "Allow: /",
+      "User-agent: Facebot",
+      "Allow: /",
+      "User-agent: Twitterbot",
+      "Allow: /",
+      "User-agent: LinkedInBot",
+      "Allow: /",
+      "User-agent: WhatsApp",
+      "Allow: /",
+      "User-agent: TelegramBot",
+      "Allow: /",
+      "User-agent: TikTokBot",
+      "Allow: /",
+      "User-agent: ByteSpider",
+      "Allow: /",
+      "User-agent: Pinterestbot",
+      "Allow: /",
+      "User-agent: Applebot",
+      "Allow: /",
+      "",
+    ].join("\n");
+    return new Response(robotsTxt, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "public, max-age=86400",
+      },
+    });
+  }
+
+  if (path === "/.well-known/security.txt") {
+    const secTxt = [
+      "Contact: mailto:security@tinylink.dev",
+      "Expires: 2027-12-31T23:59:59.000Z",
+      "Preferred-Languages: en",
+      "Canonical: /.well-known/security.txt",
+      "Policy: https://github.com/VarshuDev/tinylink",
+      "",
+    ].join("\n");
+    return new Response(secTxt, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": "public, max-age=86400",
+      },
     });
   }
 

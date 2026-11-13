@@ -15,8 +15,10 @@ export interface PasswordPageOptions {
 
 export interface PreviewMetaOptions {
   shortUrl: string;
+  destinationUrl?: string;
   title: string;
   description: string;
+  image?: string | null;
 }
 
 export interface PublicStatsPageOptions {
@@ -421,29 +423,88 @@ export function renderPasswordPage(opts: PasswordPageOptions): string {
 export function renderPreviewMetaPage(opts: PreviewMetaOptions): string {
   const titleEsc = escapeHtml(opts.title);
   const descEsc = escapeHtml(opts.description);
-  const urlEsc = escapeHtml(opts.shortUrl);
+  const targetUrl = opts.destinationUrl || opts.shortUrl;
+  const targetUrlEsc = escapeHtml(targetUrl);
+  const isDirect = targetUrl !== opts.shortUrl;
+
+  const refreshMeta = isDirect
+    ? `<meta http-equiv="refresh" content="0;url=${targetUrlEsc}">`
+    : "";
+  const canonicalLink = isDirect
+    ? `<link rel="canonical" href="${targetUrlEsc}">`
+    : "";
+  const imgMeta = opts.image
+    ? `<meta property="og:image" content="${escapeHtml(opts.image)}">\n  <meta name="twitter:image" content="${escapeHtml(opts.image)}">`
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="robots" content="noindex, nofollow">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${titleEsc}</title>
   <meta name="description" content="${descEsc}">
+  ${canonicalLink}
+  <meta property="og:site_name" content="TinyLink">
   <meta property="og:type" content="website">
   <meta property="og:title" content="${titleEsc}">
   <meta property="og:description" content="${descEsc}">
-  <meta property="og:url" content="${urlEsc}">
-  <meta name="twitter:card" content="summary">
+  <meta property="og:url" content="${targetUrlEsc}">
+  ${imgMeta}
+  <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="${titleEsc}">
   <meta name="twitter:description" content="${descEsc}">
+  ${refreshMeta}
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #090D16;
+      color: #F8FAFC;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
+    }
+    .card {
+      max-width: 480px;
+      width: 100%;
+      background: #111827;
+      border: 1px solid #2A364F;
+      border-radius: 14px;
+      padding: 32px 28px;
+      text-align: center;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    }
+    h1 { font-size: 1.25rem; font-weight: 700; margin-bottom: 8px; color: #F8FAFC; line-height: 1.3; }
+    p { font-size: 0.9rem; color: #94A3B8; margin-bottom: 22px; line-height: 1.5; word-break: break-word; }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 20px;
+      border-radius: 8px;
+      background: #22C55E;
+      color: #052E16;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.88rem;
+      transition: background-color 150ms ease;
+    }
+    .btn:hover { background: #16A34A; }
+    .sub { font-size: 0.74rem; color: #64748B; margin-top: 16px; margin-bottom: 0; }
+  </style>
 </head>
 <body>
-  <main style="font-family:system-ui,sans-serif;max-width:480px;margin:48px auto;padding:24px;">
+  <main class="card">
     <h1>${titleEsc}</h1>
     <p>${descEsc}</p>
-    <p><a href="${urlEsc}">${urlEsc}</a></p>
+    <a class="btn" href="${targetUrlEsc}">Continue to destination &rarr;</a>
+    <p class="sub">Shared via TinyLink</p>
   </main>
 </body>
 </html>`;

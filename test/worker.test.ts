@@ -1237,4 +1237,128 @@ describe("TinyLink Worker", () => {
     expect(Object.keys(cappedJson.referrers).length).toBeLessThanOrEqual(100);
     expect(cappedJson.referrers.other).toBeGreaterThan(0);
   });
+
+  it("handles social media crawlers with transparent 302s, uncloaked canonical OG tags, and crawler standards", async () => {
+    const env = makeEnv();
+    const { ctx, flush } = makeCtx();
+    const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+
+    // 1. Standard links return transparent 302 directly to destination for social crawlers (zero cloaking)
+    await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://myportfolio.com/projects",
+          custom: "social-direct",
+        }),
+      }),
+      env,
+      ctx
+    );
+
+    const socialAgents = [
+      "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)",
+      "Twitterbot/1.0",
+      "LinkedInBot/1.0 (compatible; Mozilla/5.0; Apache-HttpClient +http://www.linkedin.com)",
+      "TikTokBot/1.0",
+      "WhatsApp/2.23.20 A",
+      "TelegramBot (like TwitterBot)",
+      "ByteSpider",
+    ];
+
+    for (const userAgent of socialAgents) {
+      const res = await worker.fetch!(
+        makeRequest("/social-direct", { headers: { "User-Agent": userAgent } }),
+        env,
+        ctx
+      );
+      expect(res.status).toBe(302);
+      expect(res.headers.get("Location")).toBe("https://myportfolio.com/projects");
+      expect(res.headers.get("Vary")).toContain("User-Agent");
+      expect(res.headers.get("Referrer-Policy")).toBe("no-referrer-when-downgrade");
+    }
+    await flush();
+
+    const socialAnalytics = await worker.fetch!(
+      makeRequest("/api/analytics/social-direct", { headers }),
+      env,
+      ctx
+    );
+    const socialStats = (await socialAnalytics.json()) as { clicks: number; botClicks: number };
+    expect(socialStats.clicks).toBe(0);
+    expect(socialStats.botClicks).toBe(socialAgents.length);
+
+    // 2. Links with custom Open Graph tags serve uncloaked canonical destination and no noindex
+    await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://myportfolio.com/showcase",
+          custom: "social-og",
+          ogTitle: "Portfolio Showcase",
+          ogDescription: "Check out my work",
+          ogImage: "https://myportfolio.com/og-image.png",
+        }),
+      }),
+      env,
+      ctx
+    );
+
+    const metaRes = await worker.fetch!(
+      makeRequest("/social-og", {
+        headers: { "User-Agent": "facebookexternalhit/1.1" },
+      }),
+      env,
+      ctx
+    );
+    expect(metaRes.status).toBe(200);
+    expect(metaRes.headers.get("Content-Type")).toContain("text/html");
+    const metaHtml = await metaRes.text();
+
+    expect(metaHtml).not.toContain("noindex");
+    expect(metaHtml).not.toContain("nofollow");
+    expect(metaHtml).toContain('<link rel="canonical" href="https://myportfolio.com/showcase">');
+    expect(metaHtml).toContain('<meta property="og:url" content="https://myportfolio.com/showcase">');
+    expect(metaHtml).toContain('<meta property="og:title" content="Portfolio Showcase">');
+    expect(metaHtml).toContain('<meta property="og:description" content="Check out my work">');
+    expect(metaHtml).toContain('<meta property="og:site_name" content="TinyLink">');
+    expect(metaHtml).toContain('<meta name="twitter:card" content="summary_large_image">');
+    expect(metaHtml).toContain('<meta http-equiv="refresh" content="0;url=https://myportfolio.com/showcase">');
+    expect(metaHtml).toContain('href="https://myportfolio.com/showcase"');
+
+    // 3. /robots.txt and /.well-known/security.txt standards compliance
+    const robotsRes = await worker.fetch!(makeRequest("/robots.txt"), env, ctx);
+    expect(robotsRes.status).toBe(200);
+    expect(robotsRes.headers.get("Content-Type")).toContain("text/plain");
+    const robotsText = await robotsRes.text();
+    expect(robotsText).toContain("Allow: /");
+    expect(robotsText).toContain("Disallow: /api/");
+    expect(robotsText).toContain("Disallow: /stats/");
+
+    const secRes = await worker.fetch!(makeRequest("/.well-known/security.txt"), env, ctx);
+    expect(secRes.status).toBe(200);
+    expect(secRes.headers.get("Content-Type")).toContain("text/plain");
+    const secText = await secRes.text();
+    expect(secText).toContain("Contact:");
+    expect(secText).toContain("Policy:");
+
+    // 4. .well-known is reserved slug
+    const reservedSlugRes = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://example.org/reserved-check",
+          custom: ".well-known",
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(reservedSlugRes.status).toBe(400);
+    const reservedJson = (await reservedSlugRes.json()) as { error: string };
+    expect(reservedJson.error).toContain("reserved");
+  });
 });

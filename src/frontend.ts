@@ -241,6 +241,16 @@ export function renderDashboardHtml(authRequired: boolean): string {
   }
   .btn-danger-solid:hover:not(:disabled) { background: var(--danger-hover); }
   .btn-sm { min-height: 34px; padding: 0 11px; font-size: 0.8rem; }
+  #domainHelpBtn {
+    border-color: color-mix(in srgb, var(--warning) 45%, var(--border));
+    color: var(--warning);
+    background: var(--warning-soft);
+    gap: 6px;
+  }
+  #domainHelpBtn:hover {
+    background: color-mix(in srgb, var(--warning) 24%, transparent);
+    color: var(--warning);
+  }
   .btn-icon {
     width: 36px;
     height: 36px;
@@ -1592,6 +1602,10 @@ export function renderDashboardHtml(authRequired: boolean): string {
     .dropdown-menu { right: 0; left: auto; }
   }
 
+  @media (max-width: 540px) {
+    .domain-btn-label { display: none; }
+  }
+
   @media (max-width: 480px) {
     .topbar-inner { padding: 10px 14px; gap: 8px; }
     .brand { gap: 8px; }
@@ -1627,6 +1641,10 @@ export function renderDashboardHtml(authRequired: boolean): string {
     </a>
 
     <div class="topbar-actions">
+      <button type="button" class="btn btn-ghost btn-sm" id="domainHelpBtn" hidden aria-label="Social Delivery &amp; Custom Domains" title="Social Delivery &amp; Custom Domains">
+        <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="128" cy="128" r="96"/><line x1="128" y1="80" x2="128" y2="136"/><circle cx="128" cy="172" r="8" fill="currentColor"/></svg>
+        <span class="domain-btn-label">Custom Domain</span>
+      </button>
       <button type="button" class="btn btn-ghost btn-icon" id="webhooksBtn" hidden aria-label="Outgoing Webhooks &amp; Automation" title="Outgoing Webhooks &amp; Automation">
         <svg width="17" height="17" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M48,128a80,80,0,0,1,160,0"/><path d="M76,128a52,52,0,0,1,104,0"/><path d="M104,128a24,24,0,0,1,48,0"/><circle cx="128" cy="184" r="16"/></svg>
       </button>
@@ -2141,6 +2159,7 @@ export const DASHBOARD_APP_JS = `(function() {
   var themeBtn = document.getElementById('themeBtn');
   var themeIcon = document.getElementById('themeIcon');
   var themeColorMeta = document.getElementById('themeColorMeta');
+  var domainHelpBtn = document.getElementById('domainHelpBtn');
   var webhooksBtn = document.getElementById('webhooksBtn');
   var shortcutsBtn = document.getElementById('shortcutsBtn');
   var lockBtn = document.getElementById('lockBtn');
@@ -2461,6 +2480,9 @@ export const DASHBOARD_APP_JS = `(function() {
     lockBtn.hidden = !AUTH_REQUIRED;
     shortcutsBtn.hidden = false;
     webhooksBtn.hidden = false;
+    if (domainHelpBtn) {
+      domainHelpBtn.hidden = !window.location.hostname.endsWith('.workers.dev');
+    }
     applyPendingPrefill();
   }
 
@@ -3856,6 +3878,53 @@ export const DASHBOARD_APP_JS = `(function() {
     openShortcutsModal();
   });
 
+  // ── Custom Domain & Social Deliverability Guide Modal ──
+  function openDomainGuideModal() {
+    modalLabel.textContent = 'Social Media & Custom Domains';
+    modalSlug.textContent = 'Instagram, TikTok & X Deliverability';
+    modalSlug.hidden = false;
+
+    modalBody.innerHTML =
+      '<div class="tool-card">' +
+        '<div class="tool-title">Why Custom Domains are Required for Social Media</div>' +
+        '<p class="tool-desc">Platforms like <strong>Instagram, Facebook, TikTok, and LinkedIn</strong> maintain automated link filters against multi-tenant developer subdomains. Raw <code>*.workers.dev</code> domains frequently trigger automated <strong>30-day Story Link blocks</strong>. Connecting your own domain gives your short links dedicated reputation and 100% social deliverability.</p>' +
+      '</div>' +
+
+      '<div class="tool-card">' +
+        '<div class="tool-title">1. Add a Free Custom Domain in Cloudflare</div>' +
+        '<p class="tool-desc">1. Log in to your <a href="https://dash.cloudflare.com/" target="_blank" rel="noopener noreferrer" style="color:var(--link);">Cloudflare Dashboard</a>.<br>' +
+        '2. Navigate to <strong>Compute (Workers &amp; Pages)</strong> &rarr; Click <strong>url-shortener</strong>.<br>' +
+        '3. Go to <strong>Settings</strong> &rarr; <strong>Domains &amp; Routes</strong> &rarr; Click <strong>Add &rarr; Custom Domain</strong>.<br>' +
+        '4. Enter your short domain or subdomain (e.g. <code>link.yourdomain.com</code> or <code>go.yourbrand.com</code>) and click <strong>Add Custom Domain</strong>.<br>' +
+        '5. Cloudflare automatically generates SSL certificates and configures DNS routing in 2 minutes for free.</p>' +
+      '</div>' +
+
+      '<div class="tool-card">' +
+        '<div class="tool-title">2. Appeal &amp; Lift an Existing 30-Day Instagram Block</div>' +
+        '<p class="tool-desc">If your Instagram account is currently restricted from sharing links in Stories:<br>' +
+        '&bull; Open the Instagram app &rarr; <strong>Settings and privacy</strong> &rarr; <strong>Help</strong> &rarr; <strong>Report a Problem</strong>.<br>' +
+        '&bull; Submit a brief note: <em>"My link sticker was flagged by mistake when sharing my personal portfolio link. It does not violate Community Guidelines. Please review and restore link permissions."</em><br>' +
+        '&bull; Meta reviews false-positive link blocks and typically restores link permissions within 24&ndash;72 hours.</p>' +
+      '</div>' +
+
+      '<div class="tool-card">' +
+        '<div class="tool-title">3. Test in Meta Debugger Before Posting</div>' +
+        '<p class="tool-desc">Always test your short link in Meta&#39;s official tool before posting to Instagram Stories or Facebook to verify that Meta&#39;s crawler sees the destination cleanly:</p>' +
+        '<div style="margin-top:8px;">' +
+          '<a href="https://developers.facebook.com/tools/debug/" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="text-decoration:none;">' + ICONS.external + '<span>Open Meta Sharing Debugger</span></a>' +
+        '</div>' +
+      '</div>';
+
+    openModalElement();
+  }
+
+  if (domainHelpBtn) {
+    domainHelpBtn.addEventListener('click', function() {
+      lastTriggerEl = domainHelpBtn;
+      openDomainGuideModal();
+    });
+  }
+
   // ── Outgoing Webhooks Modal ──
   async function openWebhooksModal() {
     modalLabel.textContent = 'Outgoing Webhooks';
@@ -4183,6 +4252,13 @@ export const DASHBOARD_APP_JS = `(function() {
               '</div>' +
             '</div>' +
             publicStatsRowHtml +
+            '<div class="social-tools-box" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);">' +
+              '<div style="min-width:0;flex:1;">' +
+                '<div style="font-size:0.71rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);">Social Media Unfurler &amp; Debugger</div>' +
+                '<div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">Validate Open Graph tags &amp; clear Meta/Instagram cache before sharing on Stories.</div>' +
+              '</div>' +
+              '<a href="https://developers.facebook.com/tools/debug/?q=' + encodeURIComponent(shortFull) + '" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="text-decoration:none;">' + ICONS.external + '<span>Meta Debugger</span></a>' +
+            '</div>' +
           '</div>' +
         '</div>' +
 
