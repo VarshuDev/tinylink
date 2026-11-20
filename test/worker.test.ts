@@ -1361,4 +1361,262 @@ describe("TinyLink Worker", () => {
     const reservedJson = (await reservedSlugRes.json()) as { error: string };
     expect(reservedJson.error).toContain("reserved");
   });
+
+  it("handles A/B split testing creation, weight validation, traffic routing, and split click telemetry", async () => {
+    const env = makeEnv();
+    const { ctx } = makeCtx();
+    const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+
+    // 1. Rejects invalid weights (sum != 100)
+    const badWeightRes = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://example.com/main",
+          custom: "ab-bad-weight",
+          splits: [
+            { url: "https://example.com/v1", weight: 40 },
+            { url: "https://example.com/v2", weight: 40 },
+          ],
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(badWeightRes.status).toBe(400);
+    const badWeightJson = (await badWeightRes.json()) as { error: string };
+    expect(badWeightJson.error).toContain("must equal 100%");
+
+    // 2. Rejects SSRF target in splits
+    const ssrfSplitRes = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://example.com/main",
+          custom: "ab-ssrf",
+          splits: [
+            { url: "http://127.0.0.1/admin", weight: 50 },
+            { url: "https://example.com/v2", weight: 50 },
+          ],
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(ssrfSplitRes.status).toBe(400);
+
+    // 3. Successfully creates link with 2 split variants
+    const createRes = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://example.com/main",
+          custom: "ab-test",
+          splits: [
+            { url: "https://example.com/landing-a", weight: 50, label: "Variant A" },
+            { url: "https://example.com/landing-b", weight: 50, label: "Variant B" },
+          ],
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(createRes.status).toBe(200);
+    const createJson = (await createRes.json()) as { splits: Array<{ url: string; weight: number; label?: string }> };
+    expect(createJson.splits).toHaveLength(2);
+    expect(createJson.splits[0].weight).toBe(50);
+
+    // 4. Exercise routing across variants and telemetry
+    const destinationsSeen = new Set<string>();
+    for (let i = 0; i < 20; i++) {
+      const redirectRes = await worker.fetch!(
+        makeRequest("/ab-test", { headers: { "User-Agent": "Mozilla/5.0" } }),
+        env,
+        ctx
+      );
+      expect(redirectRes.status).toBe(302);
+      const loc = redirectRes.headers.get("Location")!;
+      expect(loc === "https://example.com/landing-a" || loc === "https://example.com/landing-b").toBe(true);
+      destinationsSeen.add(loc);
+    }
+    expect(destinationsSeen.size).toBe(2);
+
+    // 5. Inspect analytics telemetry for splitClicks
+    const analyticsRes = await worker.fetch!(
+      makeRequest("/api/analytics/ab-test", { headers }),
+      env,
+      ctx
+    );
+    expect(analyticsRes.status).toBe(200);
+    const analytics = (await analyticsRes.json()) as {
+      clicks: number;
+      splits: Array<{ url: string; weight: number }>;
+      splitClicks?: Record<string, number>;
+    };
+    expect(analytics.clicks).toBe(20);
+    expect(analytics.splits).toHaveLength(2);
+    expect(analytics.splitClicks).toBeDefined();
+    const sumSplitClicks =
+      ((analytics.splitClicks && analytics.splitClicks["https://example.com/landing-a"]) || 0) +
+      ((analytics.splitClicks && analytics.splitClicks["https://example.com/landing-b"]) || 0);
+    expect(sumSplitClicks).toBe(20);
+
+    // 6. Update splits via PUT to 3 variants
+    const updateRes = await worker.fetch!(
+      makeRequest("/api/urls/ab-test", {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          splits: [
+            { url: "https://example.com/v1", weight: 20 },
+            { url: "https://example.com/v2", weight: 30 },
+            { url: "https://example.com/v3", weight: 50 },
+          ],
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(updateRes.status).toBe(200);
+    const updateJson = (await updateRes.json()) as { splits: Array<{ url: string; weight: number }> };
+    expect(updateJson.splits).toHaveLength(3);
+    expect(updateJson.splits[2].weight).toBe(50);
+  });
+
+  it("performs destination health checks, records latency, and supports auto-failover to fallbackUrl", async () => {
+    const env = makeEnv();
+    const { ctx } = makeCtx();
+    const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+
+    const originalFetch = globalThis.fetch;
+    try {
+      globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+        const urlStr = typeof input === "string" ? input : (input as Request).url;
+        if (urlStr.includes("healthy-site.com")) {
+          return new Response("OK", { status: 200, statusText: "OK" });
+        }
+        if (urlStr.includes("broken-500.com")) {
+          return new Response("Internal Server Error", { status: 500, statusText: "Internal Server Error" });
+        }
+        return originalFetch(input, init);
+      };
+
+      // 1. Create link to healthy site
+      await worker.fetch!(
+        makeRequest("/api/shorten", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            url: "https://healthy-site.com/welcome",
+            custom: "health-test",
+          }),
+        }),
+        env,
+        ctx
+      );
+
+      // 2. Perform health check on healthy site
+      const healthRes = await worker.fetch!(
+        makeRequest("/api/links/health-test/health", { method: "POST", headers }),
+        env,
+        ctx
+      );
+      expect(healthRes.status).toBe(200);
+      const healthJson = (await healthRes.json()) as {
+        slug: string;
+        health: { ok: boolean; status: number; statusText: string; latencyMs: number; checkedAt: string };
+      };
+      expect(healthJson.health.ok).toBe(true);
+      expect(healthJson.health.status).toBe(200);
+      expect(healthJson.health.statusText).toBe("OK");
+      expect(healthJson.health.latencyMs).toBeGreaterThanOrEqual(1);
+      expect(healthJson.health.checkedAt).toBeTruthy();
+
+      // 3. Verify health status is persisted and returned in analytics
+      const analyticsRes = await worker.fetch!(
+        makeRequest("/api/analytics/health-test", { headers }),
+        env,
+        ctx
+      );
+      const analyticsJson = (await analyticsRes.json()) as { healthStatus?: { ok: boolean; status: number } };
+      expect(analyticsJson.healthStatus?.ok).toBe(true);
+      expect(analyticsJson.healthStatus?.status).toBe(200);
+
+      // 4. Create link to broken site with fallbackUrl
+      await worker.fetch!(
+        makeRequest("/api/shorten", {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            url: "https://broken-500.com/landing",
+            custom: "failover-test",
+            fallbackUrl: "https://healthy-site.com/backup-page",
+          }),
+        }),
+        env,
+        ctx
+      );
+
+      // Check health on broken site
+      const brokenHealthRes = await worker.fetch!(
+        makeRequest("/api/links/failover-test/health", { method: "POST", headers }),
+        env,
+        ctx
+      );
+      expect(brokenHealthRes.status).toBe(200);
+      const brokenHealthJson = (await brokenHealthRes.json()) as { health: { ok: boolean; status: number } };
+      expect(brokenHealthJson.health.ok).toBe(false);
+      expect(brokenHealthJson.health.status).toBe(500);
+
+      // 5. Test auto-failover: visiting /failover-test should route to fallbackUrl because health is 500
+      const failoverRedirect = await worker.fetch!(
+        makeRequest("/failover-test", { headers: { "User-Agent": "Mozilla/5.0" } }),
+        env,
+        ctx
+      );
+      expect(failoverRedirect.status).toBe(302);
+      expect(failoverRedirect.headers.get("Location")).toBe("https://healthy-site.com/backup-page");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("supports dynamic custom domain resolution via X-Forwarded-Host and Host headers", async () => {
+    const env = makeEnv();
+    const { ctx } = makeCtx();
+    const headers = {
+      "Content-Type": "application/json",
+      "X-Auth-Token": "test-secret-token",
+      "X-Forwarded-Host": "go.acmecorp.com",
+      "X-Forwarded-Proto": "https",
+    };
+
+    const shortenRes = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://example.com/custom-domain-target",
+          custom: "cd-link",
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(shortenRes.status).toBe(200);
+    const shortenJson = (await shortenRes.json()) as { shortUrl: string };
+    expect(shortenJson.shortUrl).toBe("https://go.acmecorp.com/cd-link");
+
+    const analyticsRes = await worker.fetch!(
+      makeRequest("/api/analytics/cd-link", { headers }),
+      env,
+      ctx
+    );
+    expect(analyticsRes.status).toBe(200);
+    const analyticsJson = (await analyticsRes.json()) as { qrSvg?: string };
+    expect(analyticsJson.qrSvg).toContain("<svg");
+  });
 });

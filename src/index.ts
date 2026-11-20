@@ -12,7 +12,9 @@ import type {
   AnalyticsResponse,
   Env,
   ImportLinkInput,
+  LinkHealthStatus,
   PublicWebhookConfig,
+  SplitRoute,
   TimelineBucket,
   URLData,
   URLListEntry,
@@ -318,6 +320,15 @@ function applySecurityHeaders(res: Response, req: Request, env: Env): Response {
     statusText: res.statusText,
     headers,
   });
+}
+
+export function getRequestOrigin(req: Request): string {
+  const url = new URL(req.url);
+  const forwardedHost = req.headers.get("X-Forwarded-Host")?.split(",")[0]?.trim();
+  const host = forwardedHost || req.headers.get("Host") || url.host;
+  const forwardedProto = req.headers.get("X-Forwarded-Proto")?.split(",")[0]?.trim();
+  const proto = forwardedProto || (url.protocol.replace(":", "") || "https");
+  return `${proto}://${host}`;
 }
 
 function safeRedirect(targetUrl: string, status: 302 | 303, cacheControl?: string): Response {
@@ -795,17 +806,42 @@ export function detectOsCategory(ua: string): "ios" | "android" | "desktop" {
   return "desktop";
 }
 
+export function pickSplitVariant(splits: SplitRoute[]): { url: string; index: number } | null {
+  if (!splits || splits.length === 0) return null;
+  const total = splits.reduce((acc, s) => acc + (s.weight > 0 ? s.weight : 0), 0);
+  if (total <= 0) return { url: splits[0].url, index: 0 };
+  let rand = Math.random() * total;
+  for (let i = 0; i < splits.length; i++) {
+    const w = splits[i].weight > 0 ? splits[i].weight : 0;
+    if (rand < w) {
+      return { url: splits[i].url, index: i };
+    }
+    rand -= w;
+  }
+  return { url: splits[splits.length - 1].url, index: splits.length - 1 };
+}
+
 export function resolveDestinationUrl(
   data: URLData,
   country: string,
   os: "ios" | "android" | "desktop"
-): { targetUrl: string; reason: "device" | "geo" | "default" } {
+): { targetUrl: string; reason: "device" | "geo" | "split" | "fallback" | "default"; splitVariantUrl?: string } {
+  // Auto-failover if target destination is marked broken (5xx) and fallbackUrl is set
+  if (data.healthStatus && !data.healthStatus.ok && data.fallbackUrl && data.healthStatus.status >= 500) {
+    return { targetUrl: data.fallbackUrl, reason: "fallback" };
+  }
   if (data.deviceRoutes && data.deviceRoutes[os]?.trim()) {
     return { targetUrl: data.deviceRoutes[os]!.trim(), reason: "device" };
   }
   const upperCountry = country.toUpperCase();
   if (data.geoRoutes && data.geoRoutes[upperCountry]?.trim()) {
     return { targetUrl: data.geoRoutes[upperCountry]!.trim(), reason: "geo" };
+  }
+  if (data.splits && data.splits.length > 0) {
+    const chosen = pickSplitVariant(data.splits);
+    if (chosen) {
+      return { targetUrl: chosen.url, reason: "split", splitVariantUrl: chosen.url };
+    }
   }
   return { targetUrl: data.originalUrl, reason: "default" };
 }
@@ -1150,6 +1186,55 @@ function normalizeDeviceRoutes(
   return { routes };
 }
 
+export function normalizeSplitRoutes(
+  raw: unknown,
+  reqUrl: string
+): { splits: SplitRoute[]; error?: string } {
+  if (raw === null || raw === undefined) {
+    return { splits: [] };
+  }
+  if (!Array.isArray(raw)) {
+    return { splits: [], error: "Split routes must be an array of { url, weight, label? }" };
+  }
+  if (raw.length === 0) {
+    return { splits: [] };
+  }
+  if (raw.length > 5) {
+    return { splits: [], error: "A maximum of 5 split variants is supported" };
+  }
+  const result: SplitRoute[] = [];
+  let totalWeight = 0;
+  for (let i = 0; i < raw.length; i++) {
+    const item = raw[i];
+    if (!item || typeof item !== "object") {
+      return { splits: [], error: `Split variant #${i + 1} must be an object` };
+    }
+    const rec = item as Record<string, unknown>;
+    if (typeof rec.url !== "string" || !rec.url.trim()) {
+      return { splits: [], error: `Split variant #${i + 1} is missing a destination URL` };
+    }
+    const valid = validateDestinationUrl(rec.url, reqUrl);
+    if (valid.error || !valid.url) {
+      return { splits: [], error: `Split variant #${i + 1}: ${valid.error || "Invalid URL"}` };
+    }
+    const weightNum = Number(rec.weight);
+    if (!Number.isFinite(weightNum) || weightNum <= 0 || weightNum > 100) {
+      return { splits: [], error: `Split variant #${i + 1} weight must be between 1% and 100%` };
+    }
+    const label = typeof rec.label === "string" ? rec.label.trim().slice(0, 40) : null;
+    result.push({
+      url: valid.url,
+      weight: Math.round(weightNum),
+      label: label || undefined,
+    });
+    totalWeight += Math.round(weightNum);
+  }
+  if (totalWeight !== 100) {
+    return { splits: [], error: `Total split weight must equal 100% (currently ${totalWeight}%)` };
+  }
+  return { splits: result };
+}
+
 function normalizeOgText(raw: unknown, maxLen: number): string | null {
   if (typeof raw !== "string") return null;
   const trimmed = raw.trim().slice(0, maxLen);
@@ -1343,6 +1428,8 @@ function toListEntry(
     | "fallbackUrl"
     | "geoRoutes"
     | "deviceRoutes"
+    | "splits"
+    | "healthStatus"
   >,
   now: Date
 ): URLListEntry {
@@ -1367,6 +1454,8 @@ function toListEntry(
     isPending: isLinkPending(d, now),
     geoRoutes: d.geoRoutes || {},
     deviceRoutes: d.deviceRoutes || {},
+    splits: d.splits || [],
+    healthStatus: d.healthStatus ?? null,
   };
 }
 
@@ -1407,6 +1496,8 @@ async function listAllEntries(env: Env): Promise<URLListEntry[]> {
           isPending: isLinkPending({ startsAt }, now),
           geoRoutes: {},
           deviceRoutes: {},
+          splits: [],
+          healthStatus: null,
         });
       } else {
         fallbackGets.push(
@@ -1717,6 +1808,7 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
     fallbackUrl?: string | null;
     geoRoutes?: Record<string, string>;
     deviceRoutes?: { ios?: string | null; android?: string | null; desktop?: string | null };
+    splits?: unknown;
   };
   const bodyParsed = await readBoundedJson<typeof body>(req);
   if (bodyParsed.error || !bodyParsed.data) {
@@ -1746,6 +1838,9 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
   const deviceRoutesParsed = normalizeDeviceRoutes(body.deviceRoutes, req.url);
   if (deviceRoutesParsed.error) return err(deviceRoutesParsed.error);
 
+  const splitsParsed = normalizeSplitRoutes(body.splits, req.url);
+  if (splitsParsed.error) return err(splitsParsed.error);
+
   const label = normalizeLabel(body.label);
   const tags = normalizeTags(body.tags);
   const ogTitle = normalizeOgText(body.ogTitle, 100);
@@ -1765,8 +1860,8 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
       (item) => item.originalUrl === url && !item.isExpired && !item.isExhausted
     );
     if (match) {
-      const host = new URL(req.url).host;
-      const shortUrl = `https://${host}/${match.slug}`;
+      const origin = getRequestOrigin(req);
+      const shortUrl = `${origin}/${match.slug}`;
       const qrSvg = await generateQR(shortUrl);
       return json({
         slug: match.slug,
@@ -1786,6 +1881,8 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
         isPending: match.isPending,
         geoRoutes: match.geoRoutes,
         deviceRoutes: match.deviceRoutes,
+        splits: match.splits ?? [],
+        healthStatus: match.healthStatus ?? null,
         deduplicated: true,
         qrSvg,
       });
@@ -1855,12 +1952,13 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
     fallbackUrl: fallbackUrlParsed.url,
     geoRoutes: geoRoutesParsed.routes,
     deviceRoutes: deviceRoutesParsed.routes,
+    splits: splitsParsed.splits,
   };
 
   await saveUrlRecord(env, slug!, data);
 
-  const host = new URL(req.url).host;
-  const shortUrl = `https://${host}/${slug!}`;
+  const origin = getRequestOrigin(req);
+  const shortUrl = `${origin}/${slug!}`;
   const qrSvg = await generateQR(shortUrl);
 
   return json({
@@ -1881,6 +1979,8 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
     isPending: isLinkPending(data),
     geoRoutes: data.geoRoutes ?? {},
     deviceRoutes: data.deviceRoutes ?? {},
+    splits: data.splits ?? [],
+    healthStatus: null,
     qrSvg,
   });
 }
@@ -1902,8 +2002,8 @@ async function handleAnalytics(slug: string, env: Env, req: Request, ctx: Execut
   if (!raw) return err("URL not found", 404);
 
   const data: URLData = JSON.parse(raw);
-  const host = new URL(req.url).host;
-  const shortUrl = `https://${host}/${slug}`;
+  const origin = getRequestOrigin(req);
+  const shortUrl = `${origin}/${slug}`;
   const expired = isLinkExpired(data);
   const exhausted = isLinkExhausted(data);
 
@@ -1936,6 +2036,9 @@ async function handleAnalytics(slug: string, env: Env, req: Request, ctx: Execut
     isPending: isLinkPending(data),
     geoRoutes: data.geoRoutes ?? {},
     deviceRoutes: data.deviceRoutes ?? {},
+    splits: data.splits ?? [],
+    splitClicks: data.splitClicks ?? {},
+    healthStatus: data.healthStatus ?? null,
     qrSvg,
   });
 }
@@ -1963,6 +2066,7 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
     fallbackUrl?: string | null;
     geoRoutes?: Record<string, string> | null;
     deviceRoutes?: { ios?: string | null; android?: string | null; desktop?: string | null } | null;
+    splits?: unknown;
   };
   const bodyParsed = await readBoundedJson<typeof body>(req);
   if (bodyParsed.error || !bodyParsed.data) {
@@ -1983,6 +2087,7 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
   const hasFallbackUrl = body.fallbackUrl !== undefined;
   const hasGeoRoutes = body.geoRoutes !== undefined;
   const hasDeviceRoutes = body.deviceRoutes !== undefined;
+  const hasSplits = body.splits !== undefined;
 
   if (
     !hasUrl &&
@@ -1998,7 +2103,8 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
     !hasStartsAt &&
     !hasFallbackUrl &&
     !hasGeoRoutes &&
-    !hasDeviceRoutes
+    !hasDeviceRoutes &&
+    !hasSplits
   ) {
     return err("Provide at least one field to update");
   }
@@ -2093,6 +2199,16 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
     }
   }
 
+  if (hasSplits) {
+    if (body.splits === null || (Array.isArray(body.splits) && body.splits.length === 0)) {
+      data.splits = [];
+    } else {
+      const parsed = normalizeSplitRoutes(body.splits, req.url);
+      if (parsed.error) return err(parsed.error);
+      data.splits = parsed.splits;
+    }
+  }
+
   if (data.startsAt && data.expiresAt && new Date(data.startsAt) >= new Date(data.expiresAt)) {
     return err("Activation start time must be before link expiration time");
   }
@@ -2115,6 +2231,8 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
     isPending: isLinkPending(data),
     geoRoutes: data.geoRoutes ?? {},
     deviceRoutes: data.deviceRoutes ?? {},
+    splits: data.splits ?? [],
+    healthStatus: data.healthStatus ?? null,
     message: "Link updated successfully",
   });
 }
@@ -2129,6 +2247,83 @@ async function handleDelete(slug: string, env: Env, req: Request, ctx: Execution
 
   await env.URL_KV.delete(key(slug));
   return json({ deleted: slug });
+}
+
+async function handleCheckHealth(slug: string, env: Env, req: Request, ctx: ExecutionContext): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+  if (!SLUG_RE.test(slug)) return err("Invalid slug", 400);
+
+  const raw = await env.URL_KV.get(key(slug));
+  if (!raw) return err("URL not found", 404);
+
+  const data: URLData = JSON.parse(raw);
+  const targetUrl = data.originalUrl;
+  const valid = validateDestinationUrl(targetUrl, req.url);
+  if (valid.error || !valid.url) {
+    return err("Target URL failed security verification", 400);
+  }
+
+  const start = Date.now();
+  let status = 0;
+  let statusText = "Network Error";
+  let ok = false;
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
+    let res: Response;
+    try {
+      res = await fetch(targetUrl, {
+        method: "HEAD",
+        redirect: "follow",
+        signal: controller.signal,
+        headers: { "User-Agent": "TinyLink-HealthCheck/3.3" },
+      });
+      if (res.status === 405) {
+        res = await fetch(targetUrl, {
+          method: "GET",
+          redirect: "follow",
+          signal: controller.signal,
+          headers: { "User-Agent": "TinyLink-HealthCheck/3.3" },
+        });
+      }
+    } catch (e: unknown) {
+      const errObj = e as { name?: string; message?: string };
+      if (errObj?.name === "AbortError") {
+        statusText = "Timeout (4s)";
+        throw e;
+      }
+      throw e;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    status = res.status;
+    statusText = res.statusText || (status >= 200 && status < 300 ? "OK" : status >= 300 && status < 400 ? "Redirect" : `HTTP ${status}`);
+    ok = status >= 200 && status < 400;
+  } catch (errCatch: unknown) {
+    if (statusText !== "Timeout (4s)") {
+      const msg = errCatch instanceof Error ? errCatch.message : String(errCatch);
+      statusText = msg ? msg.slice(0, 50) : "Connection Failed";
+    }
+  }
+
+  const latencyMs = Math.max(1, Date.now() - start);
+  const healthStatus: LinkHealthStatus = {
+    ok,
+    status,
+    statusText,
+    latencyMs,
+    checkedAt: new Date().toISOString(),
+  };
+
+  data.healthStatus = healthStatus;
+  await saveUrlRecord(env, slug, data);
+
+  return json({
+    slug,
+    health: healthStatus,
+  });
 }
 
 async function handleBulkDelete(req: Request, env: Env, ctx: ExecutionContext) {
@@ -2241,6 +2436,7 @@ async function handleImport(req: Request, env: Env, ctx: ExecutionContext) {
     }
     const geoRoutes = normalizeGeoRoutes(item.geoRoutes, req.url).routes;
     const deviceRoutes = normalizeDeviceRoutes(item.deviceRoutes, req.url).routes;
+    const splits = normalizeSplitRoutes(item.splits, req.url).splits;
 
     const record: URLData = {
       originalUrl: validUrl.url,
@@ -2266,6 +2462,8 @@ async function handleImport(req: Request, env: Env, ctx: ExecutionContext) {
       fallbackUrl,
       geoRoutes,
       deviceRoutes,
+      splits,
+      healthStatus: item.healthStatus ?? null,
     };
 
     await saveUrlRecord(env, slug, record);
@@ -2300,7 +2498,7 @@ function trimTopRecord(rec: Record<string, number>, maxKeys: number): Record<str
   return out;
 }
 
-function applyHumanHit(data: URLData, req: Request) {
+function applyHumanHit(data: URLData, req: Request, splitVariantUrl?: string) {
   const now = new Date();
   const nowIso = now.toISOString();
   const referer = req.headers.get("Referer") ?? null;
@@ -2338,6 +2536,11 @@ function applyHumanHit(data: URLData, req: Request) {
   if (!data.hourlyClicks) data.hourlyClicks = {};
   data.hourlyClicks[hourlyKey] = (data.hourlyClicks[hourlyKey] || 0) + 1;
   data.hourlyClicks = trimBucketRecord(data.hourlyClicks, 48);
+
+  if (splitVariantUrl) {
+    if (!data.splitClicks) data.splitClicks = {};
+    data.splitClicks[splitVariantUrl] = (data.splitClicks[splitVariantUrl] || 0) + 1;
+  }
 }
 
 async function readSubmittedPassword(req: Request): Promise<string> {
@@ -2447,11 +2650,11 @@ async function handleRedirect(
   }
 
   const ua = req.headers.get("User-Agent") ?? "";
-  const reqUrl = new URL(req.url);
-  const shortUrl = `${reqUrl.origin}/${slug}`;
+  const origin = getRequestOrigin(req);
+  const shortUrl = `${origin}/${slug}`;
   const country = getVisitorCountry(req);
   const os = detectOsCategory(ua);
-  const { targetUrl } = resolveDestinationUrl(data, country, os);
+  const { targetUrl, splitVariantUrl } = resolveDestinationUrl(data, country, os);
 
   // Handle POST unlock submission for password-protected links
   if (req.method === "POST") {
@@ -2511,7 +2714,7 @@ async function handleRedirect(
       data.passwordHash = await hashPassword(submitted);
     }
 
-    applyHumanHit(data, req);
+    applyHumanHit(data, req, splitVariantUrl);
     const hitLimitNow = !!(data.maxClicks && data.clicks >= data.maxClicks);
     if (data.maxClicks) {
       await saveUrlRecord(env, slug, data);
@@ -2582,7 +2785,7 @@ async function handleRedirect(
   }
 
   // Track human analytics
-  applyHumanHit(data, req);
+  applyHumanHit(data, req, splitVariantUrl);
   const hitLimitNow = !!(data.maxClicks && data.clicks >= data.maxClicks);
   if (data.maxClicks) {
     await saveUrlRecord(env, slug, data);
@@ -2968,6 +3171,17 @@ async function handleRoute(
     const slug = decodeSlugParam(path.slice("/api/urls/".length));
     if (!slug || !SLUG_RE.test(slug)) return err("Invalid slug", 400);
     return handleDelete(slug, env, req, ctx);
+  }
+  if (
+    (path.startsWith("/api/links/") || path.startsWith("/api/urls/")) &&
+    path.endsWith("/health") &&
+    req.method === "POST"
+  ) {
+    const prefix = path.startsWith("/api/links/") ? "/api/links/" : "/api/urls/";
+    const rawSlug = path.slice(prefix.length, -"/health".length);
+    const slug = decodeSlugParam(rawSlug);
+    if (!slug || !SLUG_RE.test(slug)) return err("Invalid slug", 400);
+    return handleCheckHealth(slug, env, req, ctx);
   }
 
   // Opt-in public read-only stats route

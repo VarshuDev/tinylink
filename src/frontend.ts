@@ -1877,6 +1877,18 @@ export function renderDashboardHtml(authRequired: boolean): string {
               </div>
               <div id="geoRoutesContainer" style="display:flex;flex-direction:column;gap:8px;"></div>
             </div>
+
+            <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border-subtle);">
+              <div class="adv-subhead" style="margin-bottom:6px;">
+                <span>A/B Split Testing &amp; Traffic Weighting</span>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span id="splitsTotalWeightBadge" class="meta-chip" style="font-size:0.7rem;font-weight:600;" hidden>Total: 0%</span>
+                  <button type="button" class="btn btn-secondary btn-sm" id="addSplitVariantBtn" style="min-height:30px;font-size:0.74rem;">+ Add Split Variant</button>
+                </div>
+              </div>
+              <p style="font-size:0.74rem;color:var(--text-muted);margin:0 0 8px 0;">Split incoming visitors across multiple destination URLs with custom percentage weights (must sum to 100%).</p>
+              <div id="splitsContainer" style="display:flex;flex-direction:column;gap:8px;"></div>
+            </div>
           </div>
 
           <div class="adv-tab-panel" role="tabpanel" id="advPanelUtm" aria-labelledby="advTabUtm" hidden>
@@ -2107,7 +2119,10 @@ export const DASHBOARD_APP_JS = `(function() {
     tablet: '<svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><rect x="48" y="32" width="160" height="192" rx="16"/><line x1="112" y1="192" x2="144" y2="192"/></svg>',
     external: '<svg width="13" height="13" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><path d="M184,136v72a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8h72"/><polyline points="152 40 216 40 216 104"/><line x1="128" y1="128" x2="216" y2="40"/></svg>',
     lockSm: '<svg width="11" height="11" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"><rect x="40" y="88" width="176" height="128" rx="8"/><path d="M92,88V52a36,36,0,0,1,72,0V88"/></svg>',
-    globe: '<svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><circle cx="128" cy="128" r="96"/><ellipse cx="128" cy="128" rx="40" ry="96"/><line x1="36" y1="96" x2="220" y2="96"/><line x1="36" y1="160" x2="220" y2="160"/></svg>'
+    globe: '<svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><circle cx="128" cy="128" r="96"/><ellipse cx="128" cy="128" rx="40" ry="96"/><line x1="36" y1="96" x2="220" y2="96"/><line x1="36" y1="160" x2="220" y2="160"/></svg>',
+    activity: '<svg width="13" height="13" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><polyline points="24 128 72 128 104 48 152 208 184 128 232 128"/></svg>',
+    split: '<svg width="13" height="13" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><circle cx="64" cy="128" r="28"/><circle cx="192" cy="64" r="28"/><circle cx="192" cy="192" r="28"/><path d="M92,128h32a32,32,0,0,0,32-32V92"/><path d="M124,128a32,32,0,0,1,32,32v32"/></svg>',
+    refresh: '<svg width="13" height="13" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><polyline points="176 16 224 16 224 64"/><polyline points="80 240 32 240 32 192"/><path d="M190.2,190.2a88,88,0,0,1-124.4,0L32,156"/><path d="M65.8,65.8a88,88,0,0,1,124.4,0L224,100"/></svg>'
   };
 
   // ── State ──
@@ -2215,6 +2230,9 @@ export const DASHBOARD_APP_JS = `(function() {
   var routeAndroidInput = document.getElementById('routeAndroidInput');
   var addGeoRouteBtn = document.getElementById('addGeoRouteBtn');
   var geoRoutesContainer = document.getElementById('geoRoutesContainer');
+  var addSplitVariantBtn = document.getElementById('addSplitVariantBtn');
+  var splitsContainer = document.getElementById('splitsContainer');
+  var splitsTotalWeightBadge = document.getElementById('splitsTotalWeightBadge');
 
   var resultBar = document.getElementById('resultBar');
   var resultQr = document.getElementById('resultQr');
@@ -2481,7 +2499,18 @@ export const DASHBOARD_APP_JS = `(function() {
     shortcutsBtn.hidden = false;
     webhooksBtn.hidden = false;
     if (domainHelpBtn) {
-      domainHelpBtn.hidden = !window.location.hostname.endsWith('.workers.dev');
+      if (window.location.hostname.endsWith('.workers.dev')) {
+        domainHelpBtn.hidden = false;
+        domainHelpBtn.title = 'Social Delivery & Custom Domains';
+        domainHelpBtn.innerHTML = ICONS.globe + '<span class="domain-btn-label">Custom Domain</span>';
+      } else {
+        domainHelpBtn.hidden = false;
+        domainHelpBtn.style.borderColor = 'rgba(34,197,94,0.3)';
+        domainHelpBtn.style.color = 'var(--accent)';
+        domainHelpBtn.style.background = 'var(--accent-soft)';
+        domainHelpBtn.innerHTML = ICONS.check + '<span class="domain-btn-label">' + escapeHtml(window.location.hostname) + '</span>';
+        domainHelpBtn.title = 'Custom domain active & connected: ' + window.location.hostname;
+      }
     }
     applyPendingPrefill();
   }
@@ -2614,6 +2643,113 @@ export const DASHBOARD_APP_JS = `(function() {
     updateAdvCount();
   });
 
+  function addSplitRow(container, url, weight, label) {
+    if (container.querySelectorAll('.split-row').length >= 5) {
+      showToast('Maximum 5 split variants allowed', 'warning');
+      return;
+    }
+    var row = document.createElement('div');
+    row.className = 'split-row';
+    row.style = 'display:flex;align-items:center;gap:6px;flex-wrap:wrap;';
+    var defWeight = weight !== undefined && weight !== null ? String(weight) : '50';
+    row.innerHTML =
+      '<input type="url" class="adv-input split-url-input" value="' + escapeHtml(url || '') + '" placeholder="https://variant-destination.com" style="flex:2;min-width:170px;" required title="Variant destination URL">' +
+      '<div style="display:flex;align-items:center;gap:4px;flex:1;min-width:105px;">' +
+        '<input type="number" min="1" max="100" class="adv-input tabular split-weight-input" value="' + escapeHtml(defWeight) + '" placeholder="50" style="width:64px;" title="Traffic weight percentage">' +
+        '<span style="font-size:0.75rem;color:var(--text-muted);font-weight:600;">%</span>' +
+      '</div>' +
+      '<input type="text" maxlength="40" class="adv-input split-label-input" value="' + escapeHtml(label || '') + '" placeholder="Variant note" style="flex:1;min-width:100px;" title="Optional variant label">' +
+      '<button type="button" class="btn btn-ghost btn-icon split-remove-btn" title="Remove variant" style="min-width:32px;height:36px;padding:0;">' +
+        '<svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"><line x1="200" y1="56" x2="56" y2="200"/><line x1="200" y1="200" x2="56" y2="56"/></svg>' +
+      '</button>';
+
+    function updateThisTotal() {
+      var editBadge = document.getElementById('editSplitsTotalBadge');
+      if (container === splitsContainer) {
+        updateSplitsTotal();
+      } else if (editBadge) {
+        updateSplitsTotal(container, editBadge);
+      }
+    }
+
+    var removeBtn = row.querySelector('.split-remove-btn');
+    removeBtn.addEventListener('click', function() {
+      row.remove();
+      updateThisTotal();
+      updateAdvCount();
+    });
+
+    var urlInp = row.querySelector('.split-url-input');
+    var weightInp = row.querySelector('.split-weight-input');
+    var labelInp = row.querySelector('.split-label-input');
+    urlInp.addEventListener('input', function() { updateThisTotal(); updateAdvCount(); });
+    weightInp.addEventListener('input', function() { updateThisTotal(); updateAdvCount(); });
+    labelInp.addEventListener('input', updateAdvCount);
+
+    container.appendChild(row);
+    updateThisTotal();
+    if (!url) urlInp.focus();
+  }
+
+  function getSplitsFromContainer(container) {
+    if (!container) return [];
+    var rows = container.querySelectorAll('.split-row');
+    var result = [];
+    for (var i = 0; i < rows.length; i++) {
+      var u = rows[i].querySelector('.split-url-input').value.trim();
+      var w = parseInt(rows[i].querySelector('.split-weight-input').value, 10);
+      var l = rows[i].querySelector('.split-label-input').value.trim();
+      if (u) {
+        result.push({
+          url: u,
+          weight: isNaN(w) ? 0 : w,
+          label: l || undefined
+        });
+      }
+    }
+    return result;
+  }
+
+  function updateSplitsTotal(optContainer, optBadge) {
+    var c = optContainer || splitsContainer;
+    var badge = optBadge || document.getElementById('splitsTotalWeightBadge');
+    if (!badge || !c) return;
+    var rows = c.querySelectorAll('.split-row');
+    if (!rows.length) {
+      badge.hidden = true;
+      return;
+    }
+    badge.hidden = false;
+    var total = 0;
+    for (var i = 0; i < rows.length; i++) {
+      var w = parseInt(rows[i].querySelector('.split-weight-input').value, 10);
+      if (!isNaN(w)) total += w;
+    }
+    badge.textContent = 'Total: ' + total + '%';
+    if (total === 100) {
+      badge.style.borderColor = 'rgba(34,197,94,0.3)';
+      badge.style.color = 'var(--accent)';
+    } else {
+      badge.style.borderColor = 'rgba(239,68,68,0.3)';
+      badge.style.color = 'var(--danger)';
+    }
+  }
+
+  if (addSplitVariantBtn && splitsContainer) {
+    addSplitVariantBtn.addEventListener('click', function() {
+      addSplitRow(splitsContainer, '', 50, '');
+      updateAdvCount();
+    });
+  }
+
+  function renderHealthBadge(status) {
+    if (!status) return '<span style="color:var(--text-muted);">Not audited yet</span>';
+    if (status.ok) {
+      return '<span style="color:var(--accent);font-weight:600;">' + (status.status || 200) + ' ' + escapeHtml(status.statusText || 'OK') + '</span> <span style="font-size:0.74rem;color:var(--text-muted);">(' + status.latencyMs + 'ms · checked ' + fmtRelative(status.checkedAt) + ')</span>';
+    }
+    return '<span style="color:var(--danger);font-weight:600;">' + (status.status || 'Down') + ' ' + escapeHtml(status.statusText || 'Failed') + '</span> <span style="font-size:0.74rem;color:var(--text-muted);">(' + fmtRelative(status.checkedAt) + ')</span>';
+  }
+
   function updateAdvCount() {
     var genCount = 0;
     if (labelInput.value.trim()) genCount++;
@@ -2629,6 +2765,8 @@ export const DASHBOARD_APP_JS = `(function() {
     if (routeAndroidInput.value.trim()) routeCount++;
     var geoCount = geoRoutesContainer.querySelectorAll('.geo-row').length;
     if (geoCount > 0) routeCount += geoCount;
+    var splitsCount = splitsContainer ? splitsContainer.querySelectorAll('.split-row').length : 0;
+    if (splitsCount > 0) routeCount += splitsCount;
 
     var utmCount = 0;
     if (utmSource.value.trim() || utmMedium.value.trim() || utmCampaign.value.trim()) utmCount++;
@@ -2692,6 +2830,8 @@ export const DASHBOARD_APP_JS = `(function() {
     if (routeIosInput.value.trim() || routeAndroidInput.value.trim()) badges.push('Device route');
     var geoLen = geoRoutesContainer.querySelectorAll('.geo-row').length;
     if (geoLen > 0) badges.push('Geo (' + geoLen + ')');
+    var splitLen = splitsContainer ? splitsContainer.querySelectorAll('.split-row').length : 0;
+    if (splitLen > 0) badges.push('A/B (' + splitLen + ')');
 
     studioPreviewMeta.textContent = badges.length ? badges.join(' · ') : 'Ready to shorten';
     studioPreviewMeta.className = 'preview-meta-pill' + (rawUrl && /^https?:\\/\\//i.test(rawUrl) && slugValid ? ' is-valid' : '');
@@ -2894,6 +3034,16 @@ export const DASHBOARD_APP_JS = `(function() {
     }
     if (Object.keys(geoRoutes).length > 0) payload.geoRoutes = geoRoutes;
 
+    var splits = getSplitsFromContainer(splitsContainer);
+    if (splits.length > 0) {
+      var splitTotal = splits.reduce(function(acc, s) { return acc + s.weight; }, 0);
+      if (splitTotal !== 100) {
+        setShortenError('Split testing variants must sum to exactly 100% (currently ' + splitTotal + '%).');
+        return;
+      }
+      payload.splits = splits;
+    }
+
     shortenBtn.disabled = true;
     shortenBtn.querySelector('span').textContent = 'Shortening…';
 
@@ -2920,6 +3070,8 @@ export const DASHBOARD_APP_JS = `(function() {
       expiresValue.value = 'never';
       maxClicksCustom.hidden = true;
       geoRoutesContainer.innerHTML = '';
+      if (splitsContainer) splitsContainer.innerHTML = '';
+      updateSplitsTotal();
       var pills = expiryPills.querySelectorAll('[data-expiry]');
       for (var i = 0; i < pills.length; i++) {
         pills[i].setAttribute('aria-checked', pills[i].getAttribute('data-expiry') === 'never' ? 'true' : 'false');
@@ -3192,6 +3344,16 @@ export const DASHBOARD_APP_JS = `(function() {
     }
     if (u.deviceRoutes && (u.deviceRoutes.ios || u.deviceRoutes.android || u.deviceRoutes.desktop)) {
       chips.push('<span class="meta-chip device">' + ICONS.mobile + '<span>Devices</span></span>');
+    }
+    if (u.splits && u.splits.length > 0) {
+      chips.push('<span class="meta-chip geo" style="border-color:rgba(192,132,252,0.3);color:var(--geo);">' + ICONS.split + '<span>A/B (' + u.splits.length + ')</span></span>');
+    }
+    if (u.healthStatus) {
+      if (u.healthStatus.ok) {
+        chips.push('<span class="meta-chip" style="border-color:rgba(34,197,94,0.3);color:var(--accent);">' + ICONS.activity + '<span>' + (u.healthStatus.status || 200) + ' (' + u.healthStatus.latencyMs + 'ms)</span></span>');
+      } else {
+        chips.push('<span class="meta-chip" style="border-color:rgba(239,68,68,0.3);color:var(--danger);">' + ICONS.activity + '<span>' + (u.healthStatus.status || 'Down') + '</span></span>');
+      }
     }
     if (u.startsAt && u.isPending) {
       chips.push('<span class="meta-chip pending">Starts ' + fmtDate(u.startsAt) + '</span>');
@@ -4219,6 +4381,39 @@ export const DASHBOARD_APP_JS = `(function() {
             labelBlock +
             '<div class="modal-url-box">' + origEsc + '</div>' +
             metaChipsHtml +
+            '<div class="health-card" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:10px 12px;margin-top:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);">' +
+              '<div style="min-width:0;flex:1;">' +
+                '<div style="font-size:0.71rem;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);">Destination Health Status</div>' +
+                '<div id="modalHealthInfo" style="font-size:0.84rem;margin-top:2px;display:flex;align-items:center;gap:6px;">' +
+                  renderHealthBadge(data.healthStatus) +
+                '</div>' +
+              '</div>' +
+              '<button type="button" class="btn btn-secondary btn-sm" id="modalCheckHealthBtn">' + ICONS.refresh + '<span>Check Health</span></button>' +
+            '</div>' +
+            (data.splits && data.splits.length > 0
+              ? '<div style="margin-top:12px;">' +
+                  '<div class="section-head"><span>A/B Split Test Performance</span><span class="chart-readout">' + data.splits.length + ' variants</span></div>' +
+                  '<div style="display:flex;flex-direction:column;gap:8px;">' +
+                    data.splits.map(function(s, sIdx) {
+                      var sClicks = (data.splitClicks && data.splitClicks[s.url]) || 0;
+                      var sharePct = data.clicks > 0 ? Math.round((sClicks / data.clicks) * 100) : 0;
+                      var vName = s.label || ('Variant ' + String.fromCharCode(65 + sIdx));
+                      return '<div style="padding:10px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);">' +
+                        '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:0.82rem;font-weight:600;">' +
+                          '<span style="color:var(--link);word-break:break-all;">' + escapeHtml(vName) + ' &mdash; <span style="font-weight:400;color:var(--text-muted);">' + escapeHtml(s.url) + '</span></span>' +
+                          '<span class="tabular" style="color:var(--accent);">' + sClicks + ' clicks (' + sharePct + '%)</span>' +
+                        '</div>' +
+                        '<div style="display:flex;align-items:center;gap:8px;margin-top:6px;font-size:0.74rem;color:var(--text-muted);">' +
+                          '<span>Target: ' + s.weight + '%</span>' +
+                          '<div style="flex:1;height:6px;background:var(--surface-3);border-radius:3px;overflow:hidden;">' +
+                            '<div style="height:100%;background:var(--accent);width:' + Math.min(100, sharePct) + '%;"></div>' +
+                          '</div>' +
+                        '</div>' +
+                      '</div>';
+                    }).join('') +
+                  '</div>' +
+                '</div>'
+              : '') +
           '</div>' +
 
           '<div class="modal-stats-grid">' +
@@ -4345,6 +4540,16 @@ export const DASHBOARD_APP_JS = `(function() {
               '</div>' +
               '<div id="editGeoRoutesContainer" style="display:flex;flex-direction:column;gap:8px;"></div>' +
             '</div>' +
+            '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border-subtle);">' +
+              '<div class="adv-subhead" style="margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;gap:8px;">' +
+                '<div style="display:flex;align-items:center;gap:6px;">' +
+                  '<span>A/B Split Testing &amp; Traffic Weighting</span>' +
+                  '<span id="editSplitsTotalBadge" class="meta-chip mono" style="font-size:0.7rem;font-weight:700;" hidden>Total: 0%</span>' +
+                '</div>' +
+                '<button type="button" class="btn btn-secondary btn-sm" id="editAddSplitBtn" style="min-height:28px;font-size:0.74rem;">+ Add Variant</button>' +
+              '</div>' +
+              '<div id="editSplitsContainer" style="display:flex;flex-direction:column;gap:8px;"></div>' +
+            '</div>' +
             '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:10px;">' +
               '<label class="check-row" for="editPublicStatsCheck">' +
                 '<input type="checkbox" id="editPublicStatsCheck"' + (data.publicStats ? ' checked' : '') + '>' +
@@ -4433,6 +4638,31 @@ export const DASHBOARD_APP_JS = `(function() {
         downloadPngFromSvg(safeModalQrSvg, slug + '-qr.png');
       });
 
+      // Wire Health Check button
+      var modalCheckHealthBtn = document.getElementById('modalCheckHealthBtn');
+      var modalHealthInfo = document.getElementById('modalHealthInfo');
+      if (modalCheckHealthBtn) {
+        modalCheckHealthBtn.addEventListener('click', async function() {
+          modalCheckHealthBtn.disabled = true;
+          modalCheckHealthBtn.innerHTML = ICONS.refresh + '<span>Checking…</span>';
+          try {
+            var healthRes = await api('/api/links/' + encodeURIComponent(slug) + '/health', { method: 'POST' });
+            data.healthStatus = healthRes.health;
+            if (modalHealthInfo) {
+              modalHealthInfo.innerHTML = renderHealthBadge(healthRes.health);
+            }
+            upsertLinkRecord({ slug: slug, healthStatus: healthRes.health });
+            renderLinksView();
+            showToast('Health check: ' + (healthRes.health.ok ? 'Reachable (' + healthRes.health.status + ')' : 'Failed (' + (healthRes.health.status || 'Down') + ')'), healthRes.health.ok ? 'success' : 'warning');
+          } catch (hErr) {
+            showToast('Health check failed: ' + hErr.message, 'error');
+          } finally {
+            modalCheckHealthBtn.disabled = false;
+            modalCheckHealthBtn.innerHTML = ICONS.refresh + '<span>Check Health</span>';
+          }
+        });
+      }
+
       // Wire Edit form
       var editForm = document.getElementById('editForm');
       var editUrlInput = document.getElementById('editUrlInput');
@@ -4452,6 +4682,8 @@ export const DASHBOARD_APP_JS = `(function() {
       var editRouteAndroidInput = document.getElementById('editRouteAndroidInput');
       var editAddGeoRouteBtn = document.getElementById('editAddGeoRouteBtn');
       var editGeoRoutesContainer = document.getElementById('editGeoRoutesContainer');
+      var editAddSplitBtn = document.getElementById('editAddSplitBtn');
+      var editSplitsContainer = document.getElementById('editSplitsContainer');
       var saveEditBtn = document.getElementById('saveEditBtn');
       var editError = document.getElementById('editError');
       var editErrorText = document.getElementById('editErrorText');
@@ -4465,6 +4697,18 @@ export const DASHBOARD_APP_JS = `(function() {
       editAddGeoRouteBtn.addEventListener('click', function() {
         addGeoRow(editGeoRoutesContainer, '', '');
       });
+
+      if (data.splits && data.splits.length > 0 && editSplitsContainer) {
+        data.splits.forEach(function(s) {
+          addSplitRow(editSplitsContainer, s.url, s.weight, s.label);
+        });
+      }
+
+      if (editAddSplitBtn && editSplitsContainer) {
+        editAddSplitBtn.addEventListener('click', function() {
+          addSplitRow(editSplitsContainer, '', 50, '');
+        });
+      }
 
       editPasswordMode.addEventListener('change', function() {
         var isSet = editPasswordMode.value === 'set';
@@ -4546,6 +4790,24 @@ export const DASHBOARD_APP_JS = `(function() {
         }
         updatePayload.geoRoutes = nextGeoRoutes;
 
+        var nextSplits = getSplitsFromContainer(editSplitsContainer);
+        if (nextSplits && nextSplits.length > 0) {
+          if (nextSplits.length < 2) {
+            editErrorText.textContent = 'A/B testing requires at least 2 variants or remove all variant rows.';
+            editError.hidden = false;
+            return;
+          }
+          var sumWeights = nextSplits.reduce(function(acc, item) { return acc + item.weight; }, 0);
+          if (sumWeights !== 100) {
+            editErrorText.textContent = 'A/B variant weights must sum to exactly 100% (currently ' + sumWeights + '%).';
+            editError.hidden = false;
+            return;
+          }
+          updatePayload.splits = nextSplits;
+        } else {
+          updatePayload.splits = [];
+        }
+
         var pwdMode = editPasswordMode.value;
         if (pwdMode === 'set') {
           if (!editPasswordInput.value) {
@@ -4582,7 +4844,9 @@ export const DASHBOARD_APP_JS = `(function() {
             fallbackUrl: updated.fallbackUrl,
             isPending: !!updated.isPending,
             geoRoutes: updated.geoRoutes || {},
-            deviceRoutes: updated.deviceRoutes || {}
+            deviceRoutes: updated.deviceRoutes || {},
+            splits: updated.splits || [],
+            healthStatus: updated.healthStatus || null
           });
           showToast('Link updated', 'success');
           closeModalElement();

@@ -26,6 +26,24 @@ export interface URLData {
   fallbackUrl?: string | null;
   geoRoutes?: Record<string, string>;
   deviceRoutes?: { ios?: string | null; android?: string | null; desktop?: string | null };
+  // Phase 5: A/B Split Testing & Destination Health
+  splits?: SplitRoute[];
+  splitClicks?: Record<string, number>;
+  healthStatus?: LinkHealthStatus | null;
+}
+
+export interface SplitRoute {
+  url: string;
+  weight: number;
+  label?: string | null;
+}
+
+export interface LinkHealthStatus {
+  ok: boolean;
+  status: number;
+  statusText: string;
+  latencyMs: number;
+  checkedAt: string;
 }
 
 export interface WebhookConfig {
@@ -85,6 +103,7 @@ export interface URLMetadata {
   publicStats?: boolean;
   botClicks?: number;
   startsAt?: string | null;
+  hasSplits?: boolean;
 }
 
 export interface URLListEntry {
@@ -109,6 +128,9 @@ export interface URLListEntry {
   isPending: boolean;
   geoRoutes: Record<string, string>;
   deviceRoutes: { ios?: string | null; android?: string | null; desktop?: string | null };
+  // Phase 5: A/B Split Testing & Destination Health
+  splits?: SplitRoute[];
+  healthStatus?: LinkHealthStatus | null;
 }
 
 export interface TimelineBucket {
@@ -144,6 +166,10 @@ export interface AnalyticsResponse {
   isPending: boolean;
   geoRoutes: Record<string, string>;
   deviceRoutes: { ios?: string | null; android?: string | null; desktop?: string | null };
+  // Phase 5: A/B Split Testing & Destination Health
+  splits?: SplitRoute[];
+  splitClicks?: Record<string, number>;
+  healthStatus?: LinkHealthStatus | null;
 }
 
 export interface ImportLinkInput {
@@ -164,6 +190,9 @@ export interface ImportLinkInput {
   fallbackUrl?: string | null;
   geoRoutes?: Record<string, string>;
   deviceRoutes?: { ios?: string | null; android?: string | null; desktop?: string | null };
+  // Phase 5: A/B Split Testing & Destination Health
+  splits?: SplitRoute[];
+  healthStatus?: LinkHealthStatus | null;
 }
 
 export interface Env {
