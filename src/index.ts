@@ -115,7 +115,7 @@ const APP_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 5
   <path d="M214 298a72 72 0 0 0 101.82 0l50.91-50.91a72 72 0 0 0-101.82-101.82L239.45 170.7M298 214a72 72 0 0 0-101.82 0l-50.91 50.91a72 72 0 0 0 101.82 101.82l25.46-25.43" fill="none" stroke="#22C55E" stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 
-const SERVICE_WORKER_JS = `const CACHE_NAME = 'tinylink-shell-v3';
+const SERVICE_WORKER_JS = `const CACHE_NAME = 'tinylink-shell-v4';
 const SHELL_ASSETS = ['/icon.svg', '/manifest.webmanifest', '/assets/theme.js', '/assets/app.js'];
 
 self.addEventListener('install', (event) => {
@@ -138,11 +138,25 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
+  if (url.pathname === '/assets/app.js') {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(req, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(req))
+    );
+    return;
+  }
+
   if (
     url.pathname === '/icon.svg' ||
     url.pathname === '/manifest.webmanifest' ||
-    url.pathname === '/assets/theme.js' ||
-    url.pathname === '/assets/app.js'
+    url.pathname === '/assets/theme.js'
   ) {
     event.respondWith(
       caches.match(req).then((cached) => {
@@ -3471,7 +3485,7 @@ async function handleRoute(
     return new Response(DASHBOARD_APP_JS, {
       headers: {
         "Content-Type": "application/javascript; charset=utf-8",
-        "Cache-Control": "public, max-age=3600",
+        "Cache-Control": "public, max-age=0, must-revalidate",
       },
     });
   }

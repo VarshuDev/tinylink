@@ -1640,7 +1640,8 @@ export function renderDashboardHtml(authRequired: boolean): string {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 16px;
+    padding: 8px 18px;
+    min-height: 44px;
     border-radius: var(--radius-sm);
     font-size: 0.88rem;
     font-weight: 600;
@@ -1648,6 +1649,10 @@ export function renderDashboardHtml(authRequired: boolean): string {
     background: transparent;
     border: 1px solid transparent;
     cursor: pointer;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-tap-highlight-color: transparent;
     transition: all 140ms ease;
   }
   .workspace-tab:hover {
@@ -2465,7 +2470,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
 <!-- Toast -->
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="/assets/app.js" defer></script>
+<script src="/assets/app.js?v=3.4.1" defer></script>
 </body>
 </html>`;
 }
@@ -2938,17 +2943,31 @@ export const DASHBOARD_APP_JS = `(function() {
   }
 
   if (navLinksBtn && navBioBtn) {
-    navLinksBtn.addEventListener('click', function() { switchWorkspaceTab('links'); });
-    navBioBtn.addEventListener('click', function() { switchWorkspaceTab('bio'); });
+    var onTabSelect = function(tab) {
+      switchWorkspaceTab(tab);
+      try {
+        if (window.history && window.history.replaceState) {
+          window.history.replaceState(null, '', tab === 'bio' ? '#bio' : '#links');
+        }
+      } catch (e) {}
+    };
+
+    navLinksBtn.addEventListener('click', function(e) { e.preventDefault(); onTabSelect('links'); });
+    navBioBtn.addEventListener('click', function(e) { e.preventDefault(); onTabSelect('bio'); });
+
     [navLinksBtn, navBioBtn].forEach(function(btn, idx, arr) {
       btn.addEventListener('keydown', function(e) {
         if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
         e.preventDefault();
         var nextBtn = arr[(idx + 1) % arr.length];
-        switchWorkspaceTab(nextBtn === navBioBtn ? 'bio' : 'links');
+        onTabSelect(nextBtn === navBioBtn ? 'bio' : 'links');
         nextBtn.focus();
       });
     });
+
+    if (window.location.hash === '#bio') {
+      setTimeout(function() { switchWorkspaceTab('bio'); }, 20);
+    }
   }
 
   if (createBioBtn) {
@@ -5950,7 +5969,9 @@ export const DASHBOARD_APP_JS = `(function() {
 
   // ── Bootstrap App ──
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(function() {});
+    navigator.serviceWorker.register('/sw.js').then(function(reg) {
+      try { reg.update(); } catch (e) {}
+    }).catch(function() {});
   }
   async function bootstrapAuth() {
     if (!AUTH_REQUIRED) {
