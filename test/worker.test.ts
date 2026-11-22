@@ -1619,4 +1619,217 @@ describe("TinyLink Worker", () => {
     const analyticsJson = (await analyticsRes.json()) as { qrSvg?: string };
     expect(analyticsJson.qrSvg).toContain("<svg");
   });
+
+  it("manages Link-in-Bio profiles, renders theme landing pages, and tracks button redirects", async () => {
+    const env = makeEnv();
+    const { ctx, flush } = makeCtx();
+    const adminHeaders = {
+      "Content-Type": "application/json",
+      "X-Auth-Token": "test-secret-token",
+    };
+
+    // 1. Validation: reject invalid handle
+    const badHandleRes = await worker.fetch!(
+      makeRequest("/api/bio", {
+        method: "POST",
+        headers: adminHeaders,
+        body: JSON.stringify({
+          handle: "a",
+          title: "Alex",
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(badHandleRes.status).toBe(400);
+
+    // 2. Validation: reject reserved handle
+    const reservedHandleRes = await worker.fetch!(
+      makeRequest("/api/bio", {
+        method: "POST",
+        headers: adminHeaders,
+        body: JSON.stringify({
+          handle: "admin",
+          title: "Admin Bio",
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(reservedHandleRes.status).toBe(400);
+
+    // 3. Validation: reject SSRF in links
+    const ssrfLinkRes = await worker.fetch!(
+      makeRequest("/api/bio", {
+        method: "POST",
+        headers: adminHeaders,
+        body: JSON.stringify({
+          handle: "creator",
+          title: "Creator",
+          links: [
+            { id: "lnk_internal", title: "Internal", url: "http://127.0.0.1:8080/secret" },
+          ],
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(ssrfLinkRes.status).toBe(400);
+
+    // 4. Create valid bio profile
+    const createRes = await worker.fetch!(
+      makeRequest("/api/bio", {
+        method: "POST",
+        headers: adminHeaders,
+        body: JSON.stringify({
+          handle: "alex-dev",
+          title: "Alex Morgan",
+          bio: "Full-stack engineer building edge apps.",
+          avatarUrl: "https://images.example.com/alex.jpg",
+          verified: true,
+          theme: "midnight",
+          socials: {
+            instagram: "alex_builds",
+            github: "alexdev",
+            twitter: "alex_tweets",
+          },
+          links: [
+            {
+              id: "lnk_portfolio",
+              title: "My Portfolio",
+              url: "https://alexmorgan.dev",
+              icon: "globe",
+              highlight: true,
+            },
+            {
+              id: "lnk_repo",
+              title: "Star on GitHub",
+              url: "https://github.com/alexdev/project",
+              icon: "github",
+              highlight: false,
+            },
+          ],
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(createRes.status).toBe(201);
+    const createJson = (await createRes.json()) as { ok: boolean; profile: { handle: string; links: unknown[] } };
+    expect(createJson.ok).toBe(true);
+    expect(createJson.profile.handle).toBe("alex-dev");
+    expect(createJson.profile.links.length).toBe(2);
+
+    // 5. Conflict: duplicate handle returns 409
+    const dupRes = await worker.fetch!(
+      makeRequest("/api/bio", {
+        method: "POST",
+        headers: adminHeaders,
+        body: JSON.stringify({
+          handle: "alex-dev",
+          title: "Duplicate Alex",
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(dupRes.status).toBe(409);
+
+    // 6. List bio profiles: GET /api/bio
+    const listRes = await worker.fetch!(
+      makeRequest("/api/bio", { headers: adminHeaders }),
+      env,
+      ctx
+    );
+    expect(listRes.status).toBe(200);
+    const listJson = (await listRes.json()) as { ok: boolean; profiles: Array<{ handle: string; title: string; linksCount: number }> };
+    expect(listJson.ok).toBe(true);
+    expect(listJson.profiles.length).toBe(1);
+    expect(listJson.profiles[0].handle).toBe("alex-dev");
+    expect(listJson.profiles[0].linksCount).toBe(2);
+
+    // 7. Get single profile: GET /api/bio/alex-dev
+    const getRes = await worker.fetch!(
+      makeRequest("/api/bio/alex-dev", { headers: adminHeaders }),
+      env,
+      ctx
+    );
+    expect(getRes.status).toBe(200);
+    const getJson = (await getRes.json()) as { ok: boolean; profile: { title: string; theme: string; verified: boolean } };
+    expect(getJson.profile.title).toBe("Alex Morgan");
+    expect(getJson.profile.theme).toBe("midnight");
+    expect(getJson.profile.verified).toBe(true);
+
+    // 8. Public bio page rendering: GET /bio/alex-dev and GET /p/alex-dev
+    for (const bioPath of ["/bio/alex-dev", "/p/alex-dev"]) {
+      const pageRes = await worker.fetch!(makeRequest(bioPath), env, ctx);
+      expect(pageRes.status).toBe(200);
+      expect(pageRes.headers.get("Content-Type")).toContain("text/html");
+      expect(pageRes.headers.get("Content-Security-Policy")).toContain("frame-ancestors 'none'");
+      const pageHtml = await pageRes.text();
+      expect(pageHtml).toContain("Alex Morgan");
+      expect(pageHtml).toContain("Full-stack engineer building edge apps.");
+      expect(pageHtml).toContain("My Portfolio");
+      expect(pageHtml).toContain("/bio/alex-dev/c/lnk_portfolio");
+      expect(pageHtml).toContain('property="og:title" content="Alex Morgan (@alex-dev)"');
+      expect(pageHtml).toContain('name="twitter:card"');
+    }
+
+    // 9. Zero-JS click redirection: GET /bio/alex-dev/c/lnk_portfolio
+    const clickRes = await worker.fetch!(
+      makeRequest("/bio/alex-dev/c/lnk_portfolio"),
+      env,
+      ctx
+    );
+    expect(clickRes.status).toBe(302);
+    expect(clickRes.headers.get("Location")).toBe("https://alexmorgan.dev");
+
+    // Flush waitUntil so KV updates finish
+    await flush();
+
+    // Check that button click was incremented in KV
+    const updatedProfileRes = await worker.fetch!(
+      makeRequest("/api/bio/alex-dev", { headers: adminHeaders }),
+      env,
+      ctx
+    );
+    const updatedJson = (await updatedProfileRes.json()) as { profile: { links: Array<{ id: string; clicks: number }> } };
+    const portfolioLink = updatedJson.profile.links.find((l) => l.id === "lnk_portfolio");
+    expect(portfolioLink?.clicks).toBe(1);
+
+    // 10. Update bio profile: PUT /api/bio/alex-dev
+    const updateRes = await worker.fetch!(
+      makeRequest("/api/bio/alex-dev", {
+        method: "PUT",
+        headers: adminHeaders,
+        body: JSON.stringify({
+          title: "Alex Morgan, Staff Engineer",
+          theme: "sunset",
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(updateRes.status).toBe(200);
+
+    const recheckPageRes = await worker.fetch!(makeRequest("/bio/alex-dev"), env, ctx);
+    const recheckHtml = await recheckPageRes.text();
+    expect(recheckHtml).toContain("Alex Morgan, Staff Engineer");
+    expect(recheckHtml).toContain('data-theme="sunset"');
+
+    // 11. Delete bio profile: DELETE /api/bio/alex-dev
+    const deleteRes = await worker.fetch!(
+      makeRequest("/api/bio/alex-dev", {
+        method: "DELETE",
+        headers: adminHeaders,
+      }),
+      env,
+      ctx
+    );
+    expect(deleteRes.status).toBe(200);
+
+    // 12. Subsequent public page returns 404
+    const notFoundRes = await worker.fetch!(makeRequest("/bio/alex-dev"), env, ctx);
+    expect(notFoundRes.status).toBe(404);
+  });
 });

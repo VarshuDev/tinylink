@@ -1626,6 +1626,347 @@ export function renderDashboardHtml(authRequired: boolean): string {
     .topbar-actions .btn-icon, #lockBtn { width: 34px; min-height: 34px; padding: 0; }
     .lock-label { display: none; }
   }
+
+  /* ── Workspace Nav Tabs ── */
+  .workspace-nav {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 22px;
+    border-bottom: 1px solid var(--border-subtle);
+    padding-bottom: 12px;
+  }
+  .workspace-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 140ms ease;
+  }
+  .workspace-tab:hover {
+    color: var(--text);
+    background: var(--surface);
+  }
+  .workspace-tab[aria-selected="true"] {
+    color: var(--text);
+    background: var(--surface-2);
+    border-color: var(--border);
+    box-shadow: var(--shadow-sm);
+  }
+  .workspace-tab-count {
+    padding: 2px 7px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-family: var(--font-mono);
+    font-weight: 700;
+    background: var(--surface-3);
+    color: var(--text-muted);
+  }
+  .workspace-tab[aria-selected="true"] .workspace-tab-count {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  /* ── Bio Pages View & Cards ── */
+  .bio-view-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+    padding: 16px 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .bio-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 16px;
+  }
+  .bio-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    transition: transform 140ms ease, border-color 140ms ease;
+  }
+  .bio-card:hover {
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+    transform: translateY(-2px);
+  }
+  .bio-card-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .bio-card-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    object-fit: cover;
+    background: var(--surface-2);
+    border: 2px solid var(--accent);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    color: var(--accent);
+    font-size: 1.2rem;
+  }
+  .bio-card-info {
+    min-width: 0;
+    flex: 1;
+  }
+  .bio-card-title {
+    font-size: 0.98rem;
+    font-weight: 700;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .bio-card-handle {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+  }
+  .bio-card-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    padding: 10px 12px;
+    background: var(--surface-2);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+  }
+  .bio-stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .bio-stat-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+  .bio-stat-val {
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-family: var(--font-mono);
+    color: var(--text);
+  }
+  .bio-card-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  /* ── Modal Dialog Wide Modifier & Simulator ── */
+  .modal-dialog.wide {
+    max-width: 960px;
+  }
+  .bio-editor-grid {
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 24px;
+    align-items: start;
+  }
+  @media (max-width: 860px) {
+    .bio-editor-grid {
+      grid-template-columns: 1fr;
+    }
+    .bio-sim-wrap {
+      display: none;
+    }
+  }
+  .bio-sim-wrap {
+    position: sticky;
+    top: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .bio-sim-frame {
+    width: 320px;
+    height: 520px;
+    border: 8px solid var(--surface-3);
+    border-radius: 36px;
+    overflow-y: auto;
+    padding: 24px 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: 0 16px 36px rgba(0,0,0,0.4);
+    transition: background 0.2s ease, color 0.2s ease;
+    background: var(--bio-bg, #090D16);
+    color: var(--bio-text, #F8FAFC);
+  }
+  .bio-sim-avatar-img {
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--bio-accent, #38BDF8);
+    background: var(--bio-card-bg, #111827);
+  }
+  .bio-sim-avatar-fallback {
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    background: var(--bio-card-bg, #111827);
+    border: 2px solid var(--bio-accent, #38BDF8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--bio-accent, #38BDF8);
+  }
+  .bio-sim-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
+  }
+  .bio-sim-badge {
+    color: var(--bio-accent, #38BDF8);
+    display: inline-flex;
+    align-items: center;
+  }
+  .bio-sim-handle {
+    font-size: 0.78rem;
+    color: var(--bio-muted, #94A3B8);
+    font-family: var(--font-mono);
+  }
+  .bio-sim-bio {
+    font-size: 0.8rem;
+    color: var(--bio-muted, #94A3B8);
+    text-align: center;
+    margin-top: 6px;
+    line-height: 1.4;
+    max-width: 270px;
+    word-break: break-word;
+  }
+  .bio-sim-socials {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  .bio-sim-social-pill {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--bio-card-bg, #111827);
+    border: 1px solid var(--bio-border, rgba(148, 163, 184, 0.16));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--bio-muted, #94A3B8);
+  }
+  .bio-sim-links {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 16px;
+  }
+  .bio-sim-btn {
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: var(--bio-card-bg, #111827);
+    border: 1px solid var(--bio-border, rgba(148, 163, 184, 0.16));
+    color: var(--bio-text, #F8FAFC);
+    font-size: 0.84rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+  }
+  .bio-sim-btn.highlight {
+    border-color: var(--bio-accent, #38BDF8);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--bio-accent, #38BDF8) 40%, transparent);
+  }
+  .bio-theme-picker {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .bio-theme-swatch {
+    padding: 6px 13px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text-muted);
+    transition: all 120ms ease;
+  }
+  .bio-theme-swatch:hover {
+    color: var(--text);
+    border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  }
+  .bio-theme-swatch.is-active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .bio-links-editor-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .bio-link-editor-item {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .bio-link-editor-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .bio-link-editor-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
 </style>
 </head>
 <body>
@@ -1703,6 +2044,21 @@ export function renderDashboardHtml(authRequired: boolean): string {
 
   <!-- Authenticated Workspace -->
   <div id="appWorkspace" hidden>
+    <nav class="workspace-nav" role="tablist" aria-label="Main Navigation">
+      <button type="button" class="workspace-tab is-active" id="navLinksBtn" role="tab" aria-selected="true" aria-controls="viewLinks">
+        <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M122.34,71.43l29.38-29.37a44,44,0,0,1,62.22,62.22l-41.37,41.38a44,44,0,0,1-62.23,0"/><path d="M133.66,184.57l-29.38,29.37a44,44,0,0,1-62.22-62.22l41.37-41.38a44,44,0,0,1,62.23,0"/></svg>
+        <span>Short Links</span>
+        <span class="workspace-tab-count" id="linksCountBadge">0</span>
+      </button>
+      <button type="button" class="workspace-tab" id="navBioBtn" role="tab" aria-selected="false" aria-controls="viewBio" tabindex="-1">
+        <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="128" cy="96" r="64"/><path d="M32,216c0-48,42.67-80,96-80s96,32,96,80"/></svg>
+        <span>Bio Pages</span>
+        <span class="workspace-tab-count" id="bioCountBadge">0</span>
+      </button>
+    </nav>
+
+    <!-- Links View -->
+    <div id="viewLinks" role="tabpanel" aria-labelledby="navLinksBtn">
     <!-- Shorten Studio -->
     <section class="card studio" aria-labelledby="studioHeading">
       <div class="studio-header">
@@ -2068,6 +2424,23 @@ export function renderDashboardHtml(authRequired: boolean): string {
 
       <div id="linksContainer"></div>
     </section>
+    </div>
+
+    <!-- Link-in-Bio Pages View -->
+    <div id="viewBio" role="tabpanel" aria-labelledby="navBioBtn" hidden>
+      <div class="bio-view-header">
+        <div>
+          <h2 style="font-size:1.15rem;font-weight:700;color:var(--text);letter-spacing:-0.02em;">Link-in-Bio Profiles</h2>
+          <p style="font-size:0.83rem;color:var(--text-muted);margin-top:2px;">Custom mobile-first profile landing pages designed for Instagram Stories, TikTok, and Twitter.</p>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" id="createBioBtn">
+          <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="128" y1="40" x2="128" y2="216"/><line x1="40" y1="128" x2="216" y2="128"/></svg>
+          <span>Create Bio Page</span>
+        </button>
+      </div>
+
+      <div id="bioPagesContainer"></div>
+    </div>
   </div>
 </main>
 
@@ -2122,7 +2495,20 @@ export const DASHBOARD_APP_JS = `(function() {
     globe: '<svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><circle cx="128" cy="128" r="96"/><ellipse cx="128" cy="128" rx="40" ry="96"/><line x1="36" y1="96" x2="220" y2="96"/><line x1="36" y1="160" x2="220" y2="160"/></svg>',
     activity: '<svg width="13" height="13" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><polyline points="24 128 72 128 104 48 152 208 184 128 232 128"/></svg>',
     split: '<svg width="13" height="13" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><circle cx="64" cy="128" r="28"/><circle cx="192" cy="64" r="28"/><circle cx="192" cy="192" r="28"/><path d="M92,128h32a32,32,0,0,0,32-32V92"/><path d="M124,128a32,32,0,0,1,32,32v32"/></svg>',
-    refresh: '<svg width="13" height="13" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><polyline points="176 16 224 16 224 64"/><polyline points="80 240 32 240 32 192"/><path d="M190.2,190.2a88,88,0,0,1-124.4,0L32,156"/><path d="M65.8,65.8a88,88,0,0,1,124.4,0L224,100"/></svg>'
+    refresh: '<svg width="13" height="13" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><polyline points="176 16 224 16 224 64"/><polyline points="80 240 32 240 32 192"/><path d="M190.2,190.2a88,88,0,0,1-124.4,0L32,156"/><path d="M65.8,65.8a88,88,0,0,1,124.4,0L224,100"/></svg>',
+    user: '<svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><circle cx="128" cy="96" r="64"/><path d="M32,216c0-48,42.67-80,96-80s96,32,96,80"/></svg>',
+    plus: '<svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"><line x1="128" y1="40" x2="128" y2="216"/><line x1="40" y1="128" x2="216" y2="128"/></svg>',
+    arrowUp: '<svg width="13" height="13" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"><line x1="128" y1="216" x2="128" y2="40"/><polyline points="56 112 128 40 200 112"/></svg>',
+    arrowDown: '<svg width="13" height="13" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"><line x1="128" y1="40" x2="128" y2="216"/><polyline points="56 144 128 216 200 144"/></svg>',
+    sparkle: '<svg width="13" height="13" viewBox="0 0 256 256" fill="currentColor"><path d="M128,16a8,8,0,0,1,8,8c0,48,32,80,80,80a8,8,0,0,1,0,16c-48,0-80,32-80,80a8,8,0,0,1-16,0c0-48-32-80-80-80a8,8,0,0,1,0-16c48,0,80-32,80-80A8,8,0,0,1,128,16Z"/></svg>',
+    instagram: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>',
+    twitter: '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>',
+    github: '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>',
+    youtube: '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>',
+    linkedin: '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>',
+    email: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
+    discord: '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>',
+    music: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>'
   };
 
   // ── State ──
@@ -2272,6 +2658,18 @@ export const DASHBOARD_APP_JS = `(function() {
   var bulkConfirmDelBtn = document.getElementById('bulkConfirmDelBtn');
   var bulkClearBtn = document.getElementById('bulkClearBtn');
   var linksContainer = document.getElementById('linksContainer');
+
+  // Bio Navigation & State References
+  var bioPages = [];
+  var currentWorkspaceTab = 'links';
+  var navLinksBtn = document.getElementById('navLinksBtn');
+  var navBioBtn = document.getElementById('navBioBtn');
+  var viewLinks = document.getElementById('viewLinks');
+  var viewBio = document.getElementById('viewBio');
+  var linksCountBadge = document.getElementById('linksCountBadge');
+  var bioCountBadge = document.getElementById('bioCountBadge');
+  var createBioBtn = document.getElementById('createBioBtn');
+  var bioPagesContainer = document.getElementById('bioPagesContainer');
 
   var modal = document.getElementById('analyticsModal');
   var modalDialog = modal.querySelector('.modal-dialog');
@@ -2513,6 +2911,50 @@ export const DASHBOARD_APP_JS = `(function() {
       }
     }
     applyPendingPrefill();
+    fetchBioPages();
+  }
+
+  // ── Workspace Tab Switching ──
+  function switchWorkspaceTab(tab) {
+    currentWorkspaceTab = tab;
+    var isLinks = tab === 'links';
+    if (navLinksBtn) {
+      navLinksBtn.setAttribute('aria-selected', isLinks ? 'true' : 'false');
+      navLinksBtn.tabIndex = isLinks ? 0 : -1;
+      if (isLinks) navLinksBtn.classList.add('is-active');
+      else navLinksBtn.classList.remove('is-active');
+    }
+    if (navBioBtn) {
+      navBioBtn.setAttribute('aria-selected', isLinks ? 'false' : 'true');
+      navBioBtn.tabIndex = isLinks ? -1 : 0;
+      if (!isLinks) navBioBtn.classList.add('is-active');
+      else navBioBtn.classList.remove('is-active');
+    }
+    if (viewLinks) viewLinks.hidden = !isLinks;
+    if (viewBio) viewBio.hidden = isLinks;
+    if (!isLinks) {
+      fetchBioPages();
+    }
+  }
+
+  if (navLinksBtn && navBioBtn) {
+    navLinksBtn.addEventListener('click', function() { switchWorkspaceTab('links'); });
+    navBioBtn.addEventListener('click', function() { switchWorkspaceTab('bio'); });
+    [navLinksBtn, navBioBtn].forEach(function(btn, idx, arr) {
+      btn.addEventListener('keydown', function(e) {
+        if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+        e.preventDefault();
+        var nextBtn = arr[(idx + 1) % arr.length];
+        switchWorkspaceTab(nextBtn === navBioBtn ? 'bio' : 'links');
+        nextBtn.focus();
+      });
+    });
+  }
+
+  if (createBioBtn) {
+    createBioBtn.addEventListener('click', function() {
+      openBioEditorModal(null);
+    });
   }
 
   lockBtn.addEventListener('click', async function() {
@@ -3387,6 +3829,7 @@ export const DASHBOARD_APP_JS = `(function() {
     statActive.textContent = activeCount.toLocaleString();
     statClicks.textContent = totalClicks.toLocaleString();
     statExpired.textContent = expiredCount.toLocaleString();
+    if (linksCountBadge) linksCountBadge.textContent = urls.length.toString();
 
     var kpiCards = statsRow.querySelectorAll('[data-kpi-action]');
     for (var ki = 0; ki < kpiCards.length; ki++) {
@@ -3933,6 +4376,7 @@ export const DASHBOARD_APP_JS = `(function() {
 
   function closeModalElement() {
     modal.classList.remove('open');
+    modalDialog.classList.remove('wide');
     modal.hidden = true;
     if (lastTriggerEl && typeof lastTriggerEl.focus === 'function') {
       lastTriggerEl.focus();
@@ -4918,6 +5362,590 @@ export const DASHBOARD_APP_JS = `(function() {
         modalBody.innerHTML = '<div class="alert-box" role="alert"><span>' + escapeHtml(err.message) + '</span></div>';
       }
     }
+  }
+
+  // ── Link-in-Bio & Profile Studio ──
+  var BIO_THEMES = {
+    midnight: { bg: '#090D16', card: '#111827', border: 'rgba(148, 163, 184, 0.16)', text: '#F8FAFC', muted: '#94A3B8', accent: '#38BDF8' },
+    paper: { bg: '#F8FAFC', card: '#FFFFFF', border: '#E2E8F0', text: '#0F172A', muted: '#64748B', accent: '#2563EB' },
+    emerald: { bg: '#030A06', card: '#091910', border: 'rgba(34, 197, 94, 0.28)', text: '#ECFDF5', muted: '#6EE7B7', accent: '#10B981' },
+    sunset: { bg: '#0F0913', card: '#1A1022', border: 'rgba(244, 63, 94, 0.28)', text: '#FFF1F2', muted: '#FDA4AF', accent: '#F43F5E' },
+    glass: { bg: '#060913', card: 'rgba(255, 255, 255, 0.05)', border: 'rgba(255, 255, 255, 0.12)', text: '#FFFFFF', muted: '#94A3B8', accent: '#818CF8' }
+  };
+
+  async function fetchBioPages() {
+    try {
+      var res = await api('/api/bio');
+      bioPages = (res && res.profiles) || [];
+      if (bioCountBadge) bioCountBadge.textContent = bioPages.length.toString();
+      renderBioPagesView();
+    } catch (err) {
+      if (err.status === 401) {
+        showVault('Your session expired. Please re-enter your admin token.');
+      } else if (bioPagesContainer) {
+        bioPagesContainer.innerHTML = '<div class="alert-box" role="alert"><span>Failed to load bio profiles: ' + escapeHtml(err.message) + '</span></div>';
+      }
+    }
+  }
+
+  function renderBioPagesView() {
+    if (!bioPagesContainer) return;
+    if (!bioPages.length) {
+      bioPagesContainer.innerHTML =
+        '<div style="text-align:center;padding:48px 24px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);max-width:540px;margin:24px auto;">' +
+          '<div style="width:54px;height:54px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:inline-flex;align-items:center;justify-content:center;margin-bottom:14px;">' + ICONS.user + '</div>' +
+          '<h3 style="font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:6px;">No Bio Profiles Yet</h3>' +
+          '<p style="font-size:0.86rem;color:var(--text-muted);margin-bottom:18px;">Create a beautiful mobile landing page for your Instagram, TikTok, or Twitter bio with custom links and zero social media blocks.</p>' +
+          '<button type="button" class="btn btn-primary btn-sm" id="emptyCreateBioBtn">' +
+            ICONS.plus + '<span>Create First Bio Page</span>' +
+          '</button>' +
+        '</div>';
+      var emptyBtn = document.getElementById('emptyCreateBioBtn');
+      if (emptyBtn) {
+        emptyBtn.addEventListener('click', function() {
+          openBioEditorModal(null);
+        });
+      }
+      return;
+    }
+
+    var origin = window.location.origin;
+    var cardsHtml = bioPages.map(function(p) {
+      var handle = escapeHtml(p.handle);
+      var title = escapeHtml(p.title || p.handle);
+      var publicUrl = origin + '/bio/' + handle;
+      var linksCount = p.linksCount || 0;
+      var totalClicks = p.totalClicks || 0;
+      var theme = escapeHtml(p.theme || 'midnight');
+      
+      var avatarMarkup = '';
+      if (p.avatarUrl) {
+        avatarMarkup = '<img class="bio-card-avatar" src="' + escapeHtml(p.avatarUrl) + '" alt="' + title + '" /><div class="bio-card-avatar" style="display:none;">' + escapeHtml((p.title || p.handle).charAt(0).toUpperCase()) + '</div>';
+      } else {
+        avatarMarkup = '<div class="bio-card-avatar">' + escapeHtml((p.title || p.handle).charAt(0).toUpperCase()) + '</div>';
+      }
+
+      return (
+        '<div class="bio-card" data-bio-handle="' + handle + '">' +
+          '<div class="bio-card-head">' +
+            avatarMarkup +
+            '<div class="bio-card-info">' +
+              '<div class="bio-card-title">' +
+                '<span>' + title + '</span>' +
+                (p.verified ? '<span style="color:var(--accent);display:inline-flex;" title="Verified Profile">' + ICONS.check + '</span>' : '') +
+              '</div>' +
+              '<div class="bio-card-handle">@' + handle + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="bio-card-stats">' +
+            '<div class="bio-stat-item"><span class="bio-stat-label">Links</span><span class="bio-stat-val">' + linksCount + '</span></div>' +
+            '<div class="bio-stat-item"><span class="bio-stat-label">Clicks</span><span class="bio-stat-val">' + totalClicks.toLocaleString() + '</span></div>' +
+            '<div class="bio-stat-item"><span class="bio-stat-label">Theme</span><span class="bio-stat-val" style="font-size:0.85rem;text-transform:capitalize;">' + theme + '</span></div>' +
+          '</div>' +
+          '<div class="bio-card-actions">' +
+            '<div style="display:flex;gap:6px;">' +
+              '<button type="button" class="btn btn-secondary btn-sm" data-action="copy-bio" data-url="' + escapeHtml(publicUrl) + '" title="Copy public link">' +
+                ICONS.copy + '<span>Copy Link</span>' +
+              '</button>' +
+              '<a href="/bio/' + handle + '" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm" title="Open public bio">' +
+                ICONS.globe + '<span>View</span>' +
+              '</a>' +
+            '</div>' +
+            '<div style="display:flex;gap:6px;">' +
+              '<button type="button" class="btn btn-ghost btn-sm" data-action="edit-bio" data-handle="' + handle + '" title="Edit profile">' +
+                ICONS.pencil + '<span>Edit</span>' +
+              '</button>' +
+              '<button type="button" class="btn btn-ghost btn-sm" data-action="delete-bio" data-handle="' + handle + '" style="color:var(--danger);" title="Delete profile">' +
+                ICONS.trash +
+              '</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>'
+      );
+    }).join('');
+
+    bioPagesContainer.innerHTML = '<div class="bio-grid">' + cardsHtml + '</div>';
+
+    bioPagesContainer.querySelectorAll('img.bio-card-avatar').forEach(function(img) {
+      img.addEventListener('error', function() {
+        img.style.display = 'none';
+        if (img.nextElementSibling) img.nextElementSibling.style.display = 'flex';
+      });
+    });
+
+    var cards = bioPagesContainer.querySelectorAll('.bio-card');
+    cards.forEach(function(card) {
+      card.addEventListener('click', async function(e) {
+        var copyBtn = e.target.closest('[data-action="copy-bio"]');
+        if (copyBtn) {
+          var urlToCopy = copyBtn.getAttribute('data-url');
+          await copyText(urlToCopy);
+          showToast('Bio link copied to clipboard', 'success');
+          return;
+        }
+        var editBtn = e.target.closest('[data-action="edit-bio"]');
+        if (editBtn) {
+          var handleToEdit = editBtn.getAttribute('data-handle');
+          openBioEditorModal(handleToEdit);
+          return;
+        }
+        var deleteBtn = e.target.closest('[data-action="delete-bio"]');
+        if (deleteBtn) {
+          var handleToDel = deleteBtn.getAttribute('data-handle');
+          if (deleteBtn.getAttribute('data-confirm') === 'true') {
+            try {
+              deleteBtn.disabled = true;
+              await api('/api/bio/' + encodeURIComponent(handleToDel), { method: 'DELETE' });
+              showToast('Bio profile @' + handleToDel + ' deleted', 'success');
+              fetchBioPages();
+            } catch (err) {
+              showToast('Failed to delete: ' + err.message, 'error');
+              deleteBtn.disabled = false;
+            }
+          } else {
+            deleteBtn.setAttribute('data-confirm', 'true');
+            deleteBtn.innerHTML = ICONS.trash + '<span style="font-size:0.75rem;margin-left:4px;">Confirm?</span>';
+            setTimeout(function() {
+              if (deleteBtn && deleteBtn.isConnected) {
+                deleteBtn.removeAttribute('data-confirm');
+                deleteBtn.innerHTML = ICONS.trash;
+              }
+            }, 3000);
+          }
+          return;
+        }
+      });
+    });
+  }
+
+  async function openBioEditorModal(handleToEdit) {
+    modalLabel.textContent = handleToEdit ? ('Edit Bio Profile (@' + handleToEdit + ')') : 'Create Bio Profile';
+    modalDialog.classList.add('wide');
+    modalBody.innerHTML =
+      '<div class="skeleton-wrap" aria-busy="true">' +
+        '<div class="skeleton-row"></div>' +
+        '<div class="skeleton-row"></div>' +
+        '<div class="skeleton-row"></div>' +
+      '</div>';
+    openModalElement();
+
+    var profile = null;
+    if (handleToEdit) {
+      try {
+        var res = await api('/api/bio/' + encodeURIComponent(handleToEdit));
+        profile = res.profile;
+      } catch (err) {
+        modalBody.innerHTML = '<div class="alert-box" role="alert"><span>Failed to load profile: ' + escapeHtml(err.message) + '</span></div>';
+        return;
+      }
+    } else {
+      profile = {
+        handle: '',
+        title: '',
+        bio: '',
+        avatarUrl: '',
+        verified: false,
+        theme: 'midnight',
+        socials: {},
+        links: [
+          { id: 'lnk_' + Math.random().toString(36).substring(2, 8), title: 'My Portfolio', url: 'https://example.com', icon: 'globe', highlight: true, clicks: 0 },
+          { id: 'lnk_' + Math.random().toString(36).substring(2, 8), title: 'Latest Project', url: 'https://github.com', icon: 'github', highlight: false, clicks: 0 }
+        ]
+      };
+    }
+
+    var currentTheme = profile.theme || 'midnight';
+    var editorLinks = (profile.links || []).map(function(l) {
+      return {
+        id: l.id || ('lnk_' + Math.random().toString(36).substring(2, 8)),
+        title: l.title || '',
+        url: l.url || '',
+        icon: l.icon || 'globe',
+        highlight: !!l.highlight,
+        clicks: l.clicks || 0
+      };
+    });
+
+    var themesList = ['midnight', 'paper', 'emerald', 'sunset', 'glass'];
+    var themeSwatchesHtml = themesList.map(function(t) {
+      return '<button type="button" class="bio-theme-swatch' + (currentTheme === t ? ' is-active' : '') + '" data-theme-val="' + t + '">' +
+        t.charAt(0).toUpperCase() + t.slice(1) +
+      '</button>';
+    }).join('');
+
+    var editorHtml =
+      '<div class="bio-editor-grid">' +
+        '<div class="bio-editor-form" style="display:flex;flex-direction:column;gap:16px;">' +
+          '<div style="display:flex;flex-direction:column;gap:12px;">' +
+            '<div>' +
+              '<label for="bioHandleInput" style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px;color:var(--text);">Handle (URL slug)</label>' +
+              '<div style="display:flex;align-items:center;">' +
+                '<span style="font-family:var(--font-mono);font-size:0.84rem;padding:9px 12px;background:var(--surface-3);border:1px solid var(--border);border-right:none;border-radius:var(--radius-sm) 0 0 var(--radius-sm);color:var(--text-muted);">' + escapeHtml(window.location.host) + '/bio/</span>' +
+                '<input type="text" id="bioHandleInput" class="input" style="border-radius:0 var(--radius-sm) var(--radius-sm) 0;flex:1;" placeholder="username" value="' + escapeHtml(profile.handle || '') + '"' + (handleToEdit ? ' disabled' : '') + ' />' +
+              '</div>' +
+              '<span style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;display:block;">2-30 letters, numbers, hyphens or underscores. Matches /bio/:handle and /p/:handle.</span>' +
+            '</div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
+              '<div>' +
+                '<label for="bioTitleInput" style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px;color:var(--text);">Display Name / Title</label>' +
+                '<input type="text" id="bioTitleInput" class="input" placeholder="e.g. Alex Morgan" value="' + escapeHtml(profile.title || '') + '" />' +
+              '</div>' +
+              '<div>' +
+                '<label for="bioAvatarInput" style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px;color:var(--text);">Avatar Image URL</label>' +
+                '<input type="url" id="bioAvatarInput" class="input" placeholder="https://..." value="' + escapeHtml(profile.avatarUrl || '') + '" />' +
+              '</div>' +
+            '</div>' +
+            '<div>' +
+              '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">' +
+                '<label for="bioBioInput" style="font-size:0.8rem;font-weight:600;color:var(--text);">Bio / Tagline</label>' +
+                '<span id="bioCharCounter" style="font-size:0.72rem;color:var(--text-muted);font-family:var(--font-mono);">' + (profile.bio ? profile.bio.length : 0) + ' / 280</span>' +
+              '</div>' +
+              '<textarea id="bioBioInput" class="input" rows="2" maxlength="280" style="resize:vertical;font-size:0.84rem;" placeholder="Creator, developer, and builder...">' + escapeHtml(profile.bio || '') + '</textarea>' +
+            '</div>' +
+            '<div style="display:flex;align-items:center;gap:8px;">' +
+              '<input type="checkbox" id="bioVerifiedCheck" ' + (profile.verified ? 'checked' : '') + ' style="width:16px;height:16px;accent-color:var(--accent);" />' +
+              '<label for="bioVerifiedCheck" style="font-size:0.82rem;font-weight:600;cursor:pointer;color:var(--text);">Show Verified Badge on Page & Unfurler</label>' +
+            '</div>' +
+          '</div>' +
+
+          '<div>' +
+            '<label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:6px;color:var(--text);">Theme Preset</label>' +
+            '<div class="bio-theme-picker" id="bioThemePicker">' + themeSwatchesHtml + '</div>' +
+          '</div>' +
+
+          '<div>' +
+            '<label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:6px;color:var(--text);">Social Icons</label>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+              '<input type="text" id="bioSocialInsta" class="input" placeholder="Instagram username" value="' + escapeHtml((profile.socials && profile.socials.instagram) || '') + '" style="font-size:0.82rem;" />' +
+              '<input type="text" id="bioSocialTwitter" class="input" placeholder="Twitter / X username" value="' + escapeHtml((profile.socials && profile.socials.twitter) || '') + '" style="font-size:0.82rem;" />' +
+              '<input type="text" id="bioSocialYoutube" class="input" placeholder="YouTube channel / URL" value="' + escapeHtml((profile.socials && profile.socials.youtube) || '') + '" style="font-size:0.82rem;" />' +
+              '<input type="text" id="bioSocialGithub" class="input" placeholder="GitHub username" value="' + escapeHtml((profile.socials && profile.socials.github) || '') + '" style="font-size:0.82rem;" />' +
+              '<input type="text" id="bioSocialLinkedin" class="input" placeholder="LinkedIn URL" value="' + escapeHtml((profile.socials && profile.socials.linkedin) || '') + '" style="font-size:0.82rem;" />' +
+              '<input type="text" id="bioSocialDiscord" class="input" placeholder="Discord invite URL" value="' + escapeHtml((profile.socials && profile.socials.discord) || '') + '" style="font-size:0.82rem;" />' +
+              '<input type="text" id="bioSocialEmail" class="input" placeholder="Contact email" value="' + escapeHtml((profile.socials && profile.socials.email) || '') + '" style="font-size:0.82rem;" />' +
+              '<input type="text" id="bioSocialWebsite" class="input" placeholder="Website URL" value="' + escapeHtml((profile.socials && profile.socials.website) || '') + '" style="font-size:0.82rem;" />' +
+            '</div>' +
+          '</div>' +
+
+          '<div>' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">' +
+              '<label style="font-size:0.8rem;font-weight:600;color:var(--text);">Profile Button Links</label>' +
+              '<button type="button" class="btn btn-secondary btn-sm" id="bioAddLinkBtn">' +
+                ICONS.plus + '<span>Add Link</span>' +
+              '</button>' +
+            '</div>' +
+            '<div class="bio-links-editor-list" id="bioLinksList"></div>' +
+          '</div>' +
+
+          '<div id="bioModalError" class="alert-box" style="display:none;" role="alert">' +
+            '<span id="bioModalErrorText"></span>' +
+          '</div>' +
+
+          '<div style="display:flex;justify-content:flex-end;gap:8px;padding-top:12px;border-top:1px solid var(--border);">' +
+            '<button type="button" class="btn btn-secondary" id="bioCancelBtn">Cancel</button>' +
+            '<button type="button" class="btn btn-primary" id="bioSaveBtn">' +
+              ICONS.check + '<span>' + (handleToEdit ? 'Save Changes' : 'Create Bio Profile') + '</span>' +
+            '</button>' +
+          '</div>' +
+        '</div>' +
+
+        '<div class="bio-sim-wrap">' +
+          '<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted);margin-bottom:4px;">' +
+            'Live Mobile Preview' +
+          '</div>' +
+          '<div class="bio-sim-frame" id="bioSimFrame"></div>' +
+        '</div>' +
+      '</div>';
+
+    modalBody.innerHTML = editorHtml;
+
+    var handleInput = document.getElementById('bioHandleInput');
+    var titleInput = document.getElementById('bioTitleInput');
+    var avatarInput = document.getElementById('bioAvatarInput');
+    var bioInput = document.getElementById('bioBioInput');
+    var charCounter = document.getElementById('bioCharCounter');
+    var verifiedCheck = document.getElementById('bioVerifiedCheck');
+    var themePicker = document.getElementById('bioThemePicker');
+    var linksListEl = document.getElementById('bioLinksList');
+    var addLinkBtn = document.getElementById('bioAddLinkBtn');
+    var simFrame = document.getElementById('bioSimFrame');
+    var cancelBtn = document.getElementById('bioCancelBtn');
+    var saveBtn = document.getElementById('bioSaveBtn');
+    var errorBox = document.getElementById('bioModalError');
+    var errorText = document.getElementById('bioModalErrorText');
+
+    var socialInsta = document.getElementById('bioSocialInsta');
+    var socialTwitter = document.getElementById('bioSocialTwitter');
+    var socialYoutube = document.getElementById('bioSocialYoutube');
+    var socialGithub = document.getElementById('bioSocialGithub');
+    var socialLinkedin = document.getElementById('bioSocialLinkedin');
+    var socialDiscord = document.getElementById('bioSocialDiscord');
+    var socialEmail = document.getElementById('bioSocialEmail');
+    var socialWebsite = document.getElementById('bioSocialWebsite');
+
+    function syncLinksEditor() {
+      linksListEl.innerHTML = '';
+      if (!editorLinks.length) {
+        linksListEl.innerHTML = '<div style="font-size:0.8rem;color:var(--text-muted);padding:12px;text-align:center;background:var(--surface-2);border-radius:var(--radius-sm);">No links added yet. Click &ldquo;Add Link&rdquo; above.</div>';
+        return;
+      }
+      editorLinks.forEach(function(lnk, idx) {
+        var row = document.createElement('div');
+        row.className = 'bio-link-editor-item';
+        row.innerHTML =
+          '<div class="bio-link-editor-row">' +
+            '<div class="bio-link-editor-actions">' +
+              '<button type="button" class="btn btn-ghost btn-xs" data-move="up" title="Move up"' + (idx === 0 ? ' disabled' : '') + '>' + ICONS.arrowUp + '</button>' +
+              '<button type="button" class="btn btn-ghost btn-xs" data-move="down" title="Move down"' + (idx === editorLinks.length - 1 ? ' disabled' : '') + '>' + ICONS.arrowDown + '</button>' +
+            '</div>' +
+            '<input type="text" class="input bio-link-title-in" placeholder="Button Title (e.g. My Shop)" value="' + escapeHtml(lnk.title) + '" style="flex:1;font-size:0.84rem;" />' +
+            '<select class="sort-select bio-link-icon-sel" style="font-size:0.8rem;padding:6px 8px;">' +
+              ['globe', 'link', 'instagram', 'twitter', 'youtube', 'github', 'linkedin', 'email', 'discord', 'music'].map(function(ic) {
+                return '<option value="' + ic + '"' + (lnk.icon === ic ? ' selected' : '') + '>' + ic.charAt(0).toUpperCase() + ic.slice(1) + '</option>';
+              }).join('') +
+            '</select>' +
+            '<button type="button" class="btn btn-ghost btn-xs" data-action="remove-link" style="color:var(--danger);" title="Remove link">' + ICONS.trash + '</button>' +
+          '</div>' +
+          '<div class="bio-link-editor-row">' +
+            '<input type="url" class="input bio-link-url-in" placeholder="Destination URL (https://...)" value="' + escapeHtml(lnk.url) + '" style="flex:1;font-size:0.82rem;" />' +
+            '<label style="display:flex;align-items:center;gap:4px;font-size:0.75rem;cursor:pointer;color:var(--text-muted);white-space:nowrap;">' +
+              '<input type="checkbox" class="bio-link-highlight-ch" ' + (lnk.highlight ? 'checked' : '') + ' style="accent-color:var(--accent);" />' +
+              '<span>Highlight</span>' +
+            '</label>' +
+          '</div>';
+
+        row.querySelector('.bio-link-title-in').addEventListener('input', function(e) {
+          lnk.title = e.target.value;
+          updateSimulator();
+        });
+        row.querySelector('.bio-link-url-in').addEventListener('input', function(e) {
+          lnk.url = e.target.value;
+          updateSimulator();
+        });
+        row.querySelector('.bio-link-icon-sel').addEventListener('change', function(e) {
+          lnk.icon = e.target.value;
+          updateSimulator();
+        });
+        row.querySelector('.bio-link-highlight-ch').addEventListener('change', function(e) {
+          lnk.highlight = e.target.checked;
+          updateSimulator();
+        });
+        var moveUpBtn = row.querySelector('[data-move="up"]');
+        if (moveUpBtn) {
+          moveUpBtn.addEventListener('click', function() {
+            if (idx > 0) {
+              var temp = editorLinks[idx];
+              editorLinks[idx] = editorLinks[idx - 1];
+              editorLinks[idx - 1] = temp;
+              syncLinksEditor();
+              updateSimulator();
+            }
+          });
+        }
+        var moveDownBtn = row.querySelector('[data-move="down"]');
+        if (moveDownBtn) {
+          moveDownBtn.addEventListener('click', function() {
+            if (idx < editorLinks.length - 1) {
+              var temp2 = editorLinks[idx];
+              editorLinks[idx] = editorLinks[idx + 1];
+              editorLinks[idx + 1] = temp2;
+              syncLinksEditor();
+              updateSimulator();
+            }
+          });
+        }
+        row.querySelector('[data-action="remove-link"]').addEventListener('click', function() {
+          editorLinks.splice(idx, 1);
+          syncLinksEditor();
+          updateSimulator();
+        });
+
+        linksListEl.appendChild(row);
+      });
+    }
+
+    function updateSimulator() {
+      if (!simFrame) return;
+      var t = BIO_THEMES[currentTheme] || BIO_THEMES.midnight;
+      simFrame.style.setProperty('--bio-bg', t.bg);
+      simFrame.style.setProperty('--bio-card-bg', t.card);
+      simFrame.style.setProperty('--bio-border', t.border);
+      simFrame.style.setProperty('--bio-text', t.text);
+      simFrame.style.setProperty('--bio-muted', t.muted);
+      simFrame.style.setProperty('--bio-accent', t.accent);
+
+      var title = (titleInput.value.trim() || handleInput.value.trim() || 'Your Name');
+      var handle = (handleInput.value.trim() || 'username');
+      var bio = bioInput.value.trim();
+      var avatar = avatarInput.value.trim();
+      var verified = verifiedCheck.checked;
+
+      var avatarHtml = '';
+      if (avatar) {
+        avatarHtml = '<img class="bio-sim-avatar-img" src="' + escapeHtml(avatar) + '" alt="' + escapeHtml(title) + '" /><div class="bio-sim-avatar-fallback" style="display:none;">' + escapeHtml(title.charAt(0).toUpperCase()) + '</div>';
+      } else {
+        avatarHtml = '<div class="bio-sim-avatar-fallback">' + escapeHtml(title.charAt(0).toUpperCase()) + '</div>';
+      }
+
+      var socialsMap = {
+        instagram: socialInsta.value.trim(),
+        twitter: socialTwitter.value.trim(),
+        youtube: socialYoutube.value.trim(),
+        github: socialGithub.value.trim(),
+        linkedin: socialLinkedin.value.trim(),
+        discord: socialDiscord.value.trim(),
+        email: socialEmail.value.trim(),
+        website: socialWebsite.value.trim()
+      };
+      var socialPills = [];
+      Object.keys(socialsMap).forEach(function(k) {
+        if (socialsMap[k] && ICONS[k]) {
+          socialPills.push('<div class="bio-sim-social-pill" title="' + k + '">' + ICONS[k] + '</div>');
+        } else if (socialsMap[k] && k === 'website') {
+          socialPills.push('<div class="bio-sim-social-pill" title="website">' + ICONS.globe + '</div>');
+        }
+      });
+
+      var linkButtonsHtml = editorLinks.map(function(l) {
+        var iconSvg = ICONS[l.icon] || ICONS.globe;
+        var highlightClass = l.highlight ? ' highlight' : '';
+        return (
+          '<div class="bio-sim-btn' + highlightClass + '">' +
+            '<span style="display:inline-flex;align-items:center;color:var(--bio-accent);">' + iconSvg + '</span>' +
+            '<span style="flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 8px;">' + escapeHtml(l.title || 'Untitled Link') + '</span>' +
+            '<span style="width:16px;"></span>' +
+          '</div>'
+        );
+      }).join('');
+
+      simFrame.innerHTML =
+        avatarHtml +
+        '<div class="bio-sim-title">' +
+          '<span>' + escapeHtml(title) + '</span>' +
+          (verified ? '<span class="bio-sim-badge" title="Verified">' + ICONS.check + '</span>' : '') +
+        '</div>' +
+        '<div class="bio-sim-handle">@' + escapeHtml(handle) + '</div>' +
+        (bio ? '<div class="bio-sim-bio">' + escapeHtml(bio) + '</div>' : '') +
+        (socialPills.length ? '<div class="bio-sim-socials">' + socialPills.join('') + '</div>' : '') +
+        '<div class="bio-sim-links">' + (linkButtonsHtml || '<div style="font-size:0.75rem;color:var(--bio-muted);text-align:center;padding:12px;">Add links to preview buttons</div>') + '</div>';
+
+      var simImg = simFrame.querySelector('img.bio-sim-avatar-img');
+      if (simImg) {
+        simImg.addEventListener('error', function() {
+          simImg.style.display = 'none';
+          if (simImg.nextElementSibling) simImg.nextElementSibling.style.display = 'flex';
+        });
+      }
+    }
+
+    handleInput.addEventListener('input', updateSimulator);
+    titleInput.addEventListener('input', updateSimulator);
+    avatarInput.addEventListener('input', updateSimulator);
+    bioInput.addEventListener('input', function() {
+      charCounter.textContent = bioInput.value.length + ' / 280';
+      updateSimulator();
+    });
+    verifiedCheck.addEventListener('change', updateSimulator);
+
+    [socialInsta, socialTwitter, socialYoutube, socialGithub, socialLinkedin, socialDiscord, socialEmail, socialWebsite].forEach(function(inp) {
+      inp.addEventListener('input', updateSimulator);
+    });
+
+    themePicker.addEventListener('click', function(e) {
+      var swatch = e.target.closest('[data-theme-val]');
+      if (!swatch) return;
+      currentTheme = swatch.getAttribute('data-theme-val');
+      themePicker.querySelectorAll('.bio-theme-swatch').forEach(function(el) {
+        el.classList.toggle('is-active', el === swatch);
+      });
+      updateSimulator();
+    });
+
+    addLinkBtn.addEventListener('click', function() {
+      editorLinks.push({
+        id: 'lnk_' + Math.random().toString(36).substring(2, 8),
+        title: 'New Link',
+        url: '',
+        icon: 'globe',
+        highlight: false,
+        clicks: 0
+      });
+      syncLinksEditor();
+      updateSimulator();
+    });
+
+    cancelBtn.addEventListener('click', closeModalElement);
+
+    saveBtn.addEventListener('click', async function() {
+      errorBox.style.display = 'none';
+      var handleVal = handleInput.value.trim().toLowerCase();
+      var titleVal = titleInput.value.trim();
+      var bioVal = bioInput.value.trim();
+      var avatarVal = avatarInput.value.trim();
+      var verifiedVal = verifiedCheck.checked;
+
+      if (!handleToEdit && !handleVal) {
+        errorText.textContent = 'Please choose a handle for your bio profile.';
+        errorBox.style.display = 'flex';
+        handleInput.focus();
+        return;
+      }
+      if (!titleVal) {
+        errorText.textContent = 'Please enter a display name or title.';
+        errorBox.style.display = 'flex';
+        titleInput.focus();
+        return;
+      }
+
+      var payload = {
+        handle: handleToEdit ? undefined : handleVal,
+        title: titleVal,
+        bio: bioVal,
+        avatarUrl: avatarVal,
+        verified: verifiedVal,
+        theme: currentTheme,
+        socials: {
+          instagram: socialInsta.value.trim() || null,
+          twitter: socialTwitter.value.trim() || null,
+          youtube: socialYoutube.value.trim() || null,
+          github: socialGithub.value.trim() || null,
+          linkedin: socialLinkedin.value.trim() || null,
+          discord: socialDiscord.value.trim() || null,
+          email: socialEmail.value.trim() || null,
+          website: socialWebsite.value.trim() || null
+        },
+        links: editorLinks.filter(function(l) { return l.title && l.url; })
+      };
+
+      saveBtn.disabled = true;
+      saveBtn.querySelector('span').textContent = 'Saving...';
+
+      try {
+        if (handleToEdit) {
+          await api('/api/bio/' + encodeURIComponent(handleToEdit), {
+            method: 'PUT',
+            body: JSON.stringify(payload)
+          });
+          showToast('Bio profile updated', 'success');
+        } else {
+          await api('/api/bio', {
+            method: 'POST',
+            body: JSON.stringify(payload)
+          });
+          showToast('Bio profile created', 'success');
+        }
+        closeModalElement();
+        fetchBioPages();
+      } catch (err) {
+        errorText.textContent = err.message;
+        errorBox.style.display = 'flex';
+        saveBtn.disabled = false;
+        saveBtn.querySelector('span').textContent = handleToEdit ? 'Save Changes' : 'Create Bio Profile';
+      }
+    });
+
+    syncLinksEditor();
+    updateSimulator();
   }
 
   // ── Bootstrap App ──

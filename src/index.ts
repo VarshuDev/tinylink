@@ -3,6 +3,8 @@ import { DASHBOARD_APP_JS, renderDashboardHtml } from "./frontend";
 import {
   THEME_INIT_JS,
   UNLOCK_PAGE_JS,
+  escapeHtml,
+  renderBioPageHtml,
   renderPasswordPage,
   renderPreviewMetaPage,
   renderPublicStatsPage,
@@ -10,6 +12,11 @@ import {
 } from "./pages";
 import type {
   AnalyticsResponse,
+  BioLinkItem,
+  BioPageData,
+  BioPageSummary,
+  BioSocials,
+  BioTheme,
   Env,
   ImportLinkInput,
   LinkHealthStatus,
@@ -36,6 +43,24 @@ export const RESERVED_SLUGS = new Set([
   "icon.svg",
   "sw.js",
   "stats",
+  "bio",
+  "p",
+]);
+
+export const BIO_HANDLE_RE = /^[a-zA-Z0-9_-]{2,30}$/;
+export const RESERVED_BIO_HANDLES = new Set([
+  "api",
+  "assets",
+  "health",
+  "stats",
+  "bio",
+  "p",
+  "admin",
+  "login",
+  "logout",
+  "robots.txt",
+  "favicon.ico",
+  ".well-known",
 ]);
 
 const SLUG_RE = /^[a-zA-Z0-9_-]{2,50}$/;
@@ -2984,6 +3009,383 @@ async function handleTestWebhook(req: Request, env: Env, ctx: ExecutionContext) 
   return json(res);
 }
 
+// ─── Bio Page Helpers & Handlers ──────────────────────────────────────────────
+
+export function bioKey(handle: string): string {
+  return "bio:" + handle.toLowerCase();
+}
+
+export function validateBioHandle(handle: string): { valid: boolean; error?: string } {
+  if (!handle || typeof handle !== "string") return { valid: false, error: "Handle is required" };
+  const h = handle.trim().toLowerCase();
+  if (!BIO_HANDLE_RE.test(h)) {
+    return { valid: false, error: "Bio handle must be 2-30 characters (letters, numbers, underscores, dashes)" };
+  }
+  if (RESERVED_BIO_HANDLES.has(h) || RESERVED_SLUGS.has(h)) {
+    return { valid: false, error: `Handle '${h}' is reserved` };
+  }
+  return { valid: true };
+}
+
+export function normalizeBioLinks(linksRaw: unknown, baseOriginUrl: string): { links: BioLinkItem[]; error?: string } {
+  if (!linksRaw) return { links: [] };
+  if (!Array.isArray(linksRaw)) return { links: [], error: "Links must be an array" };
+  if (linksRaw.length > 25) return { links: [], error: "Maximum 25 links allowed per bio page" };
+
+  const allowedIcons = new Set(["globe", "github", "twitter", "instagram", "youtube", "linkedin", "email", "discord", "music"]);
+  const links: BioLinkItem[] = [];
+
+  for (let i = 0; i < linksRaw.length; i++) {
+    const item = linksRaw[i];
+    if (!item || typeof item !== "object") continue;
+    const rawObj = item as Record<string, unknown>;
+    const title = typeof rawObj.title === "string" ? rawObj.title.trim().slice(0, 100) : "";
+    const urlStr = typeof rawObj.url === "string" ? rawObj.url.trim() : "";
+    if (!title || !urlStr) continue;
+
+    const validUrl = validateDestinationUrl(urlStr, baseOriginUrl);
+    if (validUrl.error || !validUrl.url) {
+      return { links: [], error: `Link #${i + 1} (${title}): ${validUrl.error || "Invalid destination URL"}` };
+    }
+
+    const id = typeof rawObj.id === "string" && rawObj.id.trim()
+      ? rawObj.id.trim().slice(0, 36)
+      : `lnk_${Math.random().toString(36).slice(2, 10)}`;
+    const icon = typeof rawObj.icon === "string" && allowedIcons.has(rawObj.icon.toLowerCase())
+      ? rawObj.icon.toLowerCase()
+      : "globe";
+    const highlight = !!rawObj.highlight;
+    const clicks = typeof rawObj.clicks === "number" && rawObj.clicks >= 0 ? Math.floor(rawObj.clicks) : 0;
+
+    links.push({ id, title, url: validUrl.url, icon, highlight, clicks });
+  }
+
+  return { links };
+}
+
+export function normalizeBioSocials(socialsRaw: unknown): BioSocials {
+  if (!socialsRaw || typeof socialsRaw !== "object" || Array.isArray(socialsRaw)) return {};
+  const raw = socialsRaw as Record<string, unknown>;
+  const clean: BioSocials = {};
+  const fields: (keyof BioSocials)[] = ["instagram", "twitter", "github", "youtube", "linkedin", "email", "discord", "website"];
+  for (const f of fields) {
+    if (typeof raw[f] === "string") {
+      const v = (raw[f] as string).trim().slice(0, 100);
+      if (v) clean[f] = v;
+    }
+  }
+  return clean;
+}
+
+export function normalizeBioTheme(themeRaw: unknown): BioTheme {
+  const validThemes: Set<BioTheme> = new Set(["midnight", "paper", "emerald", "sunset", "glass"]);
+  if (typeof themeRaw === "string" && validThemes.has(themeRaw as BioTheme)) {
+    return themeRaw as BioTheme;
+  }
+  return "midnight";
+}
+
+async function handlePublicBioPage(handle: string, req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const raw = await env.URL_KV.get(bioKey(handle));
+  if (!raw) {
+    return new Response(
+      renderStatusPage({
+        status: 404,
+        codeLabel: "404 Not Found",
+        title: "Bio Page Not Found",
+        message: `The bio page @${escapeHtml(handle)} does not exist or has been removed.`,
+      }),
+      { status: 404, headers: { "Content-Type": "text/html; charset=utf-8" } }
+    );
+  }
+
+  const data: BioPageData = JSON.parse(raw);
+  data.views = (data.views || 0) + 1;
+  ctx.waitUntil(env.URL_KV.put(bioKey(handle), JSON.stringify(data)));
+
+  const origin = getRequestOrigin(req);
+  const html = renderBioPageHtml(data, origin);
+  return new Response(html, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "public, max-age=30, s-maxage=60",
+    },
+  });
+}
+
+async function handleBioLinkRedirect(handle: string, linkId: string, req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const raw = await env.URL_KV.get(bioKey(handle));
+  if (!raw) {
+    return new Response(
+      renderStatusPage({
+        status: 404,
+        codeLabel: "404 Not Found",
+        title: "Bio Page Not Found",
+        message: `The bio profile @${escapeHtml(handle)} was not found.`,
+      }),
+      { status: 404, headers: { "Content-Type": "text/html; charset=utf-8" } }
+    );
+  }
+
+  const data: BioPageData = JSON.parse(raw);
+  const link = (data.links || []).find((l) => l.id === linkId);
+  if (!link || !link.url) {
+    return new Response(
+      renderStatusPage({
+        status: 404,
+        codeLabel: "404 Not Found",
+        title: "Link Not Found",
+        message: "The requested link button is no longer available on this bio page.",
+      }),
+      { status: 404, headers: { "Content-Type": "text/html; charset=utf-8" } }
+    );
+  }
+
+  link.clicks = (link.clicks || 0) + 1;
+  ctx.waitUntil(env.URL_KV.put(bioKey(handle), JSON.stringify(data)));
+
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: link.url,
+      "Referrer-Policy": "no-referrer-when-downgrade",
+      "Cache-Control": "no-store, no-cache, must-revalidate",
+    },
+  });
+}
+
+async function handleBioList(env: Env, req: Request, ctx: ExecutionContext): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+
+  const listResult = await env.URL_KV.list({ prefix: "bio:" });
+  const summaries: BioPageSummary[] = [];
+
+  for (const k of listResult.keys) {
+    const raw = await env.URL_KV.get(k.name);
+    if (!raw) continue;
+    try {
+      const page: BioPageData = JSON.parse(raw);
+      const totalClicks = (page.links || []).reduce((acc, l) => acc + (l.clicks || 0), 0);
+      summaries.push({
+        handle: page.handle,
+        title: page.title,
+        avatarUrl: page.avatarUrl || null,
+        verified: !!page.verified,
+        theme: page.theme || "midnight",
+        linksCount: (page.links || []).length,
+        views: page.views || 0,
+        totalClicks,
+        updatedAt: page.updatedAt || page.createdAt,
+      });
+    } catch {}
+  }
+
+  summaries.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  return json({ ok: true, pages: summaries, profiles: summaries });
+}
+
+async function handleBioGet(handle: string, env: Env, req: Request, ctx: ExecutionContext): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+
+  const raw = await env.URL_KV.get(bioKey(handle));
+  if (!raw) return err("Bio page not found", 404);
+
+  const page: BioPageData = JSON.parse(raw);
+  return json({ ok: true, page, profile: page });
+}
+
+async function handleBioCreate(env: Env, req: Request, ctx: ExecutionContext): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+
+  let body: {
+    handle?: string;
+    title?: string;
+    bio?: string | null;
+    avatarUrl?: string | null;
+    verified?: boolean;
+    theme?: BioTheme;
+    customAccentColor?: string | null;
+    links?: unknown;
+    socials?: unknown;
+    ogTitle?: string | null;
+    ogDescription?: string | null;
+    ogImage?: string | null;
+  };
+  const bodyParsed = await readBoundedJson<typeof body>(req);
+  if (bodyParsed.error || !bodyParsed.data) {
+    return err(bodyParsed.error || "Invalid JSON body", bodyParsed.status || 400);
+  }
+  body = bodyParsed.data;
+
+  const validHandle = validateBioHandle(body.handle || "");
+  if (!validHandle.valid) return err(validHandle.error || "Invalid handle", 400);
+
+  const cleanHandle = (body.handle || "").trim().toLowerCase();
+  const existing = await env.URL_KV.get(bioKey(cleanHandle));
+  if (existing) return err(`Bio handle '@${cleanHandle}' already exists`, 409);
+
+  const title = typeof body.title === "string" ? body.title.trim().slice(0, 60) : "";
+  if (!title) return err("Profile title is required (up to 60 characters)", 400);
+
+  let avatarUrl: string | null = null;
+  if (typeof body.avatarUrl === "string" && body.avatarUrl.trim()) {
+    const validAvatar = validateDestinationUrl(body.avatarUrl.trim(), req.url);
+    if (validAvatar.error || !validAvatar.url) {
+      return err(`Avatar URL invalid: ${validAvatar.error || "unreachable or invalid format"}`);
+    }
+    avatarUrl = validAvatar.url;
+  }
+
+  const normalizedLinks = normalizeBioLinks(body.links, req.url);
+  if (normalizedLinks.error) return err(normalizedLinks.error, 400);
+
+  const socials = normalizeBioSocials(body.socials);
+  const theme = normalizeBioTheme(body.theme);
+
+  let customAccentColor: string | null = null;
+  if (typeof body.customAccentColor === "string" && /^#[0-9a-fA-F]{6}$/.test(body.customAccentColor.trim())) {
+    customAccentColor = body.customAccentColor.trim();
+  }
+
+  const now = new Date().toISOString();
+  const bioPage: BioPageData = {
+    handle: cleanHandle,
+    title,
+    bio: typeof body.bio === "string" ? body.bio.trim().slice(0, 250) : null,
+    avatarUrl,
+    verified: !!body.verified,
+    theme,
+    customAccentColor,
+    links: normalizedLinks.links,
+    socials,
+    ogTitle: typeof body.ogTitle === "string" ? body.ogTitle.trim().slice(0, 100) : null,
+    ogDescription: typeof body.ogDescription === "string" ? body.ogDescription.trim().slice(0, 220) : null,
+    ogImage: typeof body.ogImage === "string" ? body.ogImage.trim() : null,
+    views: 0,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await env.URL_KV.put(bioKey(cleanHandle), JSON.stringify(bioPage));
+  return json({ ok: true, page: bioPage, profile: bioPage }, 201);
+}
+
+async function handleBioUpdate(handle: string, env: Env, req: Request, ctx: ExecutionContext): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+
+  const cleanHandle = handle.trim().toLowerCase();
+  const raw = await env.URL_KV.get(bioKey(cleanHandle));
+  if (!raw) return err("Bio page not found", 404);
+
+  const existingPage: BioPageData = JSON.parse(raw);
+
+  let body: {
+    title?: string;
+    bio?: string | null;
+    avatarUrl?: string | null;
+    verified?: boolean;
+    theme?: BioTheme;
+    customAccentColor?: string | null;
+    links?: unknown;
+    socials?: unknown;
+    ogTitle?: string | null;
+    ogDescription?: string | null;
+    ogImage?: string | null;
+  };
+  const bodyParsed = await readBoundedJson<typeof body>(req);
+  if (bodyParsed.error || !bodyParsed.data) {
+    return err(bodyParsed.error || "Invalid JSON body", bodyParsed.status || 400);
+  }
+  body = bodyParsed.data;
+
+  if (body.title !== undefined) {
+    const t = typeof body.title === "string" ? body.title.trim().slice(0, 60) : "";
+    if (!t) return err("Profile title cannot be empty", 400);
+    existingPage.title = t;
+  }
+
+  if (body.bio !== undefined) {
+    existingPage.bio = typeof body.bio === "string" ? body.bio.trim().slice(0, 250) : null;
+  }
+
+  if (body.avatarUrl !== undefined) {
+    if (body.avatarUrl === null || body.avatarUrl === "") {
+      existingPage.avatarUrl = null;
+    } else if (typeof body.avatarUrl === "string") {
+      const validAvatar = validateDestinationUrl(body.avatarUrl.trim(), req.url);
+      if (validAvatar.error || !validAvatar.url) {
+        return err(`Avatar URL invalid: ${validAvatar.error || "unreachable or invalid format"}`);
+      }
+      existingPage.avatarUrl = validAvatar.url;
+    }
+  }
+
+  if (body.verified !== undefined) {
+    existingPage.verified = !!body.verified;
+  }
+
+  if (body.theme !== undefined) {
+    existingPage.theme = normalizeBioTheme(body.theme);
+  }
+
+  if (body.customAccentColor !== undefined) {
+    if (body.customAccentColor === null || body.customAccentColor === "") {
+      existingPage.customAccentColor = null;
+    } else if (typeof body.customAccentColor === "string" && /^#[0-9a-fA-F]{6}$/.test(body.customAccentColor.trim())) {
+      existingPage.customAccentColor = body.customAccentColor.trim();
+    }
+  }
+
+  if (body.links !== undefined) {
+    const normalizedLinks = normalizeBioLinks(body.links, req.url);
+    if (normalizedLinks.error) return err(normalizedLinks.error, 400);
+
+    const oldClicksMap = new Map((existingPage.links || []).map((l) => [l.id, l.clicks || 0]));
+    for (const newL of normalizedLinks.links) {
+      if (oldClicksMap.has(newL.id)) {
+        newL.clicks = oldClicksMap.get(newL.id)!;
+      }
+    }
+    existingPage.links = normalizedLinks.links;
+  }
+
+  if (body.socials !== undefined) {
+    existingPage.socials = normalizeBioSocials(body.socials);
+  }
+
+  if (body.ogTitle !== undefined) {
+    existingPage.ogTitle = typeof body.ogTitle === "string" ? body.ogTitle.trim().slice(0, 100) : null;
+  }
+  if (body.ogDescription !== undefined) {
+    existingPage.ogDescription = typeof body.ogDescription === "string" ? body.ogDescription.trim().slice(0, 220) : null;
+  }
+  if (body.ogImage !== undefined) {
+    existingPage.ogImage = typeof body.ogImage === "string" ? body.ogImage.trim() : null;
+  }
+
+  existingPage.updatedAt = new Date().toISOString();
+  await env.URL_KV.put(bioKey(cleanHandle), JSON.stringify(existingPage));
+  return json({ ok: true, page: existingPage, profile: existingPage });
+}
+
+async function handleBioDelete(handle: string, env: Env, req: Request, ctx: ExecutionContext): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+
+  const cleanHandle = handle.trim().toLowerCase();
+  const existing = await env.URL_KV.get(bioKey(cleanHandle));
+  if (!existing) return err("Bio page not found", 404);
+
+  await env.URL_KV.delete(bioKey(cleanHandle));
+  return json({ ok: true, deleted: cleanHandle });
+  return json({ ok: true, handle: cleanHandle });
+}
+
 // ─── Frontend HTML ────────────────────────────────────────────────────────────
 
 function frontend(env: Env) {
@@ -3182,6 +3584,42 @@ async function handleRoute(
     const slug = decodeSlugParam(rawSlug);
     if (!slug || !SLUG_RE.test(slug)) return err("Invalid slug", 400);
     return handleCheckHealth(slug, env, req, ctx);
+  }
+
+  // Bio API endpoints
+  if (path === "/api/bio" && req.method === "GET") return handleBioList(env, req, ctx);
+  if (path === "/api/bio" && req.method === "POST") return handleBioCreate(env, req, ctx);
+  if (path.startsWith("/api/bio/") && req.method === "GET") {
+    const handle = decodeSlugParam(path.slice("/api/bio/".length));
+    if (!handle || !BIO_HANDLE_RE.test(handle)) return err("Invalid bio handle", 400);
+    return handleBioGet(handle, env, req, ctx);
+  }
+  if (path.startsWith("/api/bio/") && req.method === "PUT") {
+    const handle = decodeSlugParam(path.slice("/api/bio/".length));
+    if (!handle || !BIO_HANDLE_RE.test(handle)) return err("Invalid bio handle", 400);
+    return handleBioUpdate(handle, env, req, ctx);
+  }
+  if (path.startsWith("/api/bio/") && req.method === "DELETE") {
+    const handle = decodeSlugParam(path.slice("/api/bio/".length));
+    if (!handle || !BIO_HANDLE_RE.test(handle)) return err("Invalid bio handle", 400);
+    return handleBioDelete(handle, env, req, ctx);
+  }
+
+  // Public Bio click redirect: /bio/:handle/c/:linkId or /p/:handle/c/:linkId
+  const bioClickMatch = path.match(/^\/(?:bio|p)\/([a-zA-Z0-9_-]+)\/c\/([^/]+)$/);
+  if (bioClickMatch && req.method === "GET") {
+    const handle = decodeSlugParam(bioClickMatch[1]);
+    const linkId = decodeURIComponent(bioClickMatch[2]);
+    if (!handle || !BIO_HANDLE_RE.test(handle)) return err("Invalid bio handle", 400);
+    return handleBioLinkRedirect(handle, linkId, req, env, ctx);
+  }
+
+  // Public Bio profile page: /bio/:handle or /p/:handle
+  const bioPageMatch = path.match(/^\/(?:bio|p)\/([a-zA-Z0-9_-]+)\/?$/);
+  if (bioPageMatch && req.method === "GET") {
+    const handle = decodeSlugParam(bioPageMatch[1]);
+    if (!handle || !BIO_HANDLE_RE.test(handle)) return err("Invalid bio handle", 400);
+    return handlePublicBioPage(handle, req, env, ctx);
   }
 
   // Opt-in public read-only stats route

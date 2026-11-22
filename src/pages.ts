@@ -1,4 +1,4 @@
-import type { TimelineBucket } from "./types";
+import type { BioPageData, TimelineBucket } from "./types";
 
 export interface StatusPageOptions {
   status: 404 | 410 | 425;
@@ -671,6 +671,404 @@ export function renderPublicStatsPage(opts: PublicStatsPageOptions): string {
       </div>
     </main>
   </div>
+</body>
+</html>`;
+}
+
+// ── Link-in-Bio & Social Profile Page Renderer ──
+
+const BIO_ICONS: Record<string, string> = {
+  globe: '<svg width="18" height="18" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"><circle cx="128" cy="128" r="96"/><line x1="32" y1="128" x2="224" y2="128"/><ellipse cx="128" cy="128" rx="40" ry="96"/></svg>',
+  github: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>',
+  twitter: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>',
+  instagram: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg>',
+  youtube: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>',
+  linkedin: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>',
+  email: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
+  discord: '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>',
+  music: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+  arrowRight: '<svg width="16" height="16" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"><polyline points="96 48 176 128 96 208"/></svg>',
+  verified: '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>'
+};
+
+export function renderBioPageHtml(data: BioPageData, origin: string): string {
+  const handleEsc = escapeHtml(data.handle);
+  const titleEsc = escapeHtml(data.title);
+  const bioEsc = data.bio ? escapeHtml(data.bio) : "";
+  const canonicalUrl = `${origin}/bio/${handleEsc}`;
+
+  const ogTitle = escapeHtml(data.ogTitle || `${data.title} (@${data.handle})`);
+  const ogDescription = escapeHtml(data.ogDescription || data.bio || `Explore links and social profiles for ${data.title}`);
+  const ogImage = data.ogImage ? escapeHtml(data.ogImage) : (data.avatarUrl ? escapeHtml(data.avatarUrl) : "");
+
+  // Avatar markup
+  let avatarHtml = "";
+  if (data.avatarUrl) {
+    avatarHtml = `<img src="${escapeHtml(data.avatarUrl)}" alt="${titleEsc}" class="bio-avatar-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" /><div class="bio-avatar-fallback" style="display:none;">${titleEsc.charAt(0).toUpperCase()}</div>`;
+  } else {
+    avatarHtml = `<div class="bio-avatar-fallback">${titleEsc.charAt(0).toUpperCase()}</div>`;
+  }
+
+  // Social Links markup
+  const socials = data.socials || {};
+  const socialItems: string[] = [];
+  if (socials.instagram) {
+    const u = socials.instagram.startsWith("http") ? socials.instagram : `https://instagram.com/${socials.instagram.replace(/^@/, "")}`;
+    socialItems.push(`<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" class="bio-social-pill" title="Instagram">${BIO_ICONS.instagram}</a>`);
+  }
+  if (socials.twitter) {
+    const u = socials.twitter.startsWith("http") ? socials.twitter : `https://x.com/${socials.twitter.replace(/^@/, "")}`;
+    socialItems.push(`<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" class="bio-social-pill" title="X / Twitter">${BIO_ICONS.twitter}</a>`);
+  }
+  if (socials.github) {
+    const u = socials.github.startsWith("http") ? socials.github : `https://github.com/${socials.github.replace(/^@/, "")}`;
+    socialItems.push(`<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" class="bio-social-pill" title="GitHub">${BIO_ICONS.github}</a>`);
+  }
+  if (socials.youtube) {
+    const u = socials.youtube.startsWith("http") ? socials.youtube : `https://youtube.com/${socials.youtube.startsWith("@") ? socials.youtube : "@" + socials.youtube}`;
+    socialItems.push(`<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" class="bio-social-pill" title="YouTube">${BIO_ICONS.youtube}</a>`);
+  }
+  if (socials.linkedin) {
+    const u = socials.linkedin.startsWith("http") ? socials.linkedin : `https://linkedin.com/in/${socials.linkedin}`;
+    socialItems.push(`<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" class="bio-social-pill" title="LinkedIn">${BIO_ICONS.linkedin}</a>`);
+  }
+  if (socials.email) {
+    const u = socials.email.startsWith("mailto:") ? socials.email : `mailto:${socials.email}`;
+    socialItems.push(`<a href="${escapeHtml(u)}" class="bio-social-pill" title="Email">${BIO_ICONS.email}</a>`);
+  }
+  if (socials.discord) {
+    const u = socials.discord.startsWith("http") ? socials.discord : `https://discord.gg/${socials.discord}`;
+    socialItems.push(`<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" class="bio-social-pill" title="Discord">${BIO_ICONS.discord}</a>`);
+  }
+  if (socials.website) {
+    const u = socials.website.startsWith("http") ? socials.website : `https://${socials.website}`;
+    socialItems.push(`<a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer" class="bio-social-pill" title="Website">${BIO_ICONS.globe}</a>`);
+  }
+  const socialsHtml = socialItems.length
+    ? `<div class="bio-socials-row">${socialItems.join("")}</div>`
+    : "";
+
+  // Link Buttons markup
+  const links = data.links || [];
+  const linksHtml = links.length
+    ? links.map((link) => {
+        const clickUrl = `${origin}/bio/${handleEsc}/c/${encodeURIComponent(link.id)}`;
+        const iconKey = (link.icon && BIO_ICONS[link.icon]) ? link.icon : "globe";
+        const iconSvg = BIO_ICONS[iconKey] || BIO_ICONS.globe;
+        const highlightClass = link.highlight ? " bio-link-btn-highlight" : "";
+        return `<a href="${escapeHtml(clickUrl)}" target="_blank" rel="noopener noreferrer" class="bio-link-btn${highlightClass}" data-link-id="${escapeHtml(link.id)}">` +
+          `<span class="bio-link-icon">${iconSvg}</span>` +
+          `<span class="bio-link-title">${escapeHtml(link.title)}</span>` +
+          `<span class="bio-link-arrow">${BIO_ICONS.arrowRight}</span>` +
+        `</a>`;
+      }).join("")
+    : `<div class="bio-empty-note">No links added yet.</div>`;
+
+  const theme = data.theme || "midnight";
+  const customAccentCss = data.customAccentColor
+    ? `:root { --bio-accent: ${escapeHtml(data.customAccentColor)} !important; }`
+    : "";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title>${titleEsc} (@${handleEsc})</title>
+  <link rel="canonical" href="${canonicalUrl}">
+  <meta name="description" content="${ogDescription}">
+  <meta property="og:title" content="${ogTitle}">
+  <meta property="og:description" content="${ogDescription}">
+  <meta property="og:url" content="${canonicalUrl}">
+  <meta property="og:type" content="profile">
+  <meta property="og:site_name" content="TinyLink Bio">
+  ${ogImage ? `<meta property="og:image" content="${ogImage}">` : ""}
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="${ogTitle}">
+  <meta name="twitter:description" content="${ogDescription}">
+  ${ogImage ? `<meta name="twitter:image" content="${ogImage}">` : ""}
+  <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; -webkit-tap-highlight-color: transparent; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 40px 16px 60px;
+      background: var(--bio-bg);
+      color: var(--bio-text);
+      transition: background 0.2s ease, color 0.2s ease;
+    }
+    ${customAccentCss}
+
+    /* Themes */
+    body[data-theme="midnight"] {
+      --bio-bg: #090D16;
+      --bio-card-bg: #111827;
+      --bio-card-hover: #1A2234;
+      --bio-border: rgba(148, 163, 184, 0.16);
+      --bio-text: #F8FAFC;
+      --bio-muted: #94A3B8;
+      --bio-accent: #38BDF8;
+      --bio-accent-rgb: 56, 189, 248;
+    }
+    body[data-theme="paper"] {
+      --bio-bg: #F8FAFC;
+      --bio-card-bg: #FFFFFF;
+      --bio-card-hover: #F1F5F9;
+      --bio-border: #E2E8F0;
+      --bio-text: #0F172A;
+      --bio-muted: #64748B;
+      --bio-accent: #2563EB;
+      --bio-accent-rgb: 37, 99, 235;
+    }
+    body[data-theme="emerald"] {
+      --bio-bg: #030A06;
+      --bio-card-bg: #091910;
+      --bio-card-hover: #0E2519;
+      --bio-border: rgba(34, 197, 94, 0.28);
+      --bio-text: #F0FDF4;
+      --bio-muted: #86EFAC;
+      --bio-accent: #22C55E;
+      --bio-accent-rgb: 34, 197, 94;
+    }
+    body[data-theme="sunset"] {
+      --bio-bg: #0F0914;
+      --bio-card-bg: #1D1225;
+      --bio-card-hover: #2B1B36;
+      --bio-border: rgba(244, 63, 94, 0.26);
+      --bio-text: #FFF1F2;
+      --bio-muted: #FDA4AF;
+      --bio-accent: #FB7185;
+      --bio-accent-rgb: 251, 113, 133;
+    }
+    body[data-theme="glass"] {
+      --bio-bg: radial-gradient(circle at 50% 20%, #1E1B4B 0%, #0F172A 70%, #020617 100%);
+      --bio-card-bg: rgba(255, 255, 255, 0.07);
+      --bio-card-hover: rgba(255, 255, 255, 0.14);
+      --bio-border: rgba(255, 255, 255, 0.18);
+      --bio-text: #FFFFFF;
+      --bio-muted: rgba(255, 255, 255, 0.72);
+      --bio-accent: #C084FC;
+      --bio-accent-rgb: 192, 132, 252;
+    }
+
+    .bio-container {
+      width: 100%;
+      max-width: 580px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    .bio-avatar-wrap {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      margin-bottom: 16px;
+      position: relative;
+      padding: 3px;
+      background: linear-gradient(135deg, var(--bio-accent), var(--bio-border));
+      box-shadow: 0 8px 24px -4px rgba(0,0,0,0.3);
+    }
+    .bio-avatar-img {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      object-fit: cover;
+      display: block;
+      background: var(--bio-card-bg);
+    }
+    .bio-avatar-fallback {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: var(--bio-card-bg);
+      color: var(--bio-accent);
+      font-size: 2.2rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+    }
+    .bio-name-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+    .bio-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--bio-text);
+      word-break: break-word;
+    }
+    .bio-verified {
+      display: inline-flex;
+      align-items: center;
+      color: var(--bio-accent);
+    }
+    .bio-handle {
+      font-size: 0.88rem;
+      color: var(--bio-muted);
+      margin-bottom: 12px;
+      font-weight: 500;
+    }
+    .bio-desc {
+      font-size: 0.94rem;
+      line-height: 1.5;
+      color: var(--bio-muted);
+      max-width: 440px;
+      margin-bottom: 20px;
+      word-wrap: break-word;
+    }
+    .bio-socials-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 28px;
+    }
+    .bio-social-pill {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--bio-card-bg);
+      border: 1px solid var(--bio-border);
+      color: var(--bio-text);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+      transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+    .bio-social-pill:hover, .bio-social-pill:focus-visible {
+      transform: translateY(-2px);
+      background: var(--bio-card-hover);
+      border-color: var(--bio-accent);
+      color: var(--bio-accent);
+      outline: none;
+    }
+    .bio-links-stack {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      margin-bottom: 40px;
+    }
+    .bio-link-btn {
+      width: 100%;
+      min-height: 54px;
+      padding: 12px 18px;
+      border-radius: 14px;
+      background: var(--bio-card-bg);
+      border: 1px solid var(--bio-border);
+      color: var(--bio-text);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 0.96rem;
+      font-weight: 600;
+      transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1), background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+    }
+    .bio-link-btn:hover, .bio-link-btn:focus-visible {
+      transform: translateY(-2px) scale(1.01);
+      background: var(--bio-card-hover);
+      border-color: var(--bio-accent);
+      outline: none;
+      box-shadow: 0 10px 24px -6px rgba(0,0,0,0.25);
+    }
+    .bio-link-btn-highlight {
+      border-color: var(--bio-accent);
+      animation: bioPulse 2.4s infinite ease-in-out;
+    }
+    @keyframes bioPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(var(--bio-accent-rgb), 0.35); }
+      50% { box-shadow: 0 0 18px 3px rgba(var(--bio-accent-rgb), 0.35); }
+    }
+    .bio-link-icon {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--bio-accent);
+      flex-shrink: 0;
+    }
+    .bio-link-title {
+      flex: 1;
+      text-align: left;
+      word-break: break-word;
+    }
+    .bio-link-arrow {
+      display: inline-flex;
+      align-items: center;
+      color: var(--bio-muted);
+      opacity: 0.7;
+      transition: transform 0.15s ease, opacity 0.15s ease;
+      flex-shrink: 0;
+    }
+    .bio-link-btn:hover .bio-link-arrow, .bio-link-btn:focus-visible .bio-link-arrow {
+      transform: translateX(3px);
+      opacity: 1;
+      color: var(--bio-accent);
+    }
+    .bio-empty-note {
+      padding: 28px 16px;
+      font-size: 0.9rem;
+      color: var(--bio-muted);
+      border: 1px dashed var(--bio-border);
+      border-radius: 12px;
+      width: 100%;
+    }
+    .bio-footer {
+      margin-top: auto;
+      font-size: 0.76rem;
+      color: var(--bio-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .bio-footer a {
+      color: var(--bio-muted);
+      text-decoration: none;
+      font-weight: 600;
+      transition: color 0.15s ease;
+    }
+    .bio-footer a:hover {
+      color: var(--bio-text);
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body data-theme="${escapeHtml(theme)}">
+  <main class="bio-container">
+    <div class="bio-avatar-wrap">
+      ${avatarHtml}
+    </div>
+    <div class="bio-name-row">
+      <h1 class="bio-title">${titleEsc}</h1>
+      <span class="bio-verified" title="Verified Profile">${BIO_ICONS.verified}</span>
+    </div>
+    <div class="bio-handle">@${handleEsc}</div>
+    ${bioEsc ? `<p class="bio-desc">${bioEsc}</p>` : ""}
+    ${socialsHtml}
+    <div class="bio-links-stack">
+      ${linksHtml}
+    </div>
+    <footer class="bio-footer">
+      <span>Powered by</span>
+      <a href="${origin}/" target="_blank" rel="noopener noreferrer">TinyLink</a>
+    </footer>
+  </main>
 </body>
 </html>`;
 }

@@ -202,3 +202,56 @@ export interface Env {
   ALLOWED_ORIGINS?: string;
   IP_HASH_SECRET?: string;
 }
+
+// ── Link-in-Bio & Social Profile Page Types ──
+export type BioTheme = "midnight" | "paper" | "emerald" | "sunset" | "glass";
+
+export interface BioLinkItem {
+  id: string;
+  title: string;
+  url: string;
+  icon?: string;
+  highlight?: boolean;
+  clicks: number;
+}
+
+export interface BioSocials {
+  instagram?: string;
+  twitter?: string;
+  github?: string;
+  youtube?: string;
+  linkedin?: string;
+  email?: string;
+  discord?: string;
+  website?: string;
+}
+
+export interface BioPageData {
+  handle: string;
+  title: string;
+  bio?: string | null;
+  avatarUrl?: string | null;
+  verified?: boolean;
+  theme: BioTheme;
+  customAccentColor?: string | null;
+  links: BioLinkItem[];
+  socials: BioSocials;
+  ogTitle?: string | null;
+  ogDescription?: string | null;
+  ogImage?: string | null;
+  views: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BioPageSummary {
+  handle: string;
+  title: string;
+  avatarUrl?: string | null;
+  verified?: boolean;
+  theme: BioTheme;
+  linksCount: number;
+  views: number;
+  totalClicks: number;
+  updatedAt: string;
+}
