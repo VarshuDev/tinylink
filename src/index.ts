@@ -1,10 +1,13 @@
 import QRCode from "qrcode";
 import { DASHBOARD_APP_JS, renderDashboardHtml } from "./frontend";
 import {
+  BIO_PAGE_JS,
+  STATUS_PAGE_JS,
   THEME_INIT_JS,
   UNLOCK_PAGE_JS,
   escapeHtml,
   renderBioPageHtml,
+  renderDeepLinkBridgeHtml,
   renderPasswordPage,
   renderPreviewMetaPage,
   renderPublicStatsPage,
@@ -12,11 +15,14 @@ import {
 } from "./pages";
 import type {
   AnalyticsResponse,
+  BioLead,
+  BioLeadCapture,
   BioLinkItem,
   BioPageData,
   BioPageSummary,
   BioSocials,
   BioTheme,
+  BrandedQrOptions,
   Env,
   ImportLinkInput,
   LinkHealthStatus,
@@ -1280,6 +1286,138 @@ function normalizeOgText(raw: unknown, maxLen: number): string | null {
   return trimmed || null;
 }
 
+export interface AppDeepLinkTarget {
+  app: string;
+  scheme: string;
+}
+
+export function isMobileUserAgent(ua: string): boolean {
+  return /Android|iPhone|iPad|iPod|Mobile|webOS/i.test(ua);
+}
+
+export function detectAppDeepLink(urlStr: string): AppDeepLinkTarget | null {
+  try {
+    const u = new URL(urlStr);
+    const host = u.hostname.toLowerCase();
+    const path = u.pathname;
+
+    // YouTube
+    if (host.includes("youtube.com") || host.includes("youtu.be")) {
+      let videoId: string | null = null;
+      if (host.includes("youtu.be")) {
+        videoId = path.slice(1).split("/")[0] || null;
+      } else if (path.startsWith("/watch")) {
+        videoId = u.searchParams.get("v");
+      } else if (path.startsWith("/shorts/")) {
+        videoId = path.replace("/shorts/", "").split("/")[0] || null;
+      }
+      if (videoId) {
+        return { app: "YouTube", scheme: `vnd.youtube:${videoId}` };
+      }
+      return { app: "YouTube", scheme: `vnd.youtube://${host}${path}${u.search}` };
+    }
+
+    // Spotify
+    if (host.includes("spotify.com")) {
+      const parts = path.split("/").filter(Boolean);
+      if (parts.length >= 2 && ["track", "album", "playlist", "artist", "show", "episode"].includes(parts[0])) {
+        return { app: "Spotify", scheme: `spotify:${parts[0]}:${parts[1]}` };
+      }
+      return { app: "Spotify", scheme: `spotify://${host}${path}` };
+    }
+
+    // Twitter / X
+    if (host.includes("twitter.com") || host.includes("x.com")) {
+      const parts = path.split("/").filter(Boolean);
+      if (parts.length >= 3 && parts[1] === "status") {
+        return { app: "X / Twitter", scheme: `twitter://status?id=${parts[2]}` };
+      }
+      if (parts.length === 1 && !["home", "explore", "notifications", "messages"].includes(parts[0])) {
+        return { app: "X / Twitter", scheme: `twitter://user?screen_name=${parts[0]}` };
+      }
+      return { app: "X / Twitter", scheme: `twitter://timeline` };
+    }
+
+    // Instagram
+    if (host.includes("instagram.com")) {
+      const parts = path.split("/").filter(Boolean);
+      if (parts.length >= 2 && (parts[0] === "p" || parts[0] === "reel")) {
+        return { app: "Instagram", scheme: `instagram://media?id=${parts[1]}` };
+      }
+      if (parts.length === 1 && !["explore", "reels", "direct", "accounts"].includes(parts[0])) {
+        return { app: "Instagram", scheme: `instagram://user?username=${parts[0]}` };
+      }
+      return { app: "Instagram", scheme: `instagram://app` };
+    }
+
+    // TikTok
+    if (host.includes("tiktok.com")) {
+      const parts = path.split("/").filter(Boolean);
+      const videoIdx = parts.indexOf("video");
+      if (videoIdx !== -1 && parts[videoIdx + 1]) {
+        return { app: "TikTok", scheme: `snssdk1233://aweme/detail/${parts[videoIdx + 1]}` };
+      }
+      return { app: "TikTok", scheme: `tiktok://app` };
+    }
+
+    // Telegram
+    if (host.includes("t.me") || host.includes("telegram.me")) {
+      const domain = path.slice(1).split("/")[0];
+      if (domain) {
+        return { app: "Telegram", scheme: `tg://resolve?domain=${domain}` };
+      }
+    }
+  } catch {}
+  return null;
+}
+
+export function normalizeCampaign(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const clean = raw.trim().toLowerCase().replace(/[^a-z0-9_-]/g, "-").replace(/-+/g, "-").slice(0, 48);
+  return clean || null;
+}
+
+export function normalizeExpiredAction(
+  rawAction: unknown,
+  rawUrl: unknown,
+  reqUrl: string
+): { expiredAction: "message" | "redirect" | null; expiredUrl: string | null; error?: string } {
+  if (rawAction === undefined && rawUrl === undefined) {
+    return { expiredAction: null, expiredUrl: null };
+  }
+  const actionStr = typeof rawAction === "string" ? rawAction.trim().toLowerCase() : "";
+  if (actionStr === "redirect") {
+    if (!rawUrl || typeof rawUrl !== "string" || !rawUrl.trim()) {
+      return { expiredAction: null, expiredUrl: null, error: "Expired action 'redirect' requires an 'expiredUrl' destination" };
+    }
+    const valid = validateDestinationUrl(rawUrl, reqUrl);
+    if (valid.error || !valid.url) {
+      return { expiredAction: null, expiredUrl: null, error: `Expired URL: ${valid.error || "Invalid URL"}` };
+    }
+    return { expiredAction: "redirect", expiredUrl: valid.url };
+  }
+  if (actionStr === "message") {
+    return { expiredAction: "message", expiredUrl: null };
+  }
+  if (rawAction === null || rawAction === "") {
+    return { expiredAction: null, expiredUrl: null };
+  }
+  return { expiredAction: null, expiredUrl: null, error: "Expired action must be either 'message' or 'redirect'" };
+}
+
+export function normalizeBioLeadCapture(raw: unknown): BioLeadCapture | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const rec = raw as Record<string, unknown>;
+  const enabled = rec.enabled === true;
+  return {
+    enabled,
+    title: typeof rec.title === "string" ? rec.title.trim().slice(0, 80) : undefined,
+    description: typeof rec.description === "string" ? rec.description.trim().slice(0, 200) : undefined,
+    buttonText: typeof rec.buttonText === "string" ? rec.buttonText.trim().slice(0, 40) : undefined,
+    successMessage: typeof rec.successMessage === "string" ? rec.successMessage.trim().slice(0, 150) : undefined,
+  };
+}
+
 function isLinkExpired(data: { expiresAt?: string | null }, now = new Date()): boolean {
   return data.expiresAt ? new Date(data.expiresAt) < now : false;
 }
@@ -1311,6 +1449,10 @@ function buildMetadataIfFits(data: URLData): URLMetadata | undefined {
     ...(data.publicStats ? { publicStats: true } : {}),
     ...(data.botClicks ? { botClicks: data.botClicks } : {}),
     ...(data.startsAt ? { startsAt: data.startsAt } : {}),
+    ...(data.deepLink ? { deepLink: true } : {}),
+    ...(data.campaign ? { campaign: data.campaign } : {}),
+    ...(data.expiredAction ? { expiredAction: data.expiredAction } : {}),
+    ...(data.expiredUrl ? { expiredUrl: data.expiredUrl } : {}),
   };
 
   if (encoder.encode(JSON.stringify(full)).length <= MAX_KV_META_BYTES) {
@@ -1350,17 +1492,134 @@ function trimBucketRecord(rec: Record<string, number>, maxKeys: number): Record<
   return next;
 }
 
-async function generateQR(url: string): Promise<string> {
+export function generateBrandedQrSvg(url: string, opts: BrandedQrOptions = {}): string {
   try {
-    return await QRCode.toString(url, {
-      type: "svg",
-      width: 200,
-      margin: 2,
-      color: { dark: "#0F172A", light: "#ffffff" },
+    const hasLogo = Boolean(opts.logo && opts.logo !== "none");
+    const requestedEc = opts.errorCorrectionLevel || "M";
+    const ec: "L" | "M" | "Q" | "H" = hasLogo
+      ? (requestedEc === "L" ? "M" : requestedEc)
+      : requestedEc;
+
+    const qr = QRCode.create(url, { errorCorrectionLevel: ec });
+    const size = qr.modules.size;
+    const margin = opts.margin ?? 3;
+    const total = size + margin * 2;
+    const width = opts.width || 512;
+    const cornerStyle = opts.cornerStyle || "square";
+    const colorDark = opts.colorDark || "#0F172A";
+    const colorLight = opts.colorLight || "#FFFFFF";
+    const useGrad = Boolean(opts.useGradient && opts.gradientStart && opts.gradientEnd);
+    const fill = useGrad ? "url(#qrGrad)" : colorDark;
+
+    let defs = "";
+    if (useGrad) {
+      defs = `<defs><linearGradient id="qrGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="${escapeHtml(opts.gradientStart!)}"/><stop offset="100%" stop-color="${escapeHtml(opts.gradientEnd!)}"/></linearGradient></defs>`;
+    }
+
+    const logoModules = hasLogo ? Math.max(5, Math.floor(size * 0.22) | 1) : 0;
+    const centerMod = Math.floor(size / 2);
+    const halfLogo = Math.floor(logoModules / 2);
+
+    const isFinder = (r: number, c: number) => {
+      return (r < 7 && c < 7) || (r < 7 && c >= size - 7) || (r >= size - 7 && c < 7);
+    };
+
+    const inLogoArea = (r: number, c: number) => {
+      if (!hasLogo) return false;
+      return (
+        r >= centerMod - halfLogo &&
+        r <= centerMod + halfLogo &&
+        c >= centerMod - halfLogo &&
+        c <= centerMod + halfLogo
+      );
+    };
+
+    const paths: string[] = [];
+
+    // Stylized Finder patterns
+    const finders = [
+      { r: 0, c: 0 },
+      { r: 0, c: size - 7 },
+      { r: size - 7, c: 0 },
+    ];
+
+    finders.forEach((f) => {
+      const fx = f.c + margin;
+      const fy = f.r + margin;
+      const rxOuter = cornerStyle === "dots" ? 2.2 : cornerStyle === "rounded" ? 1.2 : 0;
+      const rxInner = cornerStyle === "dots" ? 1.2 : cornerStyle === "rounded" ? 0.6 : 0;
+
+      // Outer 7x7
+      paths.push(`<rect x="${fx}" y="${fy}" width="7" height="7" rx="${rxOuter}" fill="${fill}"/>`);
+      // Inner background 5x5
+      paths.push(
+        `<rect x="${fx + 1}" y="${fy + 1}" width="5" height="5" rx="${rxOuter * 0.7}" fill="${colorLight === "transparent" ? "#FFFFFF" : colorLight}"/>`
+      );
+      // Inner dot 3x3
+      paths.push(`<rect x="${fx + 2}" y="${fy + 2}" width="3" height="3" rx="${rxInner}" fill="${fill}"/>`);
     });
+
+    // Data modules
+    for (let r = 0; r < size; r++) {
+      for (let c = 0; c < size; c++) {
+        if (isFinder(r, c) || inLogoArea(r, c)) continue;
+        if (qr.modules.get(r, c)) {
+          const mx = c + margin;
+          const my = r + margin;
+          if (cornerStyle === "dots") {
+            paths.push(`<circle cx="${mx + 0.5}" cy="${my + 0.5}" r="0.42" fill="${fill}"/>`);
+          } else if (cornerStyle === "rounded") {
+            paths.push(`<rect x="${mx + 0.06}" y="${my + 0.06}" width="0.88" height="0.88" rx="0.28" fill="${fill}"/>`);
+          } else {
+            paths.push(`<rect x="${mx}" y="${my}" width="1" height="1" fill="${fill}"/>`);
+          }
+        }
+      }
+    }
+
+    let logoSvg = "";
+    if (hasLogo) {
+      const badgeX = centerMod - halfLogo + margin - 0.2;
+      const badgeY = centerMod - halfLogo + margin - 0.2;
+      const badgeW = logoModules + 0.4;
+      const badgeRx = cornerStyle === "dots" ? badgeW / 2 : cornerStyle === "rounded" ? 1.4 : 0.6;
+      const badgeBg = colorLight === "transparent" ? "#FFFFFF" : colorLight;
+
+      logoSvg += `<rect x="${badgeX}" y="${badgeY}" width="${badgeW}" height="${badgeW}" rx="${badgeRx}" fill="${badgeBg}" stroke="${colorDark}" stroke-width="0.2" stroke-opacity="0.15"/>`;
+
+      const iconX = badgeX + badgeW * 0.18;
+      const iconY = badgeY + badgeW * 0.18;
+      const iconW = badgeW * 0.64;
+      const stroke = colorDark;
+      const fillBg = badgeBg;
+
+      if (opts.logo === "globe") {
+        logoSvg += `<g transform="translate(${iconX},${iconY}) scale(${iconW / 24})"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></g>`;
+      } else if (opts.logo === "instagram") {
+        logoSvg += `<g transform="translate(${iconX},${iconY}) scale(${iconW / 24})"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="${stroke}" stroke="none"/></svg></g>`;
+      } else if (opts.logo === "youtube") {
+        logoSvg += `<g transform="translate(${iconX},${iconY}) scale(${iconW / 24})"><svg width="24" height="24" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="4" fill="${stroke}"/><polygon points="10,8 16,12 10,16" fill="${fillBg}"/></svg></g>`;
+      } else if (opts.logo === "twitter") {
+        logoSvg += `<g transform="translate(${iconX},${iconY}) scale(${iconW / 24})"><svg width="24" height="24" viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" fill="${stroke}"/></svg></g>`;
+      } else if (opts.logo === "github") {
+        logoSvg += `<g transform="translate(${iconX},${iconY}) scale(${iconW / 24})"><svg width="24" height="24" viewBox="0 0 24 24" fill="${stroke}"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg></g>`;
+      } else if (opts.logo === "linkedin") {
+        logoSvg += `<g transform="translate(${iconX},${iconY}) scale(${iconW / 24})"><svg width="24" height="24" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="20" rx="4" fill="${stroke}"/><path d="M6 9h3v9H6zM7.5 4a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3zM11 9h2.8v1.3h.04c.4-.7 1.4-1.5 2.9-1.5 3.1 0 3.7 2 3.7 4.7V18h-3v-4.1c0-1 0-2.3-1.4-2.3-1.4 0-1.6 1.1-1.6 2.2V18h-3z" fill="${fillBg}"/></svg></g>`;
+      } else if (opts.logo === "custom" && opts.customLogoUrl) {
+        logoSvg += `<image href="${escapeHtml(opts.customLogoUrl)}" x="${iconX}" y="${iconY}" width="${iconW}" height="${iconW}" preserveAspectRatio="xMidYMid meet"/>`;
+      }
+    }
+
+    const bgRect = colorLight === "transparent" ? "" : `<rect width="${total}" height="${total}" fill="${colorLight}"/>`;
+
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${total} ${total}" width="${width}" height="${width}">${defs}${bgRect}${paths.join("")}${logoSvg}</svg>`;
   } catch {
     return qrcodeFallback();
   }
+}
+
+async function generateQR(url: string, opts?: BrandedQrOptions): Promise<string> {
+  return generateBrandedQrSvg(url, opts);
 }
 
 function qrcodeFallback(): string {
@@ -1495,6 +1754,10 @@ function toListEntry(
     deviceRoutes: d.deviceRoutes || {},
     splits: d.splits || [],
     healthStatus: d.healthStatus ?? null,
+    deepLink: !!(d as any).deepLink,
+    campaign: (d as any).campaign ?? null,
+    expiredAction: (d as any).expiredAction ?? null,
+    expiredUrl: (d as any).expiredUrl ?? null,
   };
 }
 
@@ -1537,6 +1800,10 @@ async function listAllEntries(env: Env): Promise<URLListEntry[]> {
           deviceRoutes: {},
           splits: [],
           healthStatus: null,
+          deepLink: !!meta.deepLink,
+          campaign: meta.campaign ?? null,
+          expiredAction: meta.expiredAction ?? null,
+          expiredUrl: meta.expiredUrl ?? null,
         });
       } else {
         fallbackGets.push(
@@ -1848,6 +2115,10 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
     geoRoutes?: Record<string, string>;
     deviceRoutes?: { ios?: string | null; android?: string | null; desktop?: string | null };
     splits?: unknown;
+    deepLink?: boolean;
+    campaign?: string | null;
+    expiredAction?: ("message" | "redirect") | null;
+    expiredUrl?: string | null;
   };
   const bodyParsed = await readBoundedJson<typeof body>(req);
   if (bodyParsed.error || !bodyParsed.data) {
@@ -1885,6 +2156,10 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
   const ogTitle = normalizeOgText(body.ogTitle, 100);
   const ogDescription = normalizeOgText(body.ogDescription, 220);
   const publicStats = body.publicStats === true;
+  const deepLink = body.deepLink === true;
+  const campaign = normalizeCampaign(body.campaign);
+  const expiredParsed = normalizeExpiredAction(body.expiredAction, body.expiredUrl, req.url);
+  if (expiredParsed.error) return err(expiredParsed.error);
 
   let passwordHash: string | null = null;
   if (typeof body.password === "string" && body.password.length > 0) {
@@ -1922,6 +2197,10 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
         deviceRoutes: match.deviceRoutes,
         splits: match.splits ?? [],
         healthStatus: match.healthStatus ?? null,
+        deepLink: !!match.deepLink,
+        campaign: match.campaign ?? null,
+        expiredAction: match.expiredAction ?? null,
+        expiredUrl: match.expiredUrl ?? null,
         deduplicated: true,
         qrSvg,
       });
@@ -1992,6 +2271,10 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
     geoRoutes: geoRoutesParsed.routes,
     deviceRoutes: deviceRoutesParsed.routes,
     splits: splitsParsed.splits,
+    deepLink,
+    campaign,
+    expiredAction: expiredParsed.expiredAction,
+    expiredUrl: expiredParsed.expiredUrl,
   };
 
   await saveUrlRecord(env, slug!, data);
@@ -2020,6 +2303,10 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
     deviceRoutes: data.deviceRoutes ?? {},
     splits: data.splits ?? [],
     healthStatus: null,
+    deepLink: !!data.deepLink,
+    campaign: data.campaign ?? null,
+    expiredAction: data.expiredAction ?? null,
+    expiredUrl: data.expiredUrl ?? null,
     qrSvg,
   });
 }
@@ -2078,6 +2365,10 @@ async function handleAnalytics(slug: string, env: Env, req: Request, ctx: Execut
     splits: data.splits ?? [],
     splitClicks: data.splitClicks ?? {},
     healthStatus: data.healthStatus ?? null,
+    deepLink: !!data.deepLink,
+    campaign: data.campaign ?? null,
+    expiredAction: data.expiredAction ?? null,
+    expiredUrl: data.expiredUrl ?? null,
     qrSvg,
   });
 }
@@ -2093,6 +2384,7 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
   let body: {
     url?: string;
     expiresIn?: string;
+    expiresAt?: string | null;
     label?: string | null;
     tags?: string[] | string;
     maxClicks?: number | string | null;
@@ -2106,6 +2398,10 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
     geoRoutes?: Record<string, string> | null;
     deviceRoutes?: { ios?: string | null; android?: string | null; desktop?: string | null } | null;
     splits?: unknown;
+    deepLink?: boolean;
+    campaign?: string | null;
+    expiredAction?: ("message" | "redirect") | null;
+    expiredUrl?: string | null;
   };
   const bodyParsed = await readBoundedJson<typeof body>(req);
   if (bodyParsed.error || !bodyParsed.data) {
@@ -2114,7 +2410,7 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
   body = bodyParsed.data;
 
   const hasUrl = body.url !== undefined;
-  const hasExpiry = body.expiresIn !== undefined && body.expiresIn !== "keep";
+  const hasExpiry = (body.expiresIn !== undefined && body.expiresIn !== "keep") || body.expiresAt !== undefined;
   const hasLabel = body.label !== undefined;
   const hasTags = body.tags !== undefined;
   const hasMaxClicks = body.maxClicks !== undefined;
@@ -2127,6 +2423,9 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
   const hasGeoRoutes = body.geoRoutes !== undefined;
   const hasDeviceRoutes = body.deviceRoutes !== undefined;
   const hasSplits = body.splits !== undefined;
+  const hasDeepLink = body.deepLink !== undefined;
+  const hasCampaign = body.campaign !== undefined;
+  const hasExpiredAction = body.expiredAction !== undefined || body.expiredUrl !== undefined;
 
   if (
     !hasUrl &&
@@ -2143,7 +2442,10 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
     !hasFallbackUrl &&
     !hasGeoRoutes &&
     !hasDeviceRoutes &&
-    !hasSplits
+    !hasSplits &&
+    !hasDeepLink &&
+    !hasCampaign &&
+    !hasExpiredAction
   ) {
     return err("Provide at least one field to update");
   }
@@ -2159,15 +2461,27 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
   }
 
   if (hasExpiry) {
-    const expStr = String(body.expiresIn).trim();
-    if (expStr === "never") {
-      data.expiresAt = null;
-    } else {
-      const days = parseInt(expStr, 10);
-      if (isNaN(days) || days < 1) {
-        return err("Invalid 'expiresIn' value");
+    if (body.expiresAt !== undefined) {
+      if (body.expiresAt === null || body.expiresAt === "") {
+        data.expiresAt = null;
+      } else {
+        const d = new Date(body.expiresAt);
+        if (isNaN(d.getTime())) {
+          return err("Invalid 'expiresAt' timestamp");
+        }
+        data.expiresAt = d.toISOString();
       }
-      data.expiresAt = computeExpiration(days);
+    } else {
+      const expStr = String(body.expiresIn).trim();
+      if (expStr === "never") {
+        data.expiresAt = null;
+      } else {
+        const days = parseInt(expStr, 10);
+        if (isNaN(days) || days < 1) {
+          return err("Invalid 'expiresIn' value");
+        }
+        data.expiresAt = computeExpiration(days);
+      }
     }
   }
 
@@ -2248,6 +2562,23 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
     }
   }
 
+  if (hasDeepLink) {
+    data.deepLink = body.deepLink === true;
+  }
+
+  if (hasCampaign) {
+    data.campaign = normalizeCampaign(body.campaign);
+  }
+
+  if (hasExpiredAction) {
+    const nextAction = body.expiredAction !== undefined ? body.expiredAction : data.expiredAction;
+    const nextUrl = body.expiredUrl !== undefined ? body.expiredUrl : data.expiredUrl;
+    const expParsed = normalizeExpiredAction(nextAction, nextUrl, req.url);
+    if (expParsed.error) return err(expParsed.error);
+    data.expiredAction = expParsed.expiredAction;
+    data.expiredUrl = expParsed.expiredUrl;
+  }
+
   if (data.startsAt && data.expiresAt && new Date(data.startsAt) >= new Date(data.expiresAt)) {
     return err("Activation start time must be before link expiration time");
   }
@@ -2272,6 +2603,10 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
     deviceRoutes: data.deviceRoutes ?? {},
     splits: data.splits ?? [],
     healthStatus: data.healthStatus ?? null,
+    deepLink: !!data.deepLink,
+    campaign: data.campaign ?? null,
+    expiredAction: data.expiredAction ?? null,
+    expiredUrl: data.expiredUrl ?? null,
     message: "Link updated successfully",
   });
 }
@@ -2362,6 +2697,76 @@ async function handleCheckHealth(slug: string, env: Env, req: Request, ctx: Exec
   return json({
     slug,
     health: healthStatus,
+  });
+}
+
+async function handleGenerateQr(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+
+  try {
+    const body = (await req.json()) as BrandedQrOptions & { url?: string; slug?: string };
+    let targetUrl = body.url;
+    if (!targetUrl && body.slug) {
+      const raw = await env.URL_KV.get(key(body.slug));
+      if (raw) {
+        targetUrl = (JSON.parse(raw) as URLData).originalUrl;
+      }
+    }
+    if (!targetUrl) {
+      return err("Missing url or valid slug", 400);
+    }
+    const svg = generateBrandedQrSvg(targetUrl, body);
+    return json({
+      svg,
+      url: targetUrl,
+      slug: body.slug || null,
+    });
+  } catch (e: any) {
+    return err(e.message || "Failed to generate QR code", 500);
+  }
+}
+
+async function handleGetQr(slug: string, req: Request, env: Env): Promise<Response> {
+  const raw = await env.URL_KV.get(key(slug));
+  if (!raw) {
+    return err("Short link not found", 404);
+  }
+  const data = JSON.parse(raw) as URLData;
+  const reqUrl = new URL(req.url);
+  const targetUrl = `${reqUrl.origin}/${slug}`;
+  const searchParams = reqUrl.searchParams;
+
+  const qrOpts: BrandedQrOptions = {
+    errorCorrectionLevel: (searchParams.get("ec") as any) || "M",
+    colorDark: searchParams.get("dark") || "#0F172A",
+    colorLight: searchParams.get("light") || "#FFFFFF",
+    gradientStart: searchParams.get("gradStart") || undefined,
+    gradientEnd: searchParams.get("gradEnd") || undefined,
+    useGradient: searchParams.has("gradStart") && searchParams.has("gradEnd"),
+    cornerStyle: (searchParams.get("corner") as any) || "square",
+    logo: (searchParams.get("logo") as any) || "none",
+    customLogoUrl: searchParams.get("customLogo") || undefined,
+    width: parseInt(searchParams.get("width") || "512", 10) || 512,
+  };
+
+  const svg = generateBrandedQrSvg(targetUrl, qrOpts);
+  if (searchParams.get("format") === "svg" || searchParams.get("download") === "1") {
+    const headers: Record<string, string> = {
+      "Content-Type": "image/svg+xml; charset=utf-8",
+      "Cache-Control": "public, max-age=3600",
+    };
+    if (searchParams.get("download") === "1") {
+      headers["Content-Disposition"] = `attachment; filename="qr-${slug}.svg"`;
+    }
+    return new Response(svg, { status: 200, headers });
+  }
+
+  return json({
+    svg,
+    slug,
+    shortUrl: targetUrl,
+    originalUrl: data.originalUrl,
   });
 }
 
@@ -2657,6 +3062,7 @@ async function handleRedirect(
         codeLabel: "425 · Not Active Yet",
         title: "Link Not Active Yet",
         message: "This shortened link is scheduled to activate at a future time. Please check back later.",
+        startsAt: data.startsAt,
       }),
       { status: 425, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } }
     );
@@ -2664,6 +3070,9 @@ async function handleRedirect(
 
   if (isLinkExpired(data)) {
     dispatchWebhookEvent(env, ctx, "link.expired", slug, data, req, data.originalUrl);
+    if (data.expiredAction === "redirect" && data.expiredUrl) {
+      return safeRedirect(data.expiredUrl, 302);
+    }
     return new Response(
       renderStatusPage({
         status: 410,
@@ -2764,6 +3173,27 @@ async function handleRedirect(
     if (hitLimitNow) {
       dispatchWebhookEvent(env, ctx, "link.limit_reached", slug, data, req, targetUrl);
     }
+    if (data.deepLink && isMobileUserAgent(ua)) {
+      const deepTarget = detectAppDeepLink(targetUrl);
+      if (deepTarget) {
+        return new Response(
+          renderDeepLinkBridgeHtml({
+            slug,
+            app: deepTarget.app,
+            scheme: deepTarget.scheme,
+            webUrl: targetUrl,
+          }),
+          {
+            status: 200,
+            headers: {
+              "Content-Type": "text/html; charset=utf-8",
+              "Cache-Control": "no-store",
+              "Content-Security-Policy": HTML_UNLOCK_CSP,
+            },
+          }
+        );
+      }
+    }
     return safeRedirect(targetUrl, 303);
   }
 
@@ -2834,6 +3264,28 @@ async function handleRedirect(
   dispatchWebhookEvent(env, ctx, "link.clicked", slug, data, req, targetUrl);
   if (hitLimitNow) {
     dispatchWebhookEvent(env, ctx, "link.limit_reached", slug, data, req, targetUrl);
+  }
+
+  if (data.deepLink && isMobileUserAgent(ua)) {
+    const deepTarget = detectAppDeepLink(targetUrl);
+    if (deepTarget) {
+      return new Response(
+        renderDeepLinkBridgeHtml({
+          slug,
+          app: deepTarget.app,
+          scheme: deepTarget.scheme,
+          webUrl: targetUrl,
+        }),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "no-store",
+            "Content-Security-Policy": HTML_UNLOCK_CSP,
+          },
+        }
+      );
+    }
   }
 
   return safeRedirect(targetUrl, 302);
@@ -3182,6 +3634,8 @@ async function handleBioList(env: Env, req: Request, ctx: ExecutionContext): Pro
     try {
       const page: BioPageData = JSON.parse(raw);
       const totalClicks = (page.links || []).reduce((acc, l) => acc + (l.clicks || 0), 0);
+      const leadsRaw = await env.URL_KV.get(`b:leads:${page.handle.toLowerCase()}`);
+      const subscribersCount = leadsRaw ? JSON.parse(leadsRaw).length : 0;
       summaries.push({
         handle: page.handle,
         title: page.title,
@@ -3191,6 +3645,7 @@ async function handleBioList(env: Env, req: Request, ctx: ExecutionContext): Pro
         linksCount: (page.links || []).length,
         views: page.views || 0,
         totalClicks,
+        subscribersCount,
         updatedAt: page.updatedAt || page.createdAt,
       });
     } catch {}
@@ -3228,6 +3683,7 @@ async function handleBioCreate(env: Env, req: Request, ctx: ExecutionContext): P
     ogTitle?: string | null;
     ogDescription?: string | null;
     ogImage?: string | null;
+    leadCapture?: unknown;
   };
   const bodyParsed = await readBoundedJson<typeof body>(req);
   if (bodyParsed.error || !bodyParsed.data) {
@@ -3279,6 +3735,7 @@ async function handleBioCreate(env: Env, req: Request, ctx: ExecutionContext): P
     ogTitle: typeof body.ogTitle === "string" ? body.ogTitle.trim().slice(0, 100) : null,
     ogDescription: typeof body.ogDescription === "string" ? body.ogDescription.trim().slice(0, 220) : null,
     ogImage: typeof body.ogImage === "string" ? body.ogImage.trim() : null,
+    leadCapture: normalizeBioLeadCapture(body.leadCapture),
     views: 0,
     createdAt: now,
     updatedAt: now,
@@ -3310,6 +3767,7 @@ async function handleBioUpdate(handle: string, env: Env, req: Request, ctx: Exec
     ogTitle?: string | null;
     ogDescription?: string | null;
     ogImage?: string | null;
+    leadCapture?: unknown;
   };
   const bodyParsed = await readBoundedJson<typeof body>(req);
   if (bodyParsed.error || !bodyParsed.data) {
@@ -3381,6 +3839,9 @@ async function handleBioUpdate(handle: string, env: Env, req: Request, ctx: Exec
   if (body.ogImage !== undefined) {
     existingPage.ogImage = typeof body.ogImage === "string" ? body.ogImage.trim() : null;
   }
+  if (body.leadCapture !== undefined) {
+    existingPage.leadCapture = normalizeBioLeadCapture(body.leadCapture);
+  }
 
   existingPage.updatedAt = new Date().toISOString();
   await env.URL_KV.put(bioKey(cleanHandle), JSON.stringify(existingPage));
@@ -3397,7 +3858,241 @@ async function handleBioDelete(handle: string, env: Env, req: Request, ctx: Exec
 
   await env.URL_KV.delete(bioKey(cleanHandle));
   return json({ ok: true, deleted: cleanHandle });
-  return json({ ok: true, handle: cleanHandle });
+}
+
+async function handleBioSubscribe(
+  handle: string,
+  req: Request,
+  env: Env,
+  ctx: ExecutionContext
+): Promise<Response> {
+  const cleanHandle = handle.trim().toLowerCase();
+  const raw = await env.URL_KV.get(bioKey(cleanHandle));
+  if (!raw) {
+    return err("Bio page not found", 404);
+  }
+  const data: BioPageData = JSON.parse(raw);
+  if (!data.leadCapture || !data.leadCapture.enabled) {
+    return err("Lead capture is not enabled for this bio page", 400);
+  }
+
+  // Rate limiting by IP
+  const ip = getClientIp(req);
+  const ipHash = await computeIpHash(ip, env);
+  const rlKey = `rlbio:sub:${cleanHandle}:${ipHash.slice(0, 16)}`;
+  const rlRecord = await readRateLimit(env, rlKey);
+  const now = Date.now();
+  if (rlRecord && rlRecord.count >= 5 && now < rlRecord.resetAt) {
+    return err("Too many subscription requests. Please try again later.", 429);
+  }
+
+  let email: string = "";
+  const contentType = req.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    const bodyParsed = await readBoundedJson<{ email?: string }>(req);
+    if (bodyParsed.data && typeof bodyParsed.data.email === "string") {
+      email = bodyParsed.data.email.trim();
+    }
+  } else {
+    const text = await req.text();
+    const params = new URLSearchParams(text);
+    email = (params.get("email") || "").trim();
+  }
+
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+    return err("Please provide a valid email address", 400);
+  }
+
+  await recordRateLimitFailure(env, rlKey, rlRecord, 600);
+
+  const leadsKey = `b:leads:${cleanHandle}`;
+  const existingRaw = await env.URL_KV.get(leadsKey);
+  const leads: BioLead[] = existingRaw ? JSON.parse(existingRaw) : [];
+
+  const lowerEmail = email.toLowerCase();
+  const existingIdx = leads.findIndex((l) => l.email.toLowerCase() === lowerEmail);
+  const subDate = new Date().toISOString();
+  if (existingIdx === -1) {
+    leads.unshift({ email: lowerEmail, subscribedAt: subDate, ipHash: ipHash.slice(0, 16) });
+    if (leads.length > 5000) leads.length = 5000;
+    await env.URL_KV.put(leadsKey, JSON.stringify(leads));
+  }
+
+  const successMsg = data.leadCapture.successMessage || "Thank you for subscribing!";
+
+  if (!contentType.includes("application/json")) {
+    return new Response(null, {
+      status: 303,
+      headers: {
+        Location: `/bio/${encodeURIComponent(cleanHandle)}?subscribed=1`,
+      },
+    });
+  }
+
+  return json({
+    ok: true,
+    message: successMsg,
+    count: leads.length,
+  });
+}
+
+async function handleBioSubscribers(
+  handle: string,
+  env: Env,
+  req: Request,
+  ctx: ExecutionContext
+): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+
+  const cleanHandle = handle.trim().toLowerCase();
+  const leadsKey = `b:leads:${cleanHandle}`;
+  const raw = await env.URL_KV.get(leadsKey);
+  const leads: BioLead[] = raw ? JSON.parse(raw) : [];
+
+  const url = new URL(req.url);
+  if (url.searchParams.get("format") === "csv" || url.pathname.endsWith(".csv")) {
+    let csv = "Email,Subscribed At\r\n";
+    for (const lead of leads) {
+      csv += `"${lead.email.replace(/"/g, '""')}","${lead.subscribedAt}"\r\n`;
+    }
+    return new Response(csv, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${cleanHandle}-subscribers.csv"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
+  return json({
+    ok: true,
+    handle: cleanHandle,
+    count: leads.length,
+    subscribers: leads,
+  });
+}
+
+async function handleCreateCampaign(
+  req: Request,
+  env: Env,
+  ctx: ExecutionContext
+): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+
+  let body: {
+    name?: string;
+    url?: string;
+    channels?: string[];
+    expiresIn?: string;
+  };
+  const bodyParsed = await readBoundedJson<typeof body>(req);
+  if (bodyParsed.error || !bodyParsed.data) {
+    return err(bodyParsed.error || "Invalid JSON body", bodyParsed.status || 400);
+  }
+  body = bodyParsed.data;
+
+  if (!body.name || typeof body.name !== "string" || !body.name.trim()) {
+    return err("Campaign name is required");
+  }
+  const campaign = normalizeCampaign(body.name);
+  if (!campaign) {
+    return err("Invalid campaign name");
+  }
+
+  const validUrl = validateDestinationUrl(body.url, req.url);
+  if (validUrl.error || !validUrl.url) {
+    return err(validUrl.error || "Invalid destination URL");
+  }
+
+  const defaultChannels = ["instagram", "youtube", "twitter", "linkedin", "tiktok"];
+  const channels = Array.isArray(body.channels) && body.channels.length > 0
+    ? body.channels.map((c) => String(c).trim().toLowerCase().replace(/[^a-z0-9_-]/g, "")).filter(Boolean).slice(0, 8)
+    : defaultChannels;
+
+  if (channels.length === 0) {
+    return err("At least one valid channel is required");
+  }
+
+  const expiresIn = parseExpiryInput(body.expiresIn);
+  const expiresAt = computeExpiration(expiresIn);
+  const origin = getRequestOrigin(req);
+  const now = new Date().toISOString();
+
+  const createdLinks: Array<{
+    channel: string;
+    slug: string;
+    shortUrl: string;
+    targetUrl: string;
+  }> = [];
+
+  for (const channel of channels) {
+    const target = new URL(validUrl.url);
+    target.searchParams.set("utm_source", channel);
+    target.searchParams.set("utm_medium", "social");
+    target.searchParams.set("utm_campaign", campaign);
+    const finalDestUrl = target.toString();
+
+    let slug: string = "";
+    for (let i = 0; i < 10; i++) {
+      const candidate = generateSlug();
+      if (RESERVED_SLUGS.has(candidate.toLowerCase())) continue;
+      const existing = await env.URL_KV.get(key(candidate));
+      if (!existing) {
+        slug = candidate;
+        break;
+      }
+    }
+    if (!slug) {
+      return err("Failed to allocate unique slug for channel: " + channel, 500);
+    }
+
+    const data: URLData = {
+      originalUrl: finalDestUrl,
+      createdAt: now,
+      expiresAt,
+      clicks: 0,
+      clickTimeline: [],
+      referrers: {},
+      devices: {},
+      countries: {},
+      botClicks: 0,
+      dailyClicks: {},
+      hourlyClicks: {},
+      lastClicked: null,
+      label: `${body.name.trim()} (${channel})`,
+      tags: [campaign, channel],
+      campaign,
+      maxClicks: null,
+      passwordHash: null,
+      ogTitle: null,
+      ogDescription: null,
+      publicStats: true,
+      deepLink: true,
+    };
+
+    await saveUrlRecord(env, slug, data);
+
+    createdLinks.push({
+      channel,
+      slug,
+      shortUrl: `${origin}/${slug}`,
+      targetUrl: finalDestUrl,
+    });
+  }
+
+  return json(
+    {
+      ok: true,
+      campaign,
+      name: body.name.trim(),
+      count: createdLinks.length,
+      links: createdLinks,
+    },
+    201
+  );
 }
 
 // ─── Frontend HTML ────────────────────────────────────────────────────────────
@@ -3499,6 +4194,24 @@ async function handleRoute(
     });
   }
 
+  if (path === "/assets/bio.js" && req.method === "GET") {
+    return new Response(BIO_PAGE_JS, {
+      headers: {
+        "Content-Type": "application/javascript; charset=utf-8",
+        "Cache-Control": "public, max-age=3600",
+      },
+    });
+  }
+
+  if (path === "/assets/status.js" && req.method === "GET") {
+    return new Response(STATUS_PAGE_JS, {
+      headers: {
+        "Content-Type": "application/javascript; charset=utf-8",
+        "Cache-Control": "public, max-age=3600",
+      },
+    });
+  }
+
   if (path === "/robots.txt") {
     const robotsTxt = [
       "User-agent: *",
@@ -3571,8 +4284,15 @@ async function handleRoute(
   if (path === "/api/settings/webhooks/test" && req.method === "POST") return handleTestWebhook(req, env, ctx);
   if (path === "/api/list" && req.method === "GET") return handleList(env, req, ctx);
   if (path === "/api/shorten" && req.method === "POST") return handleShorten(req, env, ctx);
+  if (path === "/api/campaigns" && req.method === "POST") return handleCreateCampaign(req, env, ctx);
   if (path === "/api/bulk-delete" && req.method === "POST") return handleBulkDelete(req, env, ctx);
   if (path === "/api/import" && req.method === "POST") return handleImport(req, env, ctx);
+  if (path === "/api/qr" && req.method === "POST") return handleGenerateQr(req, env, ctx);
+  if (path.startsWith("/api/qr/") && req.method === "GET") {
+    const slug = decodeSlugParam(path.slice("/api/qr/".length));
+    if (!slug || !SLUG_RE.test(slug)) return err("Invalid slug", 400);
+    return handleGetQr(slug, req, env);
+  }
   if (path.startsWith("/api/analytics/") && req.method === "GET") {
     const slug = decodeSlugParam(path.slice("/api/analytics/".length));
     if (!slug || !SLUG_RE.test(slug)) return err("Invalid slug", 400);
@@ -3603,6 +4323,14 @@ async function handleRoute(
   // Bio API endpoints
   if (path === "/api/bio" && req.method === "GET") return handleBioList(env, req, ctx);
   if (path === "/api/bio" && req.method === "POST") return handleBioCreate(env, req, ctx);
+  if (path.startsWith("/api/bio/") && path.includes("/subscribers") && req.method === "GET") {
+    const subPath = path.slice("/api/bio/".length);
+    const slashIdx = subPath.indexOf("/");
+    const rawHandle = slashIdx === -1 ? subPath.replace(/\.csv$/, "") : subPath.slice(0, slashIdx);
+    const handle = decodeSlugParam(rawHandle);
+    if (!handle || !BIO_HANDLE_RE.test(handle)) return err("Invalid bio handle", 400);
+    return handleBioSubscribers(handle, env, req, ctx);
+  }
   if (path.startsWith("/api/bio/") && req.method === "GET") {
     const handle = decodeSlugParam(path.slice("/api/bio/".length));
     if (!handle || !BIO_HANDLE_RE.test(handle)) return err("Invalid bio handle", 400);
@@ -3617,6 +4345,14 @@ async function handleRoute(
     const handle = decodeSlugParam(path.slice("/api/bio/".length));
     if (!handle || !BIO_HANDLE_RE.test(handle)) return err("Invalid bio handle", 400);
     return handleBioDelete(handle, env, req, ctx);
+  }
+
+  // Public Bio subscribe endpoint: /bio/:handle/subscribe or /p/:handle/subscribe
+  const bioSubMatch = path.match(/^\/(?:bio|p)\/([a-zA-Z0-9_-]+)\/subscribe$/);
+  if (bioSubMatch && req.method === "POST") {
+    const handle = decodeSlugParam(bioSubMatch[1]);
+    if (!handle || !BIO_HANDLE_RE.test(handle)) return err("Invalid bio handle", 400);
+    return handleBioSubscribe(handle, req, env, ctx);
   }
 
   // Public Bio click redirect: /bio/:handle/c/:linkId or /p/:handle/c/:linkId

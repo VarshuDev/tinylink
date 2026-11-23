@@ -94,7 +94,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html { color-scheme: var(--color-scheme); scroll-padding-top: 76px; }
+  html { color-scheme: var(--color-scheme); scroll-padding-top: 76px; overflow-x: hidden; }
 
   body {
     font-family: var(--font-sans);
@@ -105,6 +105,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
     flex-direction: column;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
   }
 
   .sr-only {
@@ -1117,6 +1118,118 @@ export function renderDashboardHtml(authRequired: boolean): string {
   .qr-studio-link:hover { text-decoration: underline; }
   .qr-btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
+  /* ── Branded QR Designer Modal ── */
+  .qr-designer-grid {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 680px) {
+    .qr-designer-grid {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+  }
+  .qr-designer-preview-box {
+    background: #FFFFFF;
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--border);
+    max-width: 240px;
+    margin: 0 auto;
+    width: 100%;
+  }
+  .qr-designer-preview-box svg {
+    width: 100%;
+    height: auto;
+    display: block;
+    max-width: 212px;
+  }
+  .qr-designer-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+  }
+  .qr-control-section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .qr-control-label {
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+  .qr-chip-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .qr-chip {
+    padding: 5px 11px;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text-muted);
+    transition: all 120ms ease;
+  }
+  .qr-chip:hover {
+    color: var(--text);
+    border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  }
+  .qr-chip.is-active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .qr-color-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .qr-color-input-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 4px 8px;
+    font-size: 0.78rem;
+    color: var(--text);
+  }
+  .qr-color-input-wrap input[type="color"] {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    cursor: pointer;
+    background: transparent;
+  }
+  .qr-export-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-subtle);
+  }
+
   /* ── Breakdown Lists ── */
   .breakdown-grid {
     display: grid;
@@ -1507,6 +1620,9 @@ export function renderDashboardHtml(authRequired: boolean): string {
   .meta-chip.geo { background: var(--geo-soft); border-color: transparent; color: var(--geo); }
   .meta-chip.device { background: var(--link-soft); border-color: transparent; color: var(--link); }
   .meta-chip.pending { background: var(--link-soft); border-color: transparent; color: var(--link); }
+  .meta-chip.deep { background: rgba(56, 189, 248, 0.14); border-color: transparent; color: #38BDF8; }
+  .meta-chip.camp { background: rgba(192, 132, 252, 0.14); border-color: transparent; color: #C084FC; }
+  .meta-chip.exp-red { background: rgba(245, 158, 11, 0.14); border-color: transparent; color: #F59E0B; }
   .row-highlight td,
   .mobile-item.row-highlight {
     animation: rowFlash 1.8s ease;
@@ -1604,6 +1720,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
 
   @media (max-width: 540px) {
     .domain-btn-label { display: none; }
+    .bio-form-grid-2 { grid-template-columns: 1fr; gap: 8px; }
   }
 
   @media (max-width: 480px) {
@@ -1615,8 +1732,132 @@ export function renderDashboardHtml(authRequired: boolean): string {
     .kpi-card { padding: 13px 14px; }
     .kpi-val { font-size: 1.45rem; }
     .mobile-actions { gap: 6px; }
-    .mobile-actions .btn { gap: 4px; padding: 0 4px; font-size: 0.74rem; min-height: 40px; }
+    .mobile-actions .btn { gap: 4px; padding: 0 4px; font-size: 0.74rem; min-height: 44px; touch-action: manipulation; }
+
+    /* Workspace Navigation */
+    .workspace-nav { gap: 6px; margin-bottom: 16px; }
+    .workspace-tab {
+      flex: 1;
+      justify-content: center;
+      padding: 8px 10px;
+      font-size: 0.82rem;
+      min-height: 44px;
+      text-align: center;
+    }
+
+    /* Bio Profile View */
+    .bio-view-header {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 12px;
+      padding: 14px;
+    }
+    .bio-view-header .btn {
+      width: 100%;
+      min-height: 44px;
+      justify-content: center;
+    }
+    .bio-grid {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    .bio-card-actions {
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .bio-card-actions .btn {
+      flex: 1 1 calc(50% - 4px);
+      min-height: 44px;
+      justify-content: center;
+    }
+    .bio-card-actions a.btn {
+      flex: 1 1 100%;
+    }
+
+    /* Bio Studio Link Editor */
+    .bio-link-editor-row {
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .bio-link-editor-row .bio-link-title-in {
+      width: 100%;
+      order: 2;
+    }
+    .bio-link-editor-row .bio-link-editor-actions {
+      order: 1;
+    }
+    .bio-link-editor-row .bio-link-icon-sel {
+      order: 3;
+      flex: 1;
+      min-height: 40px;
+    }
+    .bio-link-editor-row [data-action="remove-link"] {
+      order: 4;
+      min-height: 40px;
+      min-width: 40px;
+    }
+    .bio-link-editor-row .bio-link-url-in {
+      min-width: 0;
+    }
+
+    /* Modals & Dialogs */
+    .modal-overlay {
+      padding: 8px;
+    }
+    .modal-dialog {
+      max-height: 96vh;
+      border-radius: var(--radius);
+    }
+    .modal-header {
+      padding: 12px 14px;
+    }
+    .modal-body {
+      padding: 14px;
+      gap: 14px;
+    }
+    .modal-quick-bar {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+    }
+    .modal-quick-bar .btn {
+      width: 100%;
+      min-height: 44px;
+    }
+    .danger-zone {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+    }
+    .danger-zone-btns {
+      width: 100%;
+    }
+    .danger-zone-btns .btn {
+      flex: 1;
+      min-height: 44px;
+    }
+    .geo-row {
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .geo-row .geo-code-input {
+      width: 65px;
+    }
+    .geo-row .geo-url-input {
+      min-width: 140px;
+      flex: 1;
+    }
+    .split-row {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 6px;
+    }
+    .split-row .split-url-input {
+      width: 100%;
+      min-width: 0;
+    }
   }
+
   @media (max-width: 420px) {
     .topbar-inner { padding: 10px 12px; gap: 6px; }
     .brand { gap: 6px; min-width: 0; }
@@ -1625,6 +1866,32 @@ export function renderDashboardHtml(authRequired: boolean): string {
     .topbar-actions { gap: 4px; flex-shrink: 0; }
     .topbar-actions .btn-icon, #lockBtn { width: 34px; min-height: 34px; padding: 0; }
     .lock-label { display: none; }
+  }
+
+  @media (max-width: 360px) {
+    .container {
+      padding: 12px 10px 24px;
+    }
+    .kpi-grid {
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .kpi-card {
+      padding: 10px 8px;
+    }
+    .kpi-val {
+      font-size: 1.25rem;
+    }
+    .mobile-actions {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  /* ── 2-Column Responsive Form Grid ── */
+  .bio-form-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
   }
 
   /* ── Workspace Nav Tabs ── */
@@ -1694,7 +1961,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
   }
   .bio-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 16px;
   }
   .bio-card {
@@ -2203,6 +2470,16 @@ export function renderDashboardHtml(authRequired: boolean): string {
                 <label for="linkPasswordInput" class="adv-label">Link Password (optional)</label>
                 <input type="password" id="linkPasswordInput" class="adv-input mono" maxlength="128" placeholder="Require password before redirect" autocomplete="new-password">
               </div>
+              <div class="adv-field">
+                <label for="expiredActionSelect" class="adv-label">Expired Link Action</label>
+                <div style="display:flex;gap:8px;">
+                  <select id="expiredActionSelect" class="sort-select" style="min-height:38px;width:160px;">
+                    <option value="message">Show 410 Notice</option>
+                    <option value="redirect">Redirect to URL</option>
+                  </select>
+                  <input type="url" id="expiredUrlInput" class="adv-input" placeholder="https://example.com/waitlist" style="flex:1;" hidden>
+                </div>
+              </div>
             </div>
 
             <label class="check-row" for="publicStatsCheck">
@@ -2230,6 +2507,11 @@ export function renderDashboardHtml(authRequired: boolean): string {
                 <input type="url" id="routeAndroidInput" class="adv-input" placeholder="https://play.google.com/store/apps/...">
               </div>
             </div>
+
+            <label class="check-row" for="deepLinkCheck" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border-subtle);">
+              <input type="checkbox" id="deepLinkCheck">
+              <span>Enable Smart Mobile App Deep Linking (auto-open YouTube, Spotify, X, Instagram, TikTok in app on mobile)</span>
+            </label>
 
             <div>
               <div class="adv-subhead" style="margin-bottom:6px;">
@@ -2385,6 +2667,15 @@ export function renderDashboardHtml(authRequired: boolean): string {
             <option value="oldest">Oldest</option>
           </select>
 
+          <select id="campaignFilterSelect" class="sort-select" aria-label="Filter by campaign" hidden>
+            <option value="">All Campaigns</option>
+          </select>
+
+          <button type="button" class="btn btn-secondary btn-sm" id="campaignModalBtn" title="One-Click Multi-Channel Campaign Generator">
+            <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="128" cy="128" r="96"/><circle cx="128" cy="128" r="64"/><circle cx="128" cy="128" r="32"/></svg>
+            <span>Campaigns</span>
+          </button>
+
           <div class="dropdown-wrap">
             <button type="button" class="btn btn-secondary btn-sm" id="backupMenuBtn" aria-expanded="false" aria-haspopup="menu" aria-controls="backupMenu">
               <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M216,152v56a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V152"/><polyline points="88 112 128 152 168 112"/><line x1="128" y1="40" x2="128" y2="152"/></svg>
@@ -2409,6 +2700,19 @@ export function renderDashboardHtml(authRequired: boolean): string {
           </div>
           <input type="file" id="importFileInput" accept=".json,application/json" hidden>
         </div>
+      </div>
+
+      <div class="campaign-summary-banner" id="campaignSummaryBanner" hidden style="margin-bottom:12px;padding:12px 16px;background:var(--link-soft);border:1px solid color-mix(in srgb, var(--link) 35%, transparent);border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="color:var(--link);display:flex;align-items:center;">
+            <svg width="18" height="18" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="128" cy="128" r="96"/><circle cx="128" cy="128" r="64"/><circle cx="128" cy="128" r="32"/></svg>
+          </span>
+          <div>
+            <div style="font-size:0.86rem;font-weight:700;color:var(--text);">Campaign: <span id="campaignBannerName" class="mono" style="color:var(--link);"></span></div>
+            <div style="font-size:0.76rem;color:var(--text-muted);" id="campaignBannerStats">0 clicks across 0 links</div>
+          </div>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="clearCampaignFilterBtn" style="font-size:0.75rem;min-height:30px;">Clear Filter</button>
       </div>
 
       <div class="tag-filter-bar" id="tagFilterBar" hidden aria-label="Filter links by tag"></div>
@@ -2513,7 +2817,8 @@ export const DASHBOARD_APP_JS = `(function() {
     linkedin: '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>',
     email: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
     discord: '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.929 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.894.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>',
-    music: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>'
+    music: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>',
+    qr: '<svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><rect x="40" y="40" width="72" height="72" rx="8"/><rect x="144" y="40" width="72" height="72" rx="8"/><rect x="40" y="144" width="72" height="72" rx="8"/><rect x="156" y="156" width="48" height="48" rx="6" fill="currentColor"/></svg>'
   };
 
   // ── State ──
@@ -2549,6 +2854,7 @@ export const DASHBOARD_APP_JS = `(function() {
   var currentSearch = '';
   var currentFilter = 'all';
   var currentTag = '';
+  var currentCampaign = '';
   var currentSort = 'newest';
   var selectedSlugs = new Set();
   var bulkConfirming = false;
@@ -2608,6 +2914,8 @@ export const DASHBOARD_APP_JS = `(function() {
   var maxClicksSelect = document.getElementById('maxClicksSelect');
   var maxClicksCustom = document.getElementById('maxClicksCustom');
   var linkPasswordInput = document.getElementById('linkPasswordInput');
+  var expiredActionSelect = document.getElementById('expiredActionSelect');
+  var expiredUrlInput = document.getElementById('expiredUrlInput');
   var utmSource = document.getElementById('utmSource');
   var utmMedium = document.getElementById('utmMedium');
   var utmCampaign = document.getElementById('utmCampaign');
@@ -2615,6 +2923,7 @@ export const DASHBOARD_APP_JS = `(function() {
   var ogTitleInput = document.getElementById('ogTitleInput');
   var ogDescInput = document.getElementById('ogDescInput');
   var publicStatsCheck = document.getElementById('publicStatsCheck');
+  var deepLinkCheck = document.getElementById('deepLinkCheck');
   var startsAtInput = document.getElementById('startsAtInput');
   var fallbackUrlInput = document.getElementById('fallbackUrlInput');
   var routeIosInput = document.getElementById('routeIosInput');
@@ -2647,6 +2956,12 @@ export const DASHBOARD_APP_JS = `(function() {
   var clearSearchBtn = document.getElementById('clearSearchBtn');
   var statusFilterGroup = document.getElementById('statusFilterGroup');
   var sortSelect = document.getElementById('sortSelect');
+  var campaignFilterSelect = document.getElementById('campaignFilterSelect');
+  var campaignModalBtn = document.getElementById('campaignModalBtn');
+  var campaignSummaryBanner = document.getElementById('campaignSummaryBanner');
+  var campaignBannerName = document.getElementById('campaignBannerName');
+  var campaignBannerStats = document.getElementById('campaignBannerStats');
+  var clearCampaignFilterBtn = document.getElementById('clearCampaignFilterBtn');
   var backupMenuBtn = document.getElementById('backupMenuBtn');
   var backupMenu = document.getElementById('backupMenu');
   var exportBtn = document.getElementById('exportBtn');
@@ -3344,6 +3659,14 @@ export const DASHBOARD_APP_JS = `(function() {
     updateAdvCount();
   });
 
+  if (expiredActionSelect && expiredUrlInput) {
+    expiredActionSelect.addEventListener('change', function() {
+      expiredUrlInput.hidden = (expiredActionSelect.value !== 'redirect');
+      if (!expiredUrlInput.hidden) expiredUrlInput.focus();
+      updateAdvCount();
+    });
+  }
+
   [labelInput, tagsInput, maxClicksCustom, linkPasswordInput, utmSource, utmMedium, utmCampaign, ogTitleInput, ogDescInput, startsAtInput, fallbackUrlInput, routeIosInput, routeAndroidInput].forEach(function(el) {
     el.addEventListener('input', updateAdvCount);
   });
@@ -3470,6 +3793,13 @@ export const DASHBOARD_APP_JS = `(function() {
     if (ogTitleInput.value.trim()) payload.ogTitle = ogTitleInput.value.trim();
     if (ogDescInput.value.trim()) payload.ogDescription = ogDescInput.value.trim();
     if (publicStatsCheck.checked) payload.publicStats = true;
+    if (deepLinkCheck && deepLinkCheck.checked) payload.deepLink = true;
+    if (expiredActionSelect && expiredActionSelect.value === 'redirect' && expiredUrlInput && expiredUrlInput.value.trim()) {
+      payload.expiredAction = 'redirect';
+      payload.expiredUrl = expiredUrlInput.value.trim();
+    } else if (expiredActionSelect && expiredActionSelect.value === 'message') {
+      payload.expiredAction = 'message';
+    }
 
     if (startsAtInput.value) {
       var d = new Date(startsAtInput.value);
@@ -3530,6 +3860,9 @@ export const DASHBOARD_APP_JS = `(function() {
       shortenForm.reset();
       expiresValue.value = 'never';
       maxClicksCustom.hidden = true;
+      if (deepLinkCheck) deepLinkCheck.checked = false;
+      if (expiredActionSelect) expiredActionSelect.value = 'message';
+      if (expiredUrlInput) { expiredUrlInput.value = ''; expiredUrlInput.hidden = true; }
       geoRoutesContainer.innerHTML = '';
       if (splitsContainer) splitsContainer.innerHTML = '';
       updateSplitsTotal();
@@ -3560,7 +3893,11 @@ export const DASHBOARD_APP_JS = `(function() {
         fallbackUrl: data.fallbackUrl || null,
         isPending: !!data.isPending,
         geoRoutes: data.geoRoutes || {},
-        deviceRoutes: data.deviceRoutes || {}
+        deviceRoutes: data.deviceRoutes || {},
+        deepLink: !!data.deepLink,
+        campaign: data.campaign || null,
+        expiredAction: data.expiredAction || 'message',
+        expiredUrl: data.expiredUrl || null
       });
       justCreatedSlug = data.slug;
       clearTimeout(highlightTimer);
@@ -3625,14 +3962,14 @@ export const DASHBOARD_APP_JS = `(function() {
     showToast('Downloaded SVG QR code', 'success');
   }
 
-  function downloadPngFromSvg(svgContent, filename) {
+  function downloadPngFromSvg(svgContent, filename, requestedSize) {
     if (!svgContent) return showToast('QR code unavailable', 'error');
+    var size = requestedSize || 512;
+    var pad = Math.round(size * 0.05);
     var svgBlob = new Blob([svgContent], { type: 'image/svg+xml;charset=utf-8' });
     var url = URL.createObjectURL(svgBlob);
     var img = new Image();
     img.onload = function() {
-      var size = 512;
-      var pad = 28;
       var canvas = document.createElement('canvas');
       canvas.width = size;
       canvas.height = size;
@@ -3644,7 +3981,7 @@ export const DASHBOARD_APP_JS = `(function() {
       canvas.toBlob(function(pngBlob) {
         if (pngBlob) {
           triggerBlobDownload(pngBlob, filename);
-          showToast('Downloaded PNG QR code', 'success');
+          showToast('Downloaded ' + size + 'px PNG QR code', 'success');
         }
       }, 'image/png');
     };
@@ -3697,6 +4034,9 @@ export const DASHBOARD_APP_JS = `(function() {
       var inactive = isLinkInactive(u);
       if (currentFilter === 'active' && inactive) return false;
       if (currentFilter === 'expired' && !inactive) return false;
+      if (currentCampaign) {
+        if (u.campaign !== currentCampaign && (!u.tags || u.tags.indexOf(currentCampaign) === -1)) return false;
+      }
       if (currentTag) {
         if (!u.tags || u.tags.indexOf(currentTag) === -1) return false;
       }
@@ -3819,6 +4159,15 @@ export const DASHBOARD_APP_JS = `(function() {
     if (u.startsAt && u.isPending) {
       chips.push('<span class="meta-chip pending">Starts ' + fmtDate(u.startsAt) + '</span>');
     }
+    if (u.deepLink) {
+      chips.push('<span class="meta-chip deep" title="Smart App Deep Linking">' + ICONS.mobile + '<span>App</span></span>');
+    }
+    if (u.campaign) {
+      chips.push('<span class="meta-chip camp" title="Campaign: ' + escapeHtml(u.campaign) + '">' + ICONS.link + '<span>' + escapeHtml(u.campaign) + '</span></span>');
+    }
+    if (u.expiredAction === 'redirect') {
+      chips.push('<span class="meta-chip exp-red" title="Auto-redirects to backup on expiry"><span>Redirect</span></span>');
+    }
     if (u.publicStats) chips.push('<span class="meta-chip stats">Public stats</span>');
     if (u.tags && u.tags.length) {
       for (var i = 0; i < u.tags.length; i++) {
@@ -3826,6 +4175,35 @@ export const DASHBOARD_APP_JS = `(function() {
       }
     }
     return chips.length ? '<div class="meta-chips">' + chips.join('') + '</div>' : '';
+  }
+
+  function renderCampaignFilterUI() {
+    if (!campaignFilterSelect) return;
+    var campaigns = {};
+    for (var i = 0; i < urls.length; i++) {
+      if (urls[i].campaign) {
+        campaigns[urls[i].campaign] = (campaigns[urls[i].campaign] || 0) + 1;
+      }
+    }
+    var campKeys = Object.keys(campaigns).sort();
+    var prevVal = currentCampaign;
+    var optHtml = '<option value="">All Campaigns</option>';
+    for (var k = 0; k < campKeys.length; k++) {
+      var cName = campKeys[k];
+      optHtml += '<option value="' + escapeHtml(cName) + '"' + (currentCampaign === cName ? ' selected' : '') + '>' + escapeHtml(cName) + ' (' + campaigns[cName] + ')</option>';
+    }
+    campaignFilterSelect.innerHTML = optHtml;
+    campaignFilterSelect.value = prevVal;
+
+    if (currentCampaign && campaigns[currentCampaign]) {
+      var campLinks = urls.filter(function(u) { return u.campaign === currentCampaign || (u.tags && u.tags.indexOf(currentCampaign) !== -1); });
+      var campClicks = campLinks.reduce(function(sum, u) { return sum + (u.clicks || 0); }, 0);
+      if (campaignBannerName) campaignBannerName.textContent = currentCampaign;
+      if (campaignBannerStats) campaignBannerStats.textContent = campLinks.length + (campLinks.length === 1 ? ' link' : ' links') + ' · ' + campClicks.toLocaleString() + (campClicks === 1 ? ' click' : ' clicks');
+      if (campaignSummaryBanner) campaignSummaryBanner.hidden = false;
+    } else {
+      if (campaignSummaryBanner) campaignSummaryBanner.hidden = true;
+    }
   }
 
   function renderLinksView() {
@@ -3858,6 +4236,7 @@ export const DASHBOARD_APP_JS = `(function() {
     }
 
     renderTagFilterBar();
+    renderCampaignFilterUI();
     syncBulkBar();
 
     var filtered = getProcessedLinks();
@@ -3965,6 +4344,7 @@ export const DASHBOARD_APP_JS = `(function() {
           '<td><div class="row-actions">' +
             '<button type="button" class="btn btn-secondary btn-icon" data-action="copy" data-slug="' + slugEsc + '" title="Copy short URL" aria-label="Copy short URL /' + slugEsc + '">' + ICONS.copy + '</button>' +
             '<button type="button" class="btn btn-secondary btn-icon" data-action="analytics" data-slug="' + slugEsc + '" title="Inspect analytics & QR" aria-label="Inspect analytics for /' + slugEsc + '">' + ICONS.chart + '</button>' +
+            '<button type="button" class="btn btn-secondary btn-icon" data-action="qr" data-slug="' + slugEsc + '" title="Branded QR Studio" aria-label="Branded QR Studio for /' + slugEsc + '">' + ICONS.qr + '</button>' +
             '<button type="button" class="btn btn-secondary btn-icon" data-action="edit" data-slug="' + slugEsc + '" title="Edit link settings" aria-label="Edit link /' + slugEsc + '">' + ICONS.pencil + '</button>' +
             '<button type="button" class="btn btn-danger btn-icon" data-action="delete" data-slug="' + slugEsc + '" title="Delete link" aria-label="Delete /' + slugEsc + '">' + ICONS.trash + '</button>' +
           '</div></td>' +
@@ -4016,6 +4396,13 @@ export const DASHBOARD_APP_JS = `(function() {
       btn.innerHTML = ICONS.check + (isMobileMq.matches ? '<span>Copied</span>' : '');
       showToast('Copied ' + full, 'success');
       setTimeout(function() { btn.innerHTML = origHtml; }, 1400);
+      return;
+    }
+
+    if (action === 'qr') {
+      var qrShortUrl = window.location.origin + '/' + slug;
+      lastTriggerEl = btn;
+      openBrandedQrModal(slug, qrShortUrl);
       return;
     }
 
@@ -4906,6 +5293,7 @@ export const DASHBOARD_APP_JS = `(function() {
                   '<button type="button" class="btn btn-secondary btn-sm" id="modalCopyBtn">' + ICONS.copy + '<span>Copy Link</span></button>' +
                   '<button type="button" class="btn btn-secondary btn-sm" id="modalDlSvgBtn">' + ICONS.download + '<span>SVG</span></button>' +
                   '<button type="button" class="btn btn-secondary btn-sm" id="modalDlPngBtn">' + ICONS.download + '<span>PNG</span></button>' +
+                  '<button type="button" class="btn btn-primary btn-sm" id="modalDesignQrBtn">' + ICONS.pencil + '<span>Design QR</span></button>' +
                 '</div>' +
               '</div>' +
             '</div>' +
@@ -4974,6 +5362,17 @@ export const DASHBOARD_APP_JS = `(function() {
                 '<label for="editOgDescInput" class="adv-label">Social Description (og:description)</label>' +
                 '<input type="text" id="editOgDescInput" class="adv-input" maxlength="220" value="' + escapeHtml(data.ogDescription || '') + '" placeholder="Custom social card description">' +
               '</div>' +
+              '<div class="adv-field">' +
+                '<label for="editExpiredActionSelect" class="adv-label">Expired Link Action</label>' +
+                '<select id="editExpiredActionSelect" class="sort-select" style="width:100%;min-height:38px;">' +
+                  '<option value="message"' + (data.expiredAction !== 'redirect' ? ' selected' : '') + '>Show 410 Notice</option>' +
+                  '<option value="redirect"' + (data.expiredAction === 'redirect' ? ' selected' : '') + '>Redirect to URL</option>' +
+                '</select>' +
+              '</div>' +
+              '<div class="adv-field" id="editExpiredUrlWrap"' + (data.expiredAction === 'redirect' ? '' : ' hidden') + '>' +
+                '<label for="editExpiredUrlInput" class="adv-label">Expired Redirect URL</label>' +
+                '<input type="url" id="editExpiredUrlInput" class="adv-input" value="' + escapeHtml(data.expiredUrl || '') + '" placeholder="https://example.com/waitlist">' +
+              '</div>' +
             '</div>' +
             '<div class="adv-subhead" style="margin-top:10px;margin-bottom:6px;">' +
               '<span>Smart Routing &amp; Activation Scheduling</span>' +
@@ -4996,6 +5395,10 @@ export const DASHBOARD_APP_JS = `(function() {
                 '<input type="url" id="editRouteAndroidInput" class="adv-input" value="' + escapeHtml(data.deviceRoutes?.android || '') + '" placeholder="https://play.google.com/store/apps/...">' +
               '</div>' +
             '</div>' +
+            '<label class="check-row" for="editDeepLinkCheck" style="margin-top:6px;">' +
+              '<input type="checkbox" id="editDeepLinkCheck"' + (data.deepLink ? ' checked' : '') + '>' +
+              '<span>Enable Smart Deep Linking (open native mobile apps on iOS/Android)</span>' +
+            '</label>' +
             '<div style="margin-top:8px;">' +
               '<div class="adv-subhead" style="margin-bottom:6px;">' +
                 '<span>Country Geotargeting Rules</span>' +
@@ -5100,6 +5503,12 @@ export const DASHBOARD_APP_JS = `(function() {
       document.getElementById('modalDlPngBtn').addEventListener('click', function() {
         downloadPngFromSvg(safeModalQrSvg, slug + '-qr.png');
       });
+      var designQrBtn = document.getElementById('modalDesignQrBtn');
+      if (designQrBtn) {
+        designQrBtn.addEventListener('click', function() {
+          openBrandedQrModal(slug, shortFull);
+        });
+      }
 
       // Wire Health Check button
       var modalCheckHealthBtn = document.getElementById('modalCheckHealthBtn');
@@ -5139,6 +5548,10 @@ export const DASHBOARD_APP_JS = `(function() {
       var editOgTitleInput = document.getElementById('editOgTitleInput');
       var editOgDescInput = document.getElementById('editOgDescInput');
       var editPublicStatsCheck = document.getElementById('editPublicStatsCheck');
+      var editExpiredActionSelect = document.getElementById('editExpiredActionSelect');
+      var editExpiredUrlWrap = document.getElementById('editExpiredUrlWrap');
+      var editExpiredUrlInput = document.getElementById('editExpiredUrlInput');
+      var editDeepLinkCheck = document.getElementById('editDeepLinkCheck');
       var editStartsAtInput = document.getElementById('editStartsAtInput');
       var editFallbackUrlInput = document.getElementById('editFallbackUrlInput');
       var editRouteIosInput = document.getElementById('editRouteIosInput');
@@ -5170,6 +5583,13 @@ export const DASHBOARD_APP_JS = `(function() {
       if (editAddSplitBtn && editSplitsContainer) {
         editAddSplitBtn.addEventListener('click', function() {
           addSplitRow(editSplitsContainer, '', 50, '');
+        });
+      }
+
+      if (editExpiredActionSelect && editExpiredUrlWrap) {
+        editExpiredActionSelect.addEventListener('change', function() {
+          editExpiredUrlWrap.hidden = (editExpiredActionSelect.value !== 'redirect');
+          if (!editExpiredUrlWrap.hidden && editExpiredUrlInput) editExpiredUrlInput.focus();
         });
       }
 
@@ -5219,7 +5639,10 @@ export const DASHBOARD_APP_JS = `(function() {
           maxClicks: nextMaxVal,
           ogTitle: editOgTitleInput.value.trim() || null,
           ogDescription: editOgDescInput.value.trim() || null,
-          publicStats: editPublicStatsCheck.checked
+          publicStats: editPublicStatsCheck.checked,
+          deepLink: editDeepLinkCheck ? editDeepLinkCheck.checked : false,
+          expiredAction: editExpiredActionSelect ? editExpiredActionSelect.value : 'message',
+          expiredUrl: (editExpiredActionSelect && editExpiredActionSelect.value === 'redirect' && editExpiredUrlInput) ? (editExpiredUrlInput.value.trim() || null) : null
         };
 
         if (editStartsAtInput.value) {
@@ -5309,7 +5732,11 @@ export const DASHBOARD_APP_JS = `(function() {
             geoRoutes: updated.geoRoutes || {},
             deviceRoutes: updated.deviceRoutes || {},
             splits: updated.splits || [],
-            healthStatus: updated.healthStatus || null
+            healthStatus: updated.healthStatus || null,
+            deepLink: !!updated.deepLink,
+            campaign: updated.campaign || null,
+            expiredAction: updated.expiredAction || 'message',
+            expiredUrl: updated.expiredUrl || null
           });
           showToast('Link updated', 'success');
           closeModalElement();
@@ -5381,6 +5808,424 @@ export const DASHBOARD_APP_JS = `(function() {
         modalBody.innerHTML = '<div class="alert-box" role="alert"><span>' + escapeHtml(err.message) + '</span></div>';
       }
     }
+  }
+
+  // ── Branded QR Code Design Studio ──
+  async function openBrandedQrModal(slug, shortUrl) {
+    modalLabel.textContent = 'Branded QR Code Studio';
+    modalSlug.textContent = '/' + slug;
+    modalDialog.classList.add('wide');
+
+    var currentOpts = {
+      slug: slug,
+      url: shortUrl,
+      errorCorrectionLevel: 'M',
+      colorDark: '#0F172A',
+      colorLight: '#FFFFFF',
+      useGradient: false,
+      gradientStart: '#6366F1',
+      gradientEnd: '#06B6D4',
+      cornerStyle: 'square',
+      logo: 'none',
+      customLogoUrl: ''
+    };
+
+    var currentSvg = '';
+
+    modalBody.innerHTML =
+      '<div class="qr-designer-grid">' +
+        '<div>' +
+          '<div class="qr-designer-preview-box" id="qrPreviewBox">' +
+            '<div class="skeleton-wrap" style="width:100%;height:200px;"><div class="skeleton-row" style="height:100%;"></div></div>' +
+          '</div>' +
+          '<div style="margin-top:14px;display:flex;flex-direction:column;gap:8px;">' +
+            '<div class="qr-control-label">Export High-Res Formats</div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">' +
+              '<button type="button" class="btn btn-secondary btn-sm" id="qrExportSvgBtn">' + ICONS.download + '<span>SVG Vector</span></button>' +
+              '<button type="button" class="btn btn-secondary btn-sm" id="qrExportPng512Btn">' + ICONS.download + '<span>PNG 512px</span></button>' +
+              '<button type="button" class="btn btn-secondary btn-sm" id="qrExportPng1024Btn">' + ICONS.download + '<span>PNG 1024px</span></button>' +
+              '<button type="button" class="btn btn-secondary btn-sm" id="qrExportPng2048Btn">' + ICONS.download + '<span>PNG 2048px (HD)</span></button>' +
+            '</div>' +
+            '<button type="button" class="btn btn-ghost btn-sm" id="qrBackToInspectorBtn" style="margin-top:4px;">Back to Inspector</button>' +
+          '</div>' +
+        '</div>' +
+
+        '<div class="qr-designer-controls">' +
+          '<div class="qr-control-section">' +
+            '<div class="qr-control-label">Center Logo Presets</div>' +
+            '<div class="qr-chip-group" id="qrLogoChips">' +
+              ['none', 'globe', 'instagram', 'youtube', 'twitter', 'github', 'linkedin', 'custom'].map(function(lg) {
+                var label = lg === 'none' ? 'None' : lg === 'twitter' ? 'Twitter / X' : lg.charAt(0).toUpperCase() + lg.slice(1);
+                return '<button type="button" class="qr-chip' + (lg === 'none' ? ' is-active' : '') + '" data-logo="' + lg + '">' + label + '</button>';
+              }).join('') +
+            '</div>' +
+            '<div id="qrCustomLogoWrap" style="display:none;margin-top:6px;">' +
+              '<input type="url" id="qrCustomLogoInput" class="input" placeholder="https://example.com/logo.png" style="font-size:0.82rem;" />' +
+            '</div>' +
+          '</div>' +
+
+          '<div class="qr-control-section">' +
+            '<div class="qr-control-label">Corner &amp; Module Shapes</div>' +
+            '<div class="qr-chip-group" id="qrCornerChips">' +
+              [
+                { id: 'square', label: 'Square Classic' },
+                { id: 'rounded', label: 'Rounded Curves' },
+                { id: 'dots', label: 'Extra-Rounded Dots' }
+              ].map(function(st) {
+                return '<button type="button" class="qr-chip' + (st.id === 'square' ? ' is-active' : '') + '" data-corner="' + st.id + '">' + st.label + '</button>';
+              }).join('') +
+            '</div>' +
+          '</div>' +
+
+          '<div class="qr-control-section">' +
+            '<div class="qr-control-label">Color Mode &amp; Palette</div>' +
+            '<div class="qr-color-row">' +
+              '<label class="qr-color-input-wrap">' +
+                '<input type="color" id="qrColorDark" value="#0F172A" />' +
+                '<span>Foreground</span>' +
+              '</label>' +
+              '<label class="qr-color-input-wrap">' +
+                '<input type="color" id="qrGradEnd" value="#06B6D4" disabled />' +
+                '<span>Gradient End</span>' +
+              '</label>' +
+              '<label style="display:flex;align-items:center;gap:6px;font-size:0.8rem;cursor:pointer;color:var(--text);margin-left:4px;">' +
+                '<input type="checkbox" id="qrGradCheck" style="accent-color:var(--accent);" />' +
+                '<span>Dual Gradient</span>' +
+              '</label>' +
+            '</div>' +
+          '</div>' +
+
+          '<div class="qr-control-section">' +
+            '<div class="qr-control-label">Background Color</div>' +
+            '<div class="qr-chip-group" id="qrBgChips">' +
+              [
+                { label: 'White', val: '#FFFFFF' },
+                { label: 'Dark (#0F172A)', val: '#0F172A' },
+                { label: 'Slate (#1E293B)', val: '#1E293B' },
+                { label: 'Transparent', val: 'transparent' }
+              ].map(function(bg, idx) {
+                return '<button type="button" class="qr-chip' + (idx === 0 ? ' is-active' : '') + '" data-bg="' + bg.val + '">' + bg.label + '</button>';
+              }).join('') +
+            '</div>' +
+          '</div>' +
+
+          '<div class="qr-control-section">' +
+            '<div class="qr-control-label">Error Correction Level</div>' +
+            '<div class="qr-chip-group" id="qrEcChips">' +
+              [
+                { label: 'L (7%)', val: 'L' },
+                { label: 'M (15%)', val: 'M' },
+                { label: 'Q (25%)', val: 'Q' },
+                { label: 'H (30% - Best for Logos)', val: 'H' }
+              ].map(function(ec) {
+                return '<button type="button" class="qr-chip' + (ec.val === 'M' ? ' is-active' : '') + '" data-ec="' + ec.val + '">' + ec.label + '</button>';
+              }).join('') +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    openModalElement();
+
+    var previewBox = document.getElementById('qrPreviewBox');
+    var logoChips = document.getElementById('qrLogoChips');
+    var cornerChips = document.getElementById('qrCornerChips');
+    var bgChips = document.getElementById('qrBgChips');
+    var ecChips = document.getElementById('qrEcChips');
+    var colorDarkInput = document.getElementById('qrColorDark');
+    var gradEndInput = document.getElementById('qrGradEnd');
+    var gradCheck = document.getElementById('qrGradCheck');
+    var customLogoWrap = document.getElementById('qrCustomLogoWrap');
+    var customLogoInput = document.getElementById('qrCustomLogoInput');
+
+    var refreshTimer = null;
+    async function refreshQrPreview() {
+      try {
+        previewBox.style.opacity = '0.6';
+        var payload = Object.assign({}, currentOpts);
+        var res = await api('/api/qr', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        currentSvg = res.svg;
+        previewBox.innerHTML = res.svg;
+        previewBox.style.opacity = '1';
+      } catch (err) {
+        previewBox.innerHTML = '<div style="color:var(--danger);font-size:0.8rem;padding:20px;text-align:center;">Failed to generate QR preview</div>';
+        previewBox.style.opacity = '1';
+      }
+    }
+
+    function scheduleRefresh() {
+      clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(refreshQrPreview, 140);
+    }
+
+    logoChips.addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-logo]');
+      if (!btn) return;
+      logoChips.querySelectorAll('.qr-chip').forEach(function(c) { c.classList.remove('is-active'); });
+      btn.classList.add('is-active');
+      currentOpts.logo = btn.getAttribute('data-logo');
+      customLogoWrap.style.display = currentOpts.logo === 'custom' ? 'block' : 'none';
+      if (currentOpts.logo !== 'none' && (currentOpts.errorCorrectionLevel === 'L' || currentOpts.errorCorrectionLevel === 'M')) {
+        currentOpts.errorCorrectionLevel = 'H';
+        ecChips.querySelectorAll('.qr-chip').forEach(function(c) {
+          c.classList.toggle('is-active', c.getAttribute('data-ec') === 'H');
+        });
+      }
+      scheduleRefresh();
+    });
+
+    customLogoInput.addEventListener('input', function(e) {
+      currentOpts.customLogoUrl = e.target.value.trim();
+      scheduleRefresh();
+    });
+
+    cornerChips.addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-corner]');
+      if (!btn) return;
+      cornerChips.querySelectorAll('.qr-chip').forEach(function(c) { c.classList.remove('is-active'); });
+      btn.classList.add('is-active');
+      currentOpts.cornerStyle = btn.getAttribute('data-corner');
+      scheduleRefresh();
+    });
+
+    colorDarkInput.addEventListener('input', function(e) {
+      currentOpts.colorDark = e.target.value;
+      if (currentOpts.useGradient) {
+        currentOpts.gradientStart = e.target.value;
+      }
+      scheduleRefresh();
+    });
+
+    gradEndInput.addEventListener('input', function(e) {
+      currentOpts.gradientEnd = e.target.value;
+      scheduleRefresh();
+    });
+
+    gradCheck.addEventListener('change', function(e) {
+      currentOpts.useGradient = e.target.checked;
+      gradEndInput.disabled = !e.target.checked;
+      if (e.target.checked) {
+        currentOpts.gradientStart = colorDarkInput.value;
+        currentOpts.gradientEnd = gradEndInput.value;
+      }
+      scheduleRefresh();
+    });
+
+    bgChips.addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-bg]');
+      if (!btn) return;
+      bgChips.querySelectorAll('.qr-chip').forEach(function(c) { c.classList.remove('is-active'); });
+      btn.classList.add('is-active');
+      currentOpts.colorLight = btn.getAttribute('data-bg');
+      if (currentOpts.colorLight === '#0F172A' && currentOpts.colorDark === '#0F172A') {
+        currentOpts.colorDark = '#38BDF8';
+        colorDarkInput.value = '#38BDF8';
+      }
+      scheduleRefresh();
+    });
+
+    ecChips.addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-ec]');
+      if (!btn) return;
+      ecChips.querySelectorAll('.qr-chip').forEach(function(c) { c.classList.remove('is-active'); });
+      btn.classList.add('is-active');
+      currentOpts.errorCorrectionLevel = btn.getAttribute('data-ec');
+      scheduleRefresh();
+    });
+
+    document.getElementById('qrExportSvgBtn').addEventListener('click', function() {
+      downloadSvg(currentSvg, slug + '-branded.svg');
+    });
+    document.getElementById('qrExportPng512Btn').addEventListener('click', function() {
+      downloadPngFromSvg(currentSvg, slug + '-512.png', 512);
+    });
+    document.getElementById('qrExportPng1024Btn').addEventListener('click', function() {
+      downloadPngFromSvg(currentSvg, slug + '-1024.png', 1024);
+    });
+    document.getElementById('qrExportPng2048Btn').addEventListener('click', function() {
+      downloadPngFromSvg(currentSvg, slug + '-2048.png', 2048);
+    });
+    document.getElementById('qrBackToInspectorBtn').addEventListener('click', function() {
+      openInspectorModal(slug);
+    });
+
+    await refreshQrPreview();
+  }
+
+  // ── Multi-Channel Campaign Generator ──
+  async function openCampaignModal() {
+    modalLabel.textContent = 'Multi-Channel Campaign Generator';
+    modalSlug.textContent = '';
+    modalDialog.classList.remove('wide');
+    modalBody.innerHTML =
+      '<div style="display:flex;flex-direction:column;gap:16px;">' +
+        '<p style="font-size:0.86rem;color:var(--text-muted);margin:0;">' +
+          'Generate UTM-tagged short links across multiple social channels in one click. All generated links are grouped under a shared campaign tag for unified analytics.' +
+        '</p>' +
+        '<form id="campaignGenForm" style="display:flex;flex-direction:column;gap:14px;" novalidate>' +
+          '<div class="adv-field">' +
+            '<label for="campNameInput" class="adv-label">Campaign Name (slug/tag)</label>' +
+            '<input type="text" id="campNameInput" class="adv-input mono" placeholder="e.g. black-friday-2026" required maxlength="50">' +
+          '</div>' +
+          '<div class="adv-field">' +
+            '<label for="campUrlInput" class="adv-label">Destination URL</label>' +
+            '<input type="url" id="campUrlInput" class="input-field" placeholder="https://example.com/product" required>' +
+          '</div>' +
+          '<div class="adv-field">' +
+            '<label for="campExpirySelect" class="adv-label">Expiration (optional)</label>' +
+            '<select id="campExpirySelect" class="sort-select" style="width:100%;min-height:38px;">' +
+              '<option value="never">Never expire</option>' +
+              '<option value="1">1 day</option>' +
+              '<option value="7">7 days</option>' +
+              '<option value="30">30 days</option>' +
+              '<option value="90">90 days</option>' +
+            '</select>' +
+          '</div>' +
+          '<div>' +
+            '<label class="adv-label" style="margin-bottom:8px;display:block;">Select Channels</label>' +
+            '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(130px, 1fr));gap:8px;">' +
+              '<label class="check-row" style="font-size:0.82rem;"><input type="checkbox" name="campChannel" value="instagram" checked> <span>Instagram</span></label>' +
+              '<label class="check-row" style="font-size:0.82rem;"><input type="checkbox" name="campChannel" value="youtube" checked> <span>YouTube</span></label>' +
+              '<label class="check-row" style="font-size:0.82rem;"><input type="checkbox" name="campChannel" value="twitter" checked> <span>Twitter / X</span></label>' +
+              '<label class="check-row" style="font-size:0.82rem;"><input type="checkbox" name="campChannel" value="linkedin" checked> <span>LinkedIn</span></label>' +
+              '<label class="check-row" style="font-size:0.82rem;"><input type="checkbox" name="campChannel" value="tiktok" checked> <span>TikTok</span></label>' +
+            '</div>' +
+          '</div>' +
+          '<div id="campErrorBox" class="alert-box" style="display:none;" role="alert"><span id="campErrorText"></span></div>' +
+          '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px;">' +
+            '<button type="button" class="btn btn-secondary" id="campCancelBtn">Cancel</button>' +
+            '<button type="submit" class="btn btn-primary" id="campSubmitBtn">' + ICONS.plus + '<span>Generate Campaign Links</span></button>' +
+          '</div>' +
+        '</form>' +
+        '<div id="campResultsContainer" style="display:none;flex-direction:column;gap:12px;margin-top:10px;padding-top:14px;border-top:1px solid var(--border);">' +
+          '<div style="font-size:0.82rem;font-weight:700;color:var(--text);display:flex;align-items:center;justify-content:space-between;">' +
+            '<span>Generated Campaign Links</span>' +
+            '<span id="campResultBadge" class="meta-chip camp"></span>' +
+          '</div>' +
+          '<div id="campLinksList" style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto;"></div>' +
+        '</div>' +
+      '</div>';
+
+    openModalElement();
+
+    var form = document.getElementById('campaignGenForm');
+    var campNameInput = document.getElementById('campNameInput');
+    var campUrlInput = document.getElementById('campUrlInput');
+    var campExpirySelect = document.getElementById('campExpirySelect');
+    var campErrorBox = document.getElementById('campErrorBox');
+    var campErrorText = document.getElementById('campErrorText');
+    var campSubmitBtn = document.getElementById('campSubmitBtn');
+    var campCancelBtn = document.getElementById('campCancelBtn');
+    var campResultsContainer = document.getElementById('campResultsContainer');
+    var campResultBadge = document.getElementById('campResultBadge');
+    var campLinksList = document.getElementById('campLinksList');
+
+    campCancelBtn.addEventListener('click', closeModalElement);
+
+    form.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      campErrorBox.style.display = 'none';
+
+      var name = campNameInput.value.trim();
+      var url = campUrlInput.value.trim();
+      if (!name) {
+        campErrorText.textContent = 'Enter a campaign name.';
+        campErrorBox.style.display = 'flex';
+        campNameInput.focus();
+        return;
+      }
+      if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+        campErrorText.textContent = 'Enter a valid URL starting with http:// or https://';
+        campErrorBox.style.display = 'flex';
+        campUrlInput.focus();
+        return;
+      }
+
+      var selectedChannels = [];
+      form.querySelectorAll('input[name="campChannel"]:checked').forEach(function(cb) {
+        selectedChannels.push(cb.value);
+      });
+      if (!selectedChannels.length) {
+        campErrorText.textContent = 'Select at least one social channel.';
+        campErrorBox.style.display = 'flex';
+        return;
+      }
+
+      campSubmitBtn.disabled = true;
+      campSubmitBtn.querySelector('span').textContent = 'Generating…';
+
+      try {
+        var res = await api('/api/campaigns', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: name,
+            url: url,
+            channels: selectedChannels,
+            expiresIn: campExpirySelect.value
+          })
+        });
+
+        campResultBadge.textContent = res.campaign + ' (' + res.count + ')';
+        var listHtml = (res.links || []).map(function(item) {
+          return (
+            '<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 12px;">' +
+              '<div style="min-width:0;flex:1;">' +
+                '<div style="display:flex;align-items:center;gap:6px;">' +
+                  '<span class="meta-chip camp" style="text-transform:capitalize;font-size:0.7rem;">' + escapeHtml(item.channel) + '</span>' +
+                  '<a href="' + escapeHtml(item.shortUrl) + '" target="_blank" rel="noopener noreferrer" class="mono" style="font-size:0.8rem;color:var(--link);text-decoration:none;">' + escapeHtml(item.shortUrl) + '</a>' +
+                '</div>' +
+                '<div style="font-size:0.72rem;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:2px;">' + escapeHtml(item.targetUrl) + '</div>' +
+              '</div>' +
+              '<button type="button" class="btn btn-secondary btn-sm" data-copy-camp="' + escapeHtml(item.shortUrl) + '" style="min-height:30px;padding:4px 10px;font-size:0.75rem;">' +
+                'Copy' +
+              '</button>' +
+            '</div>'
+          );
+        }).join('');
+        campLinksList.innerHTML = listHtml;
+        campResultsContainer.style.display = 'flex';
+
+        campLinksList.querySelectorAll('[data-copy-camp]').forEach(function(btn) {
+          btn.addEventListener('click', function() {
+            copyText(btn.getAttribute('data-copy-camp'));
+            btn.textContent = 'Copied!';
+            setTimeout(function() { btn.textContent = 'Copy'; }, 1500);
+          });
+        });
+
+        currentCampaign = res.campaign;
+        showToast('Created ' + res.count + ' campaign links', 'success');
+        await loadLinks();
+      } catch (err) {
+        campErrorText.textContent = err.message;
+        campErrorBox.style.display = 'flex';
+      } finally {
+        campSubmitBtn.disabled = false;
+        campSubmitBtn.querySelector('span').textContent = 'Generate Campaign Links';
+      }
+    });
+  }
+
+  if (campaignFilterSelect) {
+    campaignFilterSelect.addEventListener('change', function() {
+      currentCampaign = campaignFilterSelect.value;
+      renderLinksView();
+    });
+  }
+  if (clearCampaignFilterBtn) {
+    clearCampaignFilterBtn.addEventListener('click', function() {
+      currentCampaign = '';
+      if (campaignFilterSelect) campaignFilterSelect.value = '';
+      renderLinksView();
+    });
+  }
+  if (campaignModalBtn) {
+    campaignModalBtn.addEventListener('click', function() {
+      openCampaignModal();
+    });
   }
 
   // ── Link-in-Bio & Profile Studio ──
@@ -5459,6 +6304,7 @@ export const DASHBOARD_APP_JS = `(function() {
           '<div class="bio-card-stats">' +
             '<div class="bio-stat-item"><span class="bio-stat-label">Links</span><span class="bio-stat-val">' + linksCount + '</span></div>' +
             '<div class="bio-stat-item"><span class="bio-stat-label">Clicks</span><span class="bio-stat-val">' + totalClicks.toLocaleString() + '</span></div>' +
+            '<div class="bio-stat-item"><span class="bio-stat-label">Leads</span><span class="bio-stat-val">' + (p.subscribersCount || 0) + '</span></div>' +
             '<div class="bio-stat-item"><span class="bio-stat-label">Theme</span><span class="bio-stat-val" style="font-size:0.85rem;text-transform:capitalize;">' + theme + '</span></div>' +
           '</div>' +
           '<div class="bio-card-actions">' +
@@ -5471,6 +6317,9 @@ export const DASHBOARD_APP_JS = `(function() {
               '</a>' +
             '</div>' +
             '<div style="display:flex;gap:6px;">' +
+              '<button type="button" class="btn btn-ghost btn-sm" data-action="leads-bio" data-handle="' + handle + '" title="View Subscribers & Leads">' +
+                ICONS.user + '<span>Leads' + (p.subscribersCount ? ' (' + p.subscribersCount + ')' : '') + '</span>' +
+              '</button>' +
               '<button type="button" class="btn btn-ghost btn-sm" data-action="edit-bio" data-handle="' + handle + '" title="Edit profile">' +
                 ICONS.pencil + '<span>Edit</span>' +
               '</button>' +
@@ -5500,6 +6349,12 @@ export const DASHBOARD_APP_JS = `(function() {
           var urlToCopy = copyBtn.getAttribute('data-url');
           await copyText(urlToCopy);
           showToast('Bio link copied to clipboard', 'success');
+          return;
+        }
+        var leadsBtn = e.target.closest('[data-action="leads-bio"]');
+        if (leadsBtn) {
+          var handleForLeads = leadsBtn.getAttribute('data-handle');
+          openBioLeadsModal(handleForLeads);
           return;
         }
         var editBtn = e.target.closest('[data-action="edit-bio"]');
@@ -5535,6 +6390,77 @@ export const DASHBOARD_APP_JS = `(function() {
         }
       });
     });
+  }
+
+  async function openBioLeadsModal(handle) {
+    modalLabel.textContent = 'Subscribers & Leads (@' + handle + ')';
+    modalSlug.textContent = '';
+    modalDialog.classList.remove('wide');
+    modalBody.innerHTML =
+      '<div class="skeleton-wrap" aria-busy="true">' +
+        '<div class="skeleton-row"></div>' +
+        '<div class="skeleton-row"></div>' +
+      '</div>';
+    openModalElement();
+
+    try {
+      var data = await api('/api/bio/' + encodeURIComponent(handle) + '/subscribers');
+      var subscribers = data.subscribers || [];
+      var csvUrl = '/api/bio/' + encodeURIComponent(handle) + '/subscribers?format=csv';
+
+      var contentHtml =
+        '<div style="display:flex;flex-direction:column;gap:14px;">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">' +
+            '<div>' +
+              '<div style="font-size:1.1rem;font-weight:700;color:var(--text);">' + subscribers.length.toLocaleString() + ' Total ' + (subscribers.length === 1 ? 'Subscriber' : 'Subscribers') + '</div>' +
+              '<div style="font-size:0.78rem;color:var(--text-muted);">Email leads collected from public bio page newsletter block.</div>' +
+            '</div>' +
+            '<a href="' + escapeHtml(csvUrl) + '" download="' + escapeHtml(handle) + '-subscribers.csv" class="btn btn-secondary btn-sm" id="bioLeadsDownloadCsvBtn">' +
+              ICONS.download + '<span>Export CSV</span>' +
+            '</a>' +
+          '</div>';
+
+      if (!subscribers.length) {
+        contentHtml +=
+          '<div style="text-align:center;padding:32px 16px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-muted);font-size:0.85rem;">' +
+            'No leads captured yet. Make sure Lead Capture is enabled in this bio profile settings.' +
+          '</div>';
+      } else {
+        contentHtml +=
+          '<div style="max-height:360px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);">' +
+            '<table style="width:100%;border-collapse:collapse;font-size:0.82rem;">' +
+              '<thead>' +
+                '<tr style="background:var(--surface-2);border-bottom:1px solid var(--border);color:var(--text-muted);text-align:left;">' +
+                  '<th style="padding:8px 12px;font-weight:600;">Email</th>' +
+                  '<th style="padding:8px 12px;font-weight:600;width:140px;">Subscribed At</th>' +
+                '</tr>' +
+              '</thead>' +
+              '<tbody>' +
+                subscribers.map(function(s) {
+                  return (
+                    '<tr style="border-bottom:1px solid var(--border-subtle);">' +
+                      '<td style="padding:8px 12px;font-family:var(--font-mono);color:var(--text);">' + escapeHtml(s.email) + '</td>' +
+                      '<td style="padding:8px 12px;color:var(--text-muted);white-space:nowrap;">' + (s.subscribedAt ? fmtDate(s.subscribedAt) : 'Recent') + '</td>' +
+                    '</tr>'
+                  );
+                }).join('') +
+              '</tbody>' +
+            '</table>' +
+          '</div>';
+      }
+
+      contentHtml +=
+          '<div style="display:flex;justify-content:flex-end;margin-top:6px;">' +
+            '<button type="button" class="btn btn-secondary" id="bioLeadsCloseBtn">Close</button>' +
+          '</div>' +
+        '</div>';
+
+      modalBody.innerHTML = contentHtml;
+      var closeBtn = document.getElementById('bioLeadsCloseBtn');
+      if (closeBtn) closeBtn.addEventListener('click', closeModalElement);
+    } catch (err) {
+      modalBody.innerHTML = '<div class="alert-box" role="alert"><span>Failed to load subscribers: ' + escapeHtml(err.message) + '</span></div>';
+    }
   }
 
   async function openBioEditorModal(handleToEdit) {
@@ -5604,7 +6530,7 @@ export const DASHBOARD_APP_JS = `(function() {
               '</div>' +
               '<span style="font-size:0.72rem;color:var(--text-muted);margin-top:2px;display:block;">2-30 letters, numbers, hyphens or underscores. Matches /bio/:handle and /p/:handle.</span>' +
             '</div>' +
-            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' +
+            '<div class="bio-form-grid-2">' +
               '<div>' +
                 '<label for="bioTitleInput" style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:4px;color:var(--text);">Display Name / Title</label>' +
                 '<input type="text" id="bioTitleInput" class="input" placeholder="e.g. Alex Morgan" value="' + escapeHtml(profile.title || '') + '" />' +
@@ -5634,7 +6560,7 @@ export const DASHBOARD_APP_JS = `(function() {
 
           '<div>' +
             '<label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:6px;color:var(--text);">Social Icons</label>' +
-            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">' +
+            '<div class="bio-form-grid-2">' +
               '<input type="text" id="bioSocialInsta" class="input" placeholder="Instagram username" value="' + escapeHtml((profile.socials && profile.socials.instagram) || '') + '" style="font-size:0.82rem;" />' +
               '<input type="text" id="bioSocialTwitter" class="input" placeholder="Twitter / X username" value="' + escapeHtml((profile.socials && profile.socials.twitter) || '') + '" style="font-size:0.82rem;" />' +
               '<input type="text" id="bioSocialYoutube" class="input" placeholder="YouTube channel / URL" value="' + escapeHtml((profile.socials && profile.socials.youtube) || '') + '" style="font-size:0.82rem;" />' +
@@ -5654,6 +6580,21 @@ export const DASHBOARD_APP_JS = `(function() {
               '</button>' +
             '</div>' +
             '<div class="bio-links-editor-list" id="bioLinksList"></div>' +
+          '</div>' +
+
+          '<div>' +
+            '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">' +
+              '<label style="font-size:0.8rem;font-weight:600;color:var(--text);">Newsletter &amp; Lead Capture</label>' +
+              '<label class="check-row" style="margin:0;font-size:0.78rem;">' +
+                '<input type="checkbox" id="bioLeadCaptureCheck"' + (profile.leadCapture && profile.leadCapture.enabled ? ' checked' : '') + ' style="accent-color:var(--accent);">' +
+                '<span>Enable form</span>' +
+              '</label>' +
+            '</div>' +
+            '<div id="bioLeadCaptureFields"' + (profile.leadCapture && profile.leadCapture.enabled ? '' : ' style="display:none;"') + ' class="bio-form-grid-2">' +
+              '<input type="text" id="bioLeadTitle" class="input" placeholder="Title (e.g. Join my newsletter)" value="' + escapeHtml((profile.leadCapture && profile.leadCapture.title) || '') + '" style="font-size:0.82rem;" />' +
+              '<input type="text" id="bioLeadButtonText" class="input" placeholder="Button text (e.g. Subscribe)" value="' + escapeHtml((profile.leadCapture && profile.leadCapture.buttonText) || '') + '" style="font-size:0.82rem;" />' +
+              '<input type="text" id="bioLeadDesc" class="input" placeholder="Description (e.g. Get weekly tips directly in your inbox)" value="' + escapeHtml((profile.leadCapture && profile.leadCapture.description) || '') + '" style="grid-column:1 / -1;font-size:0.82rem;" />' +
+            '</div>' +
           '</div>' +
 
           '<div id="bioModalError" class="alert-box" style="display:none;" role="alert">' +
@@ -5701,6 +6642,22 @@ export const DASHBOARD_APP_JS = `(function() {
     var socialDiscord = document.getElementById('bioSocialDiscord');
     var socialEmail = document.getElementById('bioSocialEmail');
     var socialWebsite = document.getElementById('bioSocialWebsite');
+
+    var bioLeadCaptureCheck = document.getElementById('bioLeadCaptureCheck');
+    var bioLeadCaptureFields = document.getElementById('bioLeadCaptureFields');
+    var bioLeadTitle = document.getElementById('bioLeadTitle');
+    var bioLeadButtonText = document.getElementById('bioLeadButtonText');
+    var bioLeadDesc = document.getElementById('bioLeadDesc');
+
+    if (bioLeadCaptureCheck && bioLeadCaptureFields) {
+      bioLeadCaptureCheck.addEventListener('change', function() {
+        bioLeadCaptureFields.style.display = bioLeadCaptureCheck.checked ? 'grid' : 'none';
+        updateSimulator();
+      });
+    }
+    [bioLeadTitle, bioLeadButtonText, bioLeadDesc].forEach(function(inp) {
+      if (inp) inp.addEventListener('input', updateSimulator);
+    });
 
     function syncLinksEditor() {
       linksListEl.innerHTML = '';
@@ -5837,6 +6794,22 @@ export const DASHBOARD_APP_JS = `(function() {
         );
       }).join('');
 
+      var leadPreviewHtml = '';
+      if (bioLeadCaptureCheck && bioLeadCaptureCheck.checked) {
+        var lTitle = (bioLeadTitle && bioLeadTitle.value.trim()) || 'Join my newsletter';
+        var lDesc = (bioLeadDesc && bioLeadDesc.value.trim()) || 'Get updates delivered directly to your inbox.';
+        var lBtn = (bioLeadButtonText && bioLeadButtonText.value.trim()) || 'Subscribe';
+        leadPreviewHtml =
+          '<div style="margin-top:14px;padding:12px;background:var(--bio-card-bg);border:1px solid var(--bio-border);border-radius:12px;text-align:center;">' +
+            '<div style="font-size:0.8rem;font-weight:700;color:var(--bio-text);">' + escapeHtml(lTitle) + '</div>' +
+            '<div style="font-size:0.7rem;color:var(--bio-muted);margin:3px 0 8px;">' + escapeHtml(lDesc) + '</div>' +
+            '<div style="display:flex;gap:4px;">' +
+              '<input type="text" disabled placeholder="you@example.com" style="flex:1;font-size:0.7rem;padding:4px 8px;border-radius:6px;border:1px solid var(--bio-border);background:rgba(255,255,255,0.05);color:var(--bio-text);">' +
+              '<button type="button" disabled style="font-size:0.7rem;padding:4px 8px;border-radius:6px;background:var(--bio-accent);color:#090D16;font-weight:700;border:none;">' + escapeHtml(lBtn) + '</button>' +
+            '</div>' +
+          '</div>';
+      }
+
       simFrame.innerHTML =
         avatarHtml +
         '<div class="bio-sim-title">' +
@@ -5846,7 +6819,8 @@ export const DASHBOARD_APP_JS = `(function() {
         '<div class="bio-sim-handle">@' + escapeHtml(handle) + '</div>' +
         (bio ? '<div class="bio-sim-bio">' + escapeHtml(bio) + '</div>' : '') +
         (socialPills.length ? '<div class="bio-sim-socials">' + socialPills.join('') + '</div>' : '') +
-        '<div class="bio-sim-links">' + (linkButtonsHtml || '<div style="font-size:0.75rem;color:var(--bio-muted);text-align:center;padding:12px;">Add links to preview buttons</div>') + '</div>';
+        '<div class="bio-sim-links">' + (linkButtonsHtml || '<div style="font-size:0.75rem;color:var(--bio-muted);text-align:center;padding:12px;">Add links to preview buttons</div>') + '</div>' +
+        leadPreviewHtml;
 
       var simImg = simFrame.querySelector('img.bio-sim-avatar-img');
       if (simImg) {
@@ -5933,7 +6907,13 @@ export const DASHBOARD_APP_JS = `(function() {
           email: socialEmail.value.trim() || null,
           website: socialWebsite.value.trim() || null
         },
-        links: editorLinks.filter(function(l) { return l.title && l.url; })
+        links: editorLinks.filter(function(l) { return l.title && l.url; }),
+        leadCapture: {
+          enabled: !!(bioLeadCaptureCheck && bioLeadCaptureCheck.checked),
+          title: (bioLeadTitle && bioLeadTitle.value.trim()) || undefined,
+          description: (bioLeadDesc && bioLeadDesc.value.trim()) || undefined,
+          buttonText: (bioLeadButtonText && bioLeadButtonText.value.trim()) || undefined
+        }
       };
 
       saveBtn.disabled = true;

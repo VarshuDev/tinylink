@@ -1832,4 +1832,557 @@ describe("TinyLink Worker", () => {
     const notFoundRes = await worker.fetch!(makeRequest("/bio/alex-dev"), env, ctx);
     expect(notFoundRes.status).toBe(404);
   });
+
+  it("US-001: mobile responsive UI polish and layout overhaul", async () => {
+    const env = makeEnv();
+    const { ctx } = makeCtx();
+
+    // Check dashboard HTML and assets
+    const dashRes = await worker.fetch!(makeRequest("/"), env, ctx);
+    expect(dashRes.status).toBe(200);
+    const html = await dashRes.text();
+
+    // Verify viewport and responsive css
+    expect(html).toContain('name="viewport"');
+    expect(html).toContain("overflow-x: hidden");
+    expect(html).toContain("@media (max-width: 480px)");
+    expect(html).toContain("@media (max-width: 360px)");
+    expect(html).toContain("bio-form-grid-2");
+    expect(html).toContain("workspace-tab");
+    expect(html).toContain("min-height: 44px");
+
+    // Check app.js asset
+    const appJsRes = await worker.fetch!(makeRequest("/assets/app.js"), env, ctx);
+    expect(appJsRes.status).toBe(200);
+    const js = await appJsRes.text();
+    expect(js).toContain("bio-form-grid-2");
+  });
+
+  it("US-002: branded QR code design studio endpoints & SVG generator", async () => {
+    const env = makeEnv();
+    const { ctx } = makeCtx();
+    const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+
+    // 1. Create a link to test QR with
+    const createRes = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://github.com/VarshuDev/tinylink",
+          custom: "qr-test-link",
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(createRes.status).toBe(200);
+
+    // 2. Test POST /api/qr with gradient, rounded corners, and globe logo
+    const qrPostRes = await worker.fetch!(
+      makeRequest("/api/qr", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          slug: "qr-test-link",
+          cornerStyle: "rounded",
+          useGradient: true,
+          gradientStart: "#6366F1",
+          gradientEnd: "#06B6D4",
+          logo: "globe",
+          errorCorrectionLevel: "H",
+          width: 1024,
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(qrPostRes.status).toBe(200);
+    const qrPostJson = (await qrPostRes.json()) as { svg: string; slug: string; url: string };
+    expect(qrPostJson.slug).toBe("qr-test-link");
+    expect(qrPostJson.svg).toContain("<svg");
+    expect(qrPostJson.svg).toContain("linearGradient id=");
+    expect(qrPostJson.svg).toContain("#6366F1");
+    expect(qrPostJson.svg).toContain("#06B6D4");
+
+    // 3. Test POST /api/qr with dots cornerStyle and custom logo URL
+    const qrCustomRes = await worker.fetch!(
+      makeRequest("/api/qr", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://example.com/custom-test",
+          cornerStyle: "dots",
+          logo: "custom",
+          customLogoUrl: "https://example.com/brand-logo.png",
+          colorDark: "#10B981",
+          colorLight: "#0F172A",
+          width: 2048,
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(qrCustomRes.status).toBe(200);
+    const qrCustomJson = (await qrCustomRes.json()) as { svg: string };
+    expect(qrCustomJson.svg).toContain("<image href=\"https://example.com/brand-logo.png\"");
+    expect(qrCustomJson.svg).toContain("<circle");
+
+    // 4. Test GET /api/qr/:slug JSON format
+    const getQrJsonRes = await worker.fetch!(makeRequest("/api/qr/qr-test-link"), env, ctx);
+    expect(getQrJsonRes.status).toBe(200);
+    const getQrJson = (await getQrJsonRes.json()) as { svg: string; slug: string };
+    expect(getQrJson.slug).toBe("qr-test-link");
+    expect(getQrJson.svg).toContain("<svg");
+
+    // 5. Test GET /api/qr/:slug?format=svg&download=1
+    const getQrSvgRes = await worker.fetch!(
+      makeRequest("/api/qr/qr-test-link?format=svg&download=1&logo=github&corner=rounded"),
+      env,
+      ctx
+    );
+    expect(getQrSvgRes.status).toBe(200);
+    expect(getQrSvgRes.headers.get("Content-Type")).toContain("image/svg+xml");
+    expect(getQrSvgRes.headers.get("Content-Disposition")).toContain("attachment; filename=\"qr-qr-test-link.svg\"");
+    const rawSvg = await getQrSvgRes.text();
+    expect(rawSvg).toContain("<svg");
+
+    // 6. Test 404 on missing slug
+    const notFoundQr = await worker.fetch!(makeRequest("/api/qr/non-existent-link"), env, ctx);
+    expect(notFoundQr.status).toBe(404);
+  });
+
+  it("US-003: deep linking and smart mobile app launchers", async () => {
+    const env = makeEnv();
+    const { ctx } = makeCtx();
+    const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+    const mobileUa = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1";
+
+    // 1. Create short link with deepLink: true pointing to YouTube
+    const ytRes = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+          custom: "yt-video",
+          deepLink: true,
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(ytRes.status).toBe(200);
+    const ytJson = (await ytRes.json()) as { deepLink: boolean; slug: string };
+    expect(ytJson.deepLink).toBe(true);
+    expect(ytJson.slug).toBe("yt-video");
+
+    // 2. Desktop user-agent: standard 302 redirect to originalUrl
+    const desktopRedirect = await worker.fetch!(
+      makeRequest("/yt-video", {
+        headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36" },
+      }),
+      env,
+      ctx
+    );
+    expect(desktopRedirect.status).toBe(302);
+    expect(desktopRedirect.headers.get("Location")).toBe("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
+
+    // 3. Mobile user-agent: renders bridge page with universal scheme
+    const mobileRedirect = await worker.fetch!(
+      makeRequest("/yt-video", {
+        headers: { "User-Agent": mobileUa },
+      }),
+      env,
+      ctx
+    );
+    expect(mobileRedirect.status).toBe(200);
+    const bridgeHtml = await mobileRedirect.text();
+    expect(bridgeHtml).toContain("Opening in YouTube");
+    expect(bridgeHtml).toContain("vnd.youtube:dQw4w9WgXcQ");
+    expect(bridgeHtml).toContain('http-equiv="refresh"');
+
+    // 4. Test Spotify scheme detection
+    const spotRes = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://open.spotify.com/track/4cOdK2wGLETKBW3PvgPWqT",
+          custom: "spot-song",
+          deepLink: true,
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(spotRes.status).toBe(200);
+
+    const spotMobile = await worker.fetch!(
+      makeRequest("/spot-song", {
+        headers: { "User-Agent": mobileUa },
+      }),
+      env,
+      ctx
+    );
+    expect(spotMobile.status).toBe(200);
+    const spotHtml = await spotMobile.text();
+    expect(spotHtml).toContain("Opening in Spotify");
+    expect(spotHtml).toContain("spotify:track:4cOdK2wGLETKBW3PvgPWqT");
+
+    // 5. Test Twitter / X scheme detection
+    const twRes = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://twitter.com/jack/status/20",
+          custom: "tw-post",
+          deepLink: true,
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(twRes.status).toBe(200);
+
+    const twMobile = await worker.fetch!(
+      makeRequest("/tw-post", {
+        headers: { "User-Agent": mobileUa },
+      }),
+      env,
+      ctx
+    );
+    expect(twMobile.status).toBe(200);
+    const twHtml = await twMobile.text();
+    expect(twHtml).toContain("Opening in X / Twitter");
+    expect(twHtml).toContain("twitter://status?id=20");
+
+    // 6. Test updating deepLink setting via PUT
+    const updateRes = await worker.fetch!(
+      makeRequest("/api/urls/yt-video", {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          deepLink: false,
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(updateRes.status).toBe(200);
+    const updatedJson = (await updateRes.json()) as { deepLink: boolean };
+    expect(updatedJson.deepLink).toBe(false);
+
+    // After updating deepLink: false, mobile UA gets direct 302 redirect
+    const directMobile = await worker.fetch!(
+      makeRequest("/yt-video", {
+        headers: { "User-Agent": mobileUa },
+      }),
+      env,
+      ctx
+    );
+    expect(directMobile.status).toBe(302);
+  });
+
+  it("US-004: one-click multi-channel campaign generator", async () => {
+    const env = makeEnv();
+    const { ctx } = makeCtx();
+    const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+
+    // 1. Unauthorized attempt
+    const unauthRes = await worker.fetch!(
+      makeRequest("/api/campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "spring-promo", url: "https://example.com/spring" }),
+      }),
+      env,
+      ctx
+    );
+    expect(unauthRes.status).toBe(401);
+
+    // 2. Generate 5-channel campaign
+    const campRes = await worker.fetch!(
+      makeRequest("/api/campaigns", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          name: "Launch 2026",
+          url: "https://example.com/app",
+          channels: ["instagram", "youtube", "twitter", "linkedin", "tiktok"],
+          expiresIn: "30",
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(campRes.status).toBe(201);
+    const campJson = (await campRes.json()) as {
+      campaign: string;
+      count: number;
+      links: Array<{ channel: string; slug: string; shortUrl: string; targetUrl: string }>;
+    };
+
+    expect(campJson.campaign).toBe("launch-2026");
+    expect(campJson.count).toBe(5);
+    expect(campJson.links.length).toBe(5);
+
+    // Check UTM parameters on each channel link
+    const instaLink = campJson.links.find((l) => l.channel === "instagram")!;
+    expect(instaLink).toBeDefined();
+    expect(instaLink.targetUrl).toContain("utm_source=instagram");
+    expect(instaLink.targetUrl).toContain("utm_medium=social");
+    expect(instaLink.targetUrl).toContain("utm_campaign=launch-2026");
+
+    const ytLink = campJson.links.find((l) => l.channel === "youtube")!;
+    expect(ytLink).toBeDefined();
+    expect(ytLink.targetUrl).toContain("utm_source=youtube");
+
+    // 3. Verify all links are in GET /api/list and tagged with campaign
+    const listRes = await worker.fetch!(makeRequest("/api/list", { headers }), env, ctx);
+    expect(listRes.status).toBe(200);
+    const listJson = (await listRes.json()) as {
+      urls: Array<{ slug: string; campaign?: string; tags?: string[] }>;
+    };
+    const campaignUrls = listJson.urls.filter((u) => u.campaign === "launch-2026");
+    expect(campaignUrls.length).toBe(5);
+    for (const cu of campaignUrls) {
+      expect(cu.tags).toContain("launch-2026");
+    }
+
+    // 4. Test redirecting one of the campaign links
+    const redirRes = await worker.fetch!(makeRequest("/" + instaLink.slug), env, ctx);
+    expect(redirRes.status).toBe(302);
+    expect(redirRes.headers.get("Location")).toBe(instaLink.targetUrl);
+  });
+
+  it("US-005: smart expired-link actions and real-time countdown timers", async () => {
+    const env = makeEnv();
+    const { ctx } = makeCtx();
+    const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+
+    // 1. Create link with expiredAction: 'redirect' and expiredUrl
+    const createRes = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://example.com/primary-event",
+          custom: "event-link",
+          expiredAction: "redirect",
+          expiredUrl: "https://example.com/waitlist-form",
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(createRes.status).toBe(200);
+    const createJson = (await createRes.json()) as { expiredAction: string; expiredUrl: string };
+    expect(createJson.expiredAction).toBe("redirect");
+    expect(createJson.expiredUrl).toBe("https://example.com/waitlist-form");
+
+    // 2. Active link redirects to primary destination
+    const activeRes = await worker.fetch!(makeRequest("/event-link"), env, ctx);
+    expect(activeRes.status).toBe(302);
+    expect(activeRes.headers.get("Location")).toBe("https://example.com/primary-event");
+
+    // 3. Expire the link via PUT update
+    const pastDate = new Date(Date.now() - 60000).toISOString();
+    const updateRes = await worker.fetch!(
+      makeRequest("/api/urls/event-link", {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          expiresAt: pastDate,
+          expiredAction: "redirect",
+          expiredUrl: "https://example.com/waitlist-form",
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(updateRes.status).toBe(200);
+
+    // 4. Expired link redirects seamlessly to expiredUrl with 302
+    const expiredRedirRes = await worker.fetch!(makeRequest("/event-link"), env, ctx);
+    expect(expiredRedirRes.status).toBe(302);
+    expect(expiredRedirRes.headers.get("Location")).toBe("https://example.com/waitlist-form");
+
+    // 5. Update expiredAction to 'message' -> returns 410 Gone page
+    await worker.fetch!(
+      makeRequest("/api/urls/event-link", {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          expiredAction: "message",
+        }),
+      }),
+      env,
+      ctx
+    );
+    const expiredMsgRes = await worker.fetch!(makeRequest("/event-link"), env, ctx);
+    expect(expiredMsgRes.status).toBe(410);
+    const msgHtml = await expiredMsgRes.text();
+    expect(msgHtml).toContain("410 · Expired");
+    expect(msgHtml).toContain("Link Expired");
+
+    // 6. Test scheduled link with future startsAt renders real-time countdown timer
+    const futureDate = new Date(Date.now() + 3600000).toISOString();
+    await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://example.com/scheduled-launch",
+          custom: "scheduled-launch",
+          startsAt: futureDate,
+        }),
+      }),
+      env,
+      ctx
+    );
+
+    const pendingRes = await worker.fetch!(makeRequest("/scheduled-launch"), env, ctx);
+    expect(pendingRes.status).toBe(425);
+    const pendingHtml = await pendingRes.text();
+    expect(pendingHtml).toContain("countdownDigits");
+    expect(pendingHtml).toContain(futureDate);
+    expect(pendingHtml).toContain("/assets/status.js");
+
+    // 7. Verify /assets/status.js script is served correctly
+    const statusJsRes = await worker.fetch!(makeRequest("/assets/status.js"), env, ctx);
+    expect(statusJsRes.status).toBe(200);
+    expect(statusJsRes.headers.get("Content-Type")).toContain("application/javascript");
+    const statusJsCode = await statusJsRes.text();
+    expect(statusJsCode).toContain("countdownDigits");
+    expect(() => new Function(statusJsCode)).not.toThrow();
+  });
+
+  it("US-006: bio page lead capture and newsletter subscription block", async () => {
+    const env = makeEnv();
+    const { ctx } = makeCtx();
+    const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+
+    // 1. Create bio profile with lead capture enabled
+    const createBioRes = await worker.fetch!(
+      makeRequest("/api/bio", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          handle: "creator-pro",
+          title: "Alex Morgan",
+          bio: "Software architect & open source author",
+          theme: "emerald",
+          links: [{ title: "GitHub", url: "https://github.com", icon: "github" }],
+          leadCapture: {
+            enabled: true,
+            title: "Join my developer newsletter",
+            description: "Get weekly architecture and design tips.",
+            buttonText: "Subscribe Free",
+          },
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(createBioRes.status).toBe(201);
+    const bioJson = (await createBioRes.json()) as { profile: { handle: string; leadCapture?: { enabled: boolean } } };
+    expect(bioJson.profile.leadCapture?.enabled).toBe(true);
+
+    // 2. Fetch public bio page and verify lead capture card & bio.js asset
+    const publicBioRes = await worker.fetch!(makeRequest("/bio/creator-pro"), env, ctx);
+    expect(publicBioRes.status).toBe(200);
+    const bioHtml = await publicBioRes.text();
+    expect(bioHtml).toContain("bio-lead-card");
+    expect(bioHtml).toContain("Join my developer newsletter");
+    expect(bioHtml).toContain("Subscribe Free");
+    expect(bioHtml).toContain("/assets/bio.js");
+
+    // 3. Verify /assets/bio.js is served cleanly
+    const bioJsRes = await worker.fetch!(makeRequest("/assets/bio.js"), env, ctx);
+    expect(bioJsRes.status).toBe(200);
+    expect(bioJsRes.headers.get("Content-Type")).toContain("application/javascript");
+    const bioJsCode = await bioJsRes.text();
+    expect(bioJsCode).toContain("bioLeadForm");
+    expect(() => new Function(bioJsCode)).not.toThrow();
+
+    // 4. Test subscribing via POST /bio/:handle/subscribe
+    const subRes = await worker.fetch!(
+      makeRequest("/bio/creator-pro/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "subscriber@example.com" }),
+      }),
+      env,
+      ctx
+    );
+    expect(subRes.status).toBe(200);
+    const subJson = (await subRes.json()) as { ok: boolean; message: string };
+    expect(subJson.ok).toBe(true);
+    expect(subJson.message).toContain("Thank you for subscribing");
+
+    // Duplicate subscription returns success
+    const dupRes = await worker.fetch!(
+      makeRequest("/bio/creator-pro/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "subscriber@example.com" }),
+      }),
+      env,
+      ctx
+    );
+    expect(dupRes.status).toBe(200);
+
+    // Invalid email returns 400
+    const invRes = await worker.fetch!(
+      makeRequest("/bio/creator-pro/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: "not-an-email" }),
+      }),
+      env,
+      ctx
+    );
+    expect(invRes.status).toBe(400);
+
+    // 5. Test GET /api/bio/:handle/subscribers (admin endpoint)
+    const getSubsRes = await worker.fetch!(
+      makeRequest("/api/bio/creator-pro/subscribers", { headers }),
+      env,
+      ctx
+    );
+    expect(getSubsRes.status).toBe(200);
+    const subsData = (await getSubsRes.json()) as {
+      handle: string;
+      count: number;
+      subscribers: Array<{ email: string; subscribedAt: string }>;
+    };
+    expect(subsData.handle).toBe("creator-pro");
+    expect(subsData.count).toBe(1);
+    expect(subsData.subscribers[0].email).toBe("subscriber@example.com");
+
+    // 6. Test GET /api/bio/:handle/subscribers?format=csv
+    const getCsvRes = await worker.fetch!(
+      makeRequest("/api/bio/creator-pro/subscribers?format=csv", { headers }),
+      env,
+      ctx
+    );
+    expect(getCsvRes.status).toBe(200);
+    expect(getCsvRes.headers.get("Content-Type")).toContain("text/csv");
+    expect(getCsvRes.headers.get("Content-Disposition")).toContain('filename="creator-pro-subscribers.csv"');
+    const csvText = await getCsvRes.text();
+    expect(csvText).toContain("Email,Subscribed At");
+    expect(csvText).toContain("subscriber@example.com");
+
+    // 7. Verify subscribersCount in GET /api/bio list
+    const bioListRes = await worker.fetch!(makeRequest("/api/bio", { headers }), env, ctx);
+    expect(bioListRes.status).toBe(200);
+    const bioList = (await bioListRes.json()) as {
+      profiles: Array<{ handle: string; subscribersCount: number }>;
+    };
+    const prof = bioList.profiles.find((p) => p.handle === "creator-pro");
+    expect(prof).toBeDefined();
+    expect(prof?.subscribersCount).toBe(1);
+  });
 });

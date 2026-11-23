@@ -5,6 +5,14 @@ export interface StatusPageOptions {
   codeLabel: string;
   title: string;
   message: string;
+  startsAt?: string | null;
+}
+
+export interface DeepLinkBridgeOptions {
+  slug: string;
+  app: string;
+  scheme: string;
+  webUrl: string;
 }
 
 export interface PasswordPageOptions {
@@ -63,6 +71,25 @@ export const THEME_INIT_JS = `(function() {
     document.documentElement.setAttribute('data-theme', theme);
     var meta = document.getElementById('themeColorMeta');
     if (meta) meta.setAttribute('content', theme === 'light' ? '#F8FAFC' : '#090D16');
+
+    var cdEl = document.getElementById('countdownDigits');
+    if (cdEl && cdEl.getAttribute('data-starts-at')) {
+      var targetTime = new Date(cdEl.getAttribute('data-starts-at')).getTime();
+      function updateCd() {
+        var diff = targetTime - Date.now();
+        if (diff <= 0) {
+          cdEl.textContent = '00:00:00';
+          setTimeout(function() { window.location.reload(); }, 600);
+          return;
+        }
+        var hrs = Math.floor(diff / 3600000);
+        var mins = Math.floor((diff % 3600000) / 60000);
+        var secs = Math.floor((diff % 60000) / 1000);
+        cdEl.textContent = (hrs < 10 ? '0' : '') + hrs + ':' + (mins < 10 ? '0' : '') + mins + ':' + (secs < 10 ? '0' : '') + secs;
+      }
+      updateCd();
+      setInterval(updateCd, 1000);
+    }
   } catch (e) {}
 })();`;
 
@@ -77,6 +104,70 @@ export const UNLOCK_PAGE_JS = `(function() {
       btn.setAttribute('aria-label', isPwd ? 'Hide password' : 'Show password');
     });
   }
+})();`;
+
+export const STATUS_PAGE_JS = `(function() {
+  var el = document.getElementById('countdownDigits');
+  if (!el) return;
+  var targetStr = el.getAttribute('data-starts-at');
+  if (!targetStr) return;
+  var target = new Date(targetStr).getTime();
+  if (isNaN(target)) return;
+
+  function pad(n) { return n < 10 ? '0' + n : String(n); }
+  function tick() {
+    var now = Date.now();
+    var diff = Math.max(0, target - now);
+    if (diff <= 0) {
+      el.textContent = '00:00:00 - Launching!';
+      setTimeout(function() { window.location.reload(); }, 1200);
+      return;
+    }
+    var hours = Math.floor(diff / 3600000);
+    var mins = Math.floor((diff % 3600000) / 60000);
+    var secs = Math.floor((diff % 60000) / 1000);
+    el.textContent = (hours > 0 ? pad(hours) + ':' : '') + pad(mins) + ':' + pad(secs);
+    setTimeout(tick, 1000);
+  }
+  tick();
+})();`;
+
+export const BIO_PAGE_JS = `(function() {
+  var form = document.getElementById('bioLeadForm');
+  var msg = document.getElementById('bioLeadMsg');
+  var btn = document.getElementById('bioLeadBtn');
+  var inp = form ? form.querySelector('input[name="email"]') : null;
+  if (!form || !msg || !btn || !inp) return;
+  form.addEventListener('submit', function(e) {
+    e.preventDefault();
+    var email = (inp.value || '').trim();
+    if (!email) return;
+    btn.disabled = true;
+    var origHtml = btn.innerHTML;
+    btn.innerHTML = '<span>Subscribing...</span>';
+    msg.textContent = '';
+    msg.style.color = '';
+    fetch(form.action, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email })
+    }).then(function(res) {
+      return res.json().then(function(data) {
+        if (!res.ok) throw new Error(data.error || 'Failed to subscribe');
+        return data;
+      });
+    }).then(function(data) {
+      msg.textContent = data.message || 'Thank you for subscribing!';
+      msg.style.color = 'var(--bio-accent)';
+      inp.value = '';
+    }).catch(function(err) {
+      msg.textContent = err.message || 'Subscription failed. Please try again.';
+      msg.style.color = '#EF4444';
+    }).finally(function() {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    });
+  });
 })();`;
 
 const THEME_INIT_SCRIPT = `<script src="/assets/theme.js"></script>`;
@@ -237,10 +328,126 @@ export function renderStatusPage(opts: StatusPageOptions): string {
     <div class="code">${escapeHtml(opts.codeLabel)}</div>
     <h1>${escapeHtml(opts.title)}</h1>
     <p>${escapeHtml(opts.message)}</p>
+    ${opts.startsAt && isEarly ? `
+    <div style="margin-bottom:24px;padding:16px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;">
+      <div style="font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:6px;">Live Countdown to Launch</div>
+      <div id="countdownDigits" data-starts-at="${escapeHtml(opts.startsAt)}" style="font-family:'Fira Code',monospace;font-size:1.6rem;font-weight:700;color:var(--accent);letter-spacing:0.05em;">--:--:--</div>
+    </div>
+    <script src="/assets/status.js"></script>` : ""}
     <a class="btn" href="/">
       <svg width="16" height="16" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="216" y1="128" x2="40" y2="128"/><polyline points="112 56 40 128 112 200"/></svg>
       <span>Return to Dashboard</span>
     </a>
+  </main>
+</body>
+</html>`;
+}
+
+export function renderDeepLinkBridgeHtml(opts: DeepLinkBridgeOptions): string {
+  const appEsc = escapeHtml(opts.app);
+  const schemeEsc = escapeHtml(opts.scheme);
+  const webUrlEsc = escapeHtml(opts.webUrl);
+
+  return `<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="refresh" content="2;url=${webUrlEsc}">
+  <title>Opening in ${appEsc}... — TinyLink</title>
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <meta name="theme-color" id="themeColorMeta" content="#090D16">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  ${THEME_INIT_SCRIPT}
+  <style>
+    ${BASE_THEME_CSS}
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      width: 100%;
+      max-width: 440px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 36px 28px;
+      text-align: center;
+    }
+    .app-icon-wrap {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 20px;
+      border-radius: 16px;
+      background: var(--accent-soft);
+      border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .desc {
+      font-size: 0.86rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 24px;
+    }
+    .btn-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      padding: 0 18px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 140ms ease;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: var(--accent-ink);
+    }
+    .btn-secondary {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .timer-note {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      margin-top: 16px;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="app-icon-wrap">
+      <svg width="32" height="32" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="32" y="48" width="192" height="160" rx="16"/><line x1="160" y1="128" x2="96" y2="128"/><polyline points="128 96 160 128 128 160"/></svg>
+    </div>
+    <h1 class="title">Opening in ${appEsc}...</h1>
+    <p class="desc">Launching the ${appEsc} mobile app directly. If the app does not open automatically, tap below to continue.</p>
+    <div class="btn-stack">
+      <a href="${schemeEsc}" class="btn btn-primary" id="launchAppBtn">Open in ${appEsc} App</a>
+      <a href="${webUrlEsc}" class="btn btn-secondary" id="fallbackWebBtn">Continue in Web Browser</a>
+    </div>
+    <div class="timer-note">Redirecting to web version in 2 seconds...</div>
   </main>
 </body>
 </html>`;
@@ -1029,6 +1236,94 @@ export function renderBioPageHtml(data: BioPageData, origin: string): string {
       border-radius: 12px;
       width: 100%;
     }
+    .bio-lead-card {
+      width: 100%;
+      background: var(--bio-card-bg);
+      border: 1px solid var(--bio-border);
+      border-radius: 16px;
+      padding: 22px 20px;
+      margin-bottom: 24px;
+      text-align: left;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 20px -2px rgba(0,0,0,0.2);
+    }
+    .bio-lead-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .bio-lead-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: rgba(var(--bio-accent-rgb), 0.12);
+      color: var(--bio-accent);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .bio-lead-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--bio-text);
+      letter-spacing: -0.01em;
+    }
+    .bio-lead-desc {
+      font-size: 0.86rem;
+      color: var(--bio-muted);
+      line-height: 1.5;
+      margin-bottom: 14px;
+    }
+    .bio-lead-input-wrap {
+      display: flex;
+      gap: 8px;
+    }
+    @media (max-width: 480px) {
+      .bio-lead-input-wrap { flex-direction: column; }
+    }
+    .bio-lead-input {
+      flex: 1;
+      min-height: 44px;
+      padding: 0 14px;
+      background: rgba(0,0,0,0.2);
+      border: 1px solid var(--bio-border);
+      border-radius: 10px;
+      color: var(--bio-text);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.15s ease;
+    }
+    .bio-lead-input:focus {
+      border-color: var(--bio-accent);
+    }
+    .bio-lead-btn {
+      min-height: 44px;
+      padding: 0 20px;
+      background: var(--bio-accent);
+      color: #090D16;
+      border: none;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 0.88rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      cursor: pointer;
+      transition: opacity 0.15s ease, transform 0.15s ease;
+      touch-action: manipulation;
+    }
+    .bio-lead-btn:hover {
+      opacity: 0.92;
+      transform: translateY(-1px);
+    }
+    .bio-lead-msg {
+      font-size: 0.82rem;
+      margin-top: 10px;
+      min-height: 18px;
+    }
     .bio-footer {
       margin-top: auto;
       font-size: 0.76rem;
@@ -1061,6 +1356,25 @@ export function renderBioPageHtml(data: BioPageData, origin: string): string {
     <div class="bio-handle">@${handleEsc}</div>
     ${bioEsc ? `<p class="bio-desc">${bioEsc}</p>` : ""}
     ${socialsHtml}
+    ${data.leadCapture?.enabled ? `
+    <section class="bio-lead-card" id="bioLeadSection" aria-labelledby="bioLeadTitle">
+      <div class="bio-lead-header">
+        <div class="bio-lead-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"><rect x="32" y="48" width="192" height="160" rx="16"/><polyline points="224 56 128 144 32 56"/></svg>
+        </div>
+        <h2 class="bio-lead-title" id="bioLeadTitle">${escapeHtml(data.leadCapture.title || "Join the Newsletter")}</h2>
+      </div>
+      <p class="bio-lead-desc">${escapeHtml(data.leadCapture.description || "Get updates and exclusive content delivered directly to your inbox.")}</p>
+      <form class="bio-lead-form" method="POST" action="/bio/${handleEsc}/subscribe" id="bioLeadForm">
+        <div class="bio-lead-input-wrap">
+          <input type="email" name="email" class="bio-lead-input" placeholder="Enter your email address" required autocomplete="email" aria-label="Email address" />
+          <button type="submit" class="bio-lead-btn" id="bioLeadBtn">
+            <span>${escapeHtml(data.leadCapture.buttonText || "Subscribe")}</span>
+          </button>
+        </div>
+        <div class="bio-lead-msg" id="bioLeadMsg" role="status" aria-live="polite"></div>
+      </form>
+    </section>` : ""}
     <div class="bio-links-stack">
       ${linksHtml}
     </div>
@@ -1069,6 +1383,7 @@ export function renderBioPageHtml(data: BioPageData, origin: string): string {
       <a href="${origin}/" target="_blank" rel="noopener noreferrer">TinyLink</a>
     </footer>
   </main>
+  <script src="/assets/bio.js"></script>
 </body>
 </html>`;
 }

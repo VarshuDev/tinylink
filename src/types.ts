@@ -30,6 +30,11 @@ export interface URLData {
   splits?: SplitRoute[];
   splitClicks?: Record<string, number>;
   healthStatus?: LinkHealthStatus | null;
+  // Phase 6 & Ralph Features: Deep Linking, Campaigns, Expired Actions
+  deepLink?: boolean;
+  campaign?: string | null;
+  expiredAction?: ("message" | "redirect") | null;
+  expiredUrl?: string | null;
 }
 
 export interface SplitRoute {
@@ -104,6 +109,10 @@ export interface URLMetadata {
   botClicks?: number;
   startsAt?: string | null;
   hasSplits?: boolean;
+  deepLink?: boolean;
+  campaign?: string | null;
+  expiredAction?: ("message" | "redirect") | null;
+  expiredUrl?: string | null;
 }
 
 export interface URLListEntry {
@@ -131,6 +140,10 @@ export interface URLListEntry {
   // Phase 5: A/B Split Testing & Destination Health
   splits?: SplitRoute[];
   healthStatus?: LinkHealthStatus | null;
+  deepLink?: boolean;
+  campaign?: string | null;
+  expiredAction?: "message" | "redirect" | null;
+  expiredUrl?: string | null;
 }
 
 export interface TimelineBucket {
@@ -170,6 +183,11 @@ export interface AnalyticsResponse {
   splits?: SplitRoute[];
   splitClicks?: Record<string, number>;
   healthStatus?: LinkHealthStatus | null;
+  // Phase 6 & Ralph Features: Deep Linking, Campaigns, Expired Actions
+  deepLink?: boolean;
+  campaign?: string | null;
+  expiredAction?: ("message" | "redirect") | null;
+  expiredUrl?: string | null;
 }
 
 export interface ImportLinkInput {
@@ -193,6 +211,10 @@ export interface ImportLinkInput {
   // Phase 5: A/B Split Testing & Destination Health
   splits?: SplitRoute[];
   healthStatus?: LinkHealthStatus | null;
+  deepLink?: boolean;
+  campaign?: string | null;
+  expiredAction?: "message" | "redirect" | null;
+  expiredUrl?: string | null;
 }
 
 export interface Env {
@@ -239,6 +261,7 @@ export interface BioPageData {
   ogTitle?: string | null;
   ogDescription?: string | null;
   ogImage?: string | null;
+  leadCapture?: BioLeadCapture;
   views: number;
   createdAt: string;
   updatedAt: string;
@@ -253,5 +276,39 @@ export interface BioPageSummary {
   linksCount: number;
   views: number;
   totalClicks: number;
+  subscribersCount?: number;
   updatedAt: string;
+}
+
+// ── Branded QR Code Types ──
+export type QrPresetLogo = "none" | "globe" | "instagram" | "youtube" | "twitter" | "github" | "linkedin" | "custom";
+export type QrCornerStyle = "square" | "rounded" | "dots";
+
+export interface BrandedQrOptions {
+  errorCorrectionLevel?: "L" | "M" | "Q" | "H";
+  colorDark?: string;
+  colorLight?: string;
+  gradientStart?: string;
+  gradientEnd?: string;
+  useGradient?: boolean;
+  cornerStyle?: QrCornerStyle;
+  logo?: QrPresetLogo;
+  customLogoUrl?: string;
+  margin?: number;
+  width?: number;
+}
+
+// ── Lead Capture Types ──
+export interface BioLeadCapture {
+  enabled: boolean;
+  title?: string;
+  description?: string;
+  buttonText?: string;
+  successMessage?: string;
+}
+
+export interface BioLead {
+  email: string;
+  subscribedAt: string;
+  ipHash?: string;
 }
