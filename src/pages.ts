@@ -1,4 +1,4 @@
-import type { BioPageData, TimelineBucket } from "./types";
+import type { BioPageData, CtaOverlayConfig, PixelConfig, TimelineBucket } from "./types";
 
 export interface StatusPageOptions {
   status: 404 | 410 | 425;
@@ -6,6 +6,18 @@ export interface StatusPageOptions {
   title: string;
   message: string;
   startsAt?: string | null;
+}
+
+export interface PixelBridgeOptions {
+  slug: string;
+  targetUrl: string;
+  pixels: PixelConfig;
+}
+
+export interface CtaOverlayPageOptions {
+  slug: string;
+  targetUrl: string;
+  config: CtaOverlayConfig;
 }
 
 export interface DeepLinkBridgeOptions {
@@ -168,6 +180,113 @@ export const BIO_PAGE_JS = `(function() {
       btn.innerHTML = origHtml;
     });
   });
+})();`;
+
+export const PIXEL_BRIDGE_JS = `(function() {
+  try {
+    var cfg = document.getElementById('pixelBridgeConfig');
+    if (!cfg) return;
+
+    var fb = cfg.getAttribute('data-fb');
+    var ga = cfg.getAttribute('data-ga');
+    var tt = cfg.getAttribute('data-tt');
+    var li = cfg.getAttribute('data-li');
+    var tw = cfg.getAttribute('data-tw');
+    var target = cfg.getAttribute('data-target');
+
+    // 1. Meta (Facebook) Pixel
+    if (fb) {
+      (function(f,b,e,v,n,t,s){
+        if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+        n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+        if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+        n.queue=[];t=b.createElement(e);t.async=!0;
+        t.src=v;s=b.getElementsByTagName(e)[0];
+        s.parentNode.insertBefore(t,s);
+      })(window, document,'script','https://connect.facebook.net/en_US/fbevents.js');
+      window.fbq('init', fb);
+      window.fbq('track', 'PageView');
+    }
+
+    // 2. Google Analytics 4
+    if (ga) {
+      var gaScript = document.createElement('script');
+      gaScript.async = true;
+      gaScript.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(ga);
+      document.head.appendChild(gaScript);
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', ga);
+    }
+
+    // 3. TikTok Pixel
+    if (tt) {
+      (function (w, d, t) {
+        w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=['page','track','identify','instances','debug','on','off','once','ready','alias','group','enableCookie','disableCookie','holdConsent','revokeConsent','grantConsent'];ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e};ttq.load=function(e,n){var r='https://analytics.tiktok.com/i18n/pixel/events.js',o=n&&n.partner;ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=r,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};var c=document.createElement('script');c.type='text/javascript',c.async=!0,c.src=r+'?sdkid='+e+'&lib='+t;var a=document.getElementsByTagName('script')[0];a.parentNode.insertBefore(c,a)};
+        ttq.load(tt);
+        ttq.page();
+      })(window, document, 'ttq');
+    }
+
+    // 4. LinkedIn Partner / Insight
+    if (li) {
+      window._linkedin_data_partner_ids = window._linkedin_data_partner_ids || [];
+      window._linkedin_data_partner_ids.push(li);
+      (function(l) {
+        if (!l){window.lintrk = function(a,b){window.lintrk.q.push([a,b])};
+        window.lintrk.q=[]}
+        var s = document.getElementsByTagName('script')[0];
+        var b = document.createElement('script');
+        b.type = 'text/javascript';b.async = true;
+        b.src = 'https://snap.licdn.com/li.lms-analytics/insight.min.js';
+        s.parentNode.insertBefore(b, s);
+      })(window.lintrk);
+    }
+
+    // 5. Twitter / X Pixel
+    if (tw) {
+      (function(e,t,n,s,u,a){e.twq||(s=e.twq=function(){s.exe?s.exe.apply(s,arguments):s.queue.push(arguments);
+      },s.version='1.1',s.queue=[],u=t.createElement(n),u.async=!0,u.src='https://static.ads-twitter.com/uwt.js',
+      a=t.getElementsByTagName(n)[0],a.parentNode.insertBefore(u,a))})(window,document,'script');
+      window.twq('config', tw);
+      window.twq('event', 'PageView');
+    }
+
+    // If target is specified (Pixel Bridge redirect), auto-forward after brief delay
+    if (target) {
+      var countdownEl = document.getElementById('pixelCountdown');
+      var secondsLeft = 1;
+      if (countdownEl) countdownEl.textContent = String(secondsLeft);
+
+      var timer = setInterval(function() {
+        secondsLeft--;
+        if (countdownEl) countdownEl.textContent = String(secondsLeft);
+        if (secondsLeft <= 0) {
+          clearInterval(timer);
+          window.location.replace(target);
+        }
+      }, 700);
+
+      var directBtn = document.getElementById('pixelDirectBtn');
+      if (directBtn) {
+        directBtn.addEventListener('click', function() {
+          clearInterval(timer);
+        });
+      }
+    }
+  } catch(e) {}
+})();`;
+
+export const CTA_OVERLAY_JS = `(function() {
+  var cfgEl = document.getElementById('ctaOverlayConfig');
+  var bar = document.getElementById('ctaOverlayBar');
+  var btn = document.getElementById('ctaCloseBtn');
+  if (bar && btn) {
+    btn.addEventListener('click', function() {
+      bar.classList.add('hidden');
+    });
+  }
 })();`;
 
 const THEME_INIT_SCRIPT = `<script src="/assets/theme.js"></script>`;
@@ -449,6 +568,352 @@ export function renderDeepLinkBridgeHtml(opts: DeepLinkBridgeOptions): string {
     </div>
     <div class="timer-note">Redirecting to web version in 2 seconds...</div>
   </main>
+</body>
+</html>`;
+}
+
+export function renderPixelBridgeHtml(opts: PixelBridgeOptions): string {
+  const targetUrlEsc = escapeHtml(opts.targetUrl);
+  let domain = "";
+  try {
+    domain = new URL(opts.targetUrl).hostname;
+  } catch {
+    domain = opts.targetUrl;
+  }
+  const domainEsc = escapeHtml(domain);
+
+  const fbAttr = opts.pixels.facebookPixelId ? ` data-fb="${escapeHtml(opts.pixels.facebookPixelId)}"` : "";
+  const gaAttr = opts.pixels.googleAnalyticsId ? ` data-ga="${escapeHtml(opts.pixels.googleAnalyticsId)}"` : "";
+  const ttAttr = opts.pixels.tiktokPixelId ? ` data-tt="${escapeHtml(opts.pixels.tiktokPixelId)}"` : "";
+  const liAttr = opts.pixels.linkedinPartnerId ? ` data-li="${escapeHtml(opts.pixels.linkedinPartnerId)}"` : "";
+  const twAttr = opts.pixels.twitterPixelId ? ` data-tw="${escapeHtml(opts.pixels.twitterPixelId)}"` : "";
+
+  return `<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connecting to ${domainEsc} — TinyLink</title>
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <meta name="theme-color" id="themeColorMeta" content="#090D16">
+  <meta name="robots" content="noindex, nofollow">
+  <meta http-equiv="refresh" content="2;url=${targetUrlEsc}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  ${THEME_INIT_SCRIPT}
+  <style>
+    ${BASE_THEME_CSS}
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .bridge-card {
+      width: 100%;
+      max-width: 440px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px 28px;
+      text-align: center;
+      box-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.4);
+    }
+    .bridge-spinner-wrap {
+      width: 52px;
+      height: 52px;
+      margin: 0 auto 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+    .bridge-spinner-ring {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      border: 3px solid var(--border);
+      border-top-color: var(--cta);
+      animation: bridgeSpin 0.9s linear infinite;
+    }
+    @keyframes bridgeSpin {
+      to { transform: rotate(360deg); }
+    }
+    .bridge-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text);
+      margin: 0 0 8px;
+      letter-spacing: -0.01em;
+    }
+    .bridge-desc {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin: 0 0 20px;
+    }
+    .bridge-target-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      max-width: 100%;
+      padding: 6px 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--border-subtle);
+      border-radius: 8px;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.82rem;
+      color: var(--link);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      margin-bottom: 24px;
+    }
+    .bridge-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      min-height: 44px;
+      padding: 0 20px;
+      background: var(--cta);
+      color: var(--cta-ink);
+      border: none;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      text-decoration: none;
+      transition: opacity 0.15s ease, transform 0.15s ease;
+      touch-action: manipulation;
+    }
+    .bridge-btn:hover {
+      opacity: 0.92;
+      transform: translateY(-1px);
+    }
+    .bridge-note {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      margin-top: 16px;
+    }
+  </style>
+</head>
+<body>
+  <main class="bridge-card">
+    <div class="bridge-spinner-wrap" aria-hidden="true">
+      <div class="bridge-spinner-ring"></div>
+    </div>
+    <h1 class="bridge-title">Connecting You Securely</h1>
+    <p class="bridge-desc">Routing you to the destination. Tracking pixels are recording your visit before redirecting.</p>
+    <div class="bridge-target-pill" title="${targetUrlEsc}">
+      <svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="128" cy="128" r="96"/><line x1="32" y1="128" x2="224" y2="128"/><ellipse cx="128" cy="128" rx="40" ry="96"/></svg>
+      <span>${domainEsc}</span>
+    </div>
+    <a href="${targetUrlEsc}" class="bridge-btn" id="pixelDirectBtn">Proceed to Destination Now</a>
+    <div class="bridge-note">Auto-forwarding in <span id="pixelCountdown">1</span>s...</div>
+  </main>
+  <div id="pixelBridgeConfig" data-target="${targetUrlEsc}"${fbAttr}${gaAttr}${ttAttr}${liAttr}${twAttr} style="display:none;" aria-hidden="true"></div>
+  <script src="/assets/pixel-bridge.js" defer></script>
+</body>
+</html>`;
+}
+
+export function renderCtaOverlayHtml(opts: CtaOverlayPageOptions): string {
+  const targetUrlEsc = escapeHtml(opts.targetUrl);
+  const bannerTextEsc = escapeHtml(opts.config.bannerText);
+  const buttonTextEsc = escapeHtml(opts.config.buttonText);
+  const buttonUrlEsc = escapeHtml(opts.config.buttonUrl);
+  const avatarHtml = opts.config.avatarUrl
+    ? `<img src="${escapeHtml(opts.config.avatarUrl)}" alt="Avatar" class="cta-avatar" />`
+    : `<div class="cta-avatar-fallback">TL</div>`;
+  const positionClass = opts.config.position === "top" ? "cta-pos-top" : "cta-pos-bottom";
+  const themeClass = `cta-theme-${opts.config.theme || "dark"}`;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title>TinyLink Frame</title>
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #090D16;
+    }
+    .cta-iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+    }
+    .cta-bar {
+      position: fixed;
+      left: 16px;
+      right: 16px;
+      z-index: 999999;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 12px 18px;
+      border-radius: 14px;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(12px);
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease;
+    }
+    .cta-pos-bottom { bottom: 16px; }
+    .cta-pos-top { top: 16px; }
+    .cta-bar.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(20px);
+    }
+    .cta-pos-top.cta-bar.hidden {
+      transform: translateY(-20px);
+    }
+    .cta-theme-dark {
+      background: rgba(17, 24, 39, 0.94);
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      color: #F8FAFC;
+    }
+    .cta-theme-light {
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid #E2E8F0;
+      color: #0F172A;
+    }
+    .cta-theme-accent {
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid #22C55E;
+      color: #F0FDF4;
+    }
+    .cta-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+      flex: 1;
+    }
+    .cta-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      object-fit: cover;
+      flex-shrink: 0;
+      border: 2px solid var(--border, #22C55E);
+    }
+    .cta-avatar-fallback {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #22C55E;
+      color: #052E16;
+      font-weight: 700;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .cta-text {
+      font-size: 0.88rem;
+      font-weight: 500;
+      line-height: 1.4;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .cta-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .cta-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+      padding: 0 18px;
+      background: #22C55E;
+      color: #052E16;
+      border: none;
+      border-radius: 9px;
+      font-size: 0.86rem;
+      font-weight: 600;
+      text-decoration: none;
+      white-space: nowrap;
+      transition: opacity 0.15s ease, transform 0.15s ease;
+      touch-action: manipulation;
+    }
+    .cta-btn:hover {
+      opacity: 0.92;
+      transform: translateY(-1px);
+    }
+    .cta-close-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: none;
+      background: rgba(148, 163, 184, 0.16);
+      color: inherit;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: background 0.15s ease;
+      touch-action: manipulation;
+    }
+    .cta-close-btn:hover {
+      background: rgba(148, 163, 184, 0.28);
+    }
+    .cta-direct-link {
+      font-size: 0.72rem;
+      color: #94A3B8;
+      text-decoration: underline;
+      margin-left: 4px;
+      white-space: nowrap;
+    }
+    @media (max-width: 540px) {
+      .cta-bar {
+        left: 8px;
+        right: 8px;
+        padding: 10px 14px;
+      }
+      .cta-avatar, .cta-avatar-fallback {
+        width: 34px;
+        height: 34px;
+      }
+      .cta-text { font-size: 0.8rem; }
+      .cta-btn { min-height: 36px; padding: 0 12px; font-size: 0.8rem; }
+    }
+  </style>
+</head>
+<body>
+  <iframe src="${targetUrlEsc}" class="cta-iframe" title="Content Frame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+  <script id="ctaOverlayConfig" type="application/json">${JSON.stringify(opts.config)}</script>
+  <aside class="cta-bar ${positionClass} ${themeClass}" id="ctaOverlayBar" role="complementary" aria-label="Call to Action Banner">
+    <div class="cta-left">
+      ${avatarHtml}
+      <div class="cta-text">
+        <span>${bannerTextEsc}</span>
+        <a href="${targetUrlEsc}" class="cta-direct-link" target="_top">Open site directly</a>
+      </div>
+    </div>
+    <div class="cta-actions">
+      <a href="${buttonUrlEsc}" target="_blank" rel="noopener noreferrer" class="cta-btn">${buttonTextEsc}</a>
+      <button type="button" class="cta-close-btn" id="ctaCloseBtn" aria-label="Dismiss banner">
+        <svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="200" y1="56" x2="56" y2="200"/><line x1="200" y1="200" x2="56" y2="56"/></svg>
+      </button>
+    </div>
+  </aside>
+  <script src="/assets/cta-overlay.js"></script>
 </body>
 </html>`;
 }
@@ -1384,6 +1849,9 @@ export function renderBioPageHtml(data: BioPageData, origin: string): string {
     </footer>
   </main>
   <script src="/assets/bio.js"></script>
+  ${data.pixels ? `
+  <div id="pixelBridgeConfig"${data.pixels.facebookPixelId ? ` data-fb="${escapeHtml(data.pixels.facebookPixelId)}"` : ""}${data.pixels.googleAnalyticsId ? ` data-ga="${escapeHtml(data.pixels.googleAnalyticsId)}"` : ""}${data.pixels.tiktokPixelId ? ` data-tt="${escapeHtml(data.pixels.tiktokPixelId)}"` : ""}${data.pixels.linkedinPartnerId ? ` data-li="${escapeHtml(data.pixels.linkedinPartnerId)}"` : ""}${data.pixels.twitterPixelId ? ` data-tw="${escapeHtml(data.pixels.twitterPixelId)}"` : ""} style="display:none;" aria-hidden="true"></div>
+  <script src="/assets/pixel-bridge.js" defer></script>` : ""}
 </body>
 </html>`;
 }

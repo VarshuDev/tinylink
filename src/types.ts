@@ -35,6 +35,44 @@ export interface URLData {
   campaign?: string | null;
   expiredAction?: ("message" | "redirect") | null;
   expiredUrl?: string | null;
+  // v4.0 Features: Retargeting Pixels, Sentinel, Time Routing, CTA Overlays
+  pixels?: PixelConfig | null;
+  pixelBridge?: boolean;
+  autoFailover?: boolean;
+  timeRoutes?: TimeRoute[];
+  ctaOverlay?: CtaOverlayConfig | null;
+}
+
+export interface PixelConfig {
+  facebookPixelId?: string | null;
+  googleAnalyticsId?: string | null;
+  tiktokPixelId?: string | null;
+  linkedinPartnerId?: string | null;
+  twitterPixelId?: string | null;
+  meta?: string | null;
+  google?: string | null;
+  tiktok?: string | null;
+  linkedin?: string | null;
+  twitter?: string | null;
+}
+
+export interface TimeRoute {
+  days?: number[];
+  startHour: number;
+  endHour: number;
+  timezone?: string;
+  url: string;
+  label?: string | null;
+}
+
+export interface CtaOverlayConfig {
+  enabled: boolean;
+  bannerText: string;
+  buttonText: string;
+  buttonUrl: string;
+  avatarUrl?: string | null;
+  theme?: "dark" | "light" | "accent";
+  position?: "bottom" | "top";
 }
 
 export interface SplitRoute {
@@ -58,6 +96,8 @@ export interface WebhookConfig {
     onClicked?: boolean;
     onLimitReached?: boolean;
     onExpired?: boolean;
+    onDown?: boolean;
+    onRecovered?: boolean;
   };
   enabled: boolean;
   updatedAt?: string;
@@ -70,13 +110,15 @@ export interface PublicWebhookConfig {
     onClicked?: boolean;
     onLimitReached?: boolean;
     onExpired?: boolean;
+    onDown?: boolean;
+    onRecovered?: boolean;
   };
   enabled: boolean;
   updatedAt?: string;
 }
 
 export interface WebhookDispatchPayload {
-  event: "link.clicked" | "link.limit_reached" | "link.expired" | "test.ping";
+  event: "link.clicked" | "link.limit_reached" | "link.expired" | "link.down" | "link.recovered" | "test.ping";
   timestamp: string;
   link: {
     slug: string;
@@ -113,6 +155,11 @@ export interface URLMetadata {
   campaign?: string | null;
   expiredAction?: ("message" | "redirect") | null;
   expiredUrl?: string | null;
+  hasPixels?: boolean;
+  pixelBridge?: boolean;
+  autoFailover?: boolean;
+  hasTimeRoutes?: boolean;
+  hasCtaOverlay?: boolean;
 }
 
 export interface URLListEntry {
@@ -144,6 +191,11 @@ export interface URLListEntry {
   campaign?: string | null;
   expiredAction?: "message" | "redirect" | null;
   expiredUrl?: string | null;
+  pixels?: PixelConfig | null;
+  pixelBridge?: boolean;
+  autoFailover?: boolean;
+  timeRoutes?: TimeRoute[];
+  ctaOverlay?: CtaOverlayConfig | null;
 }
 
 export interface TimelineBucket {
@@ -188,6 +240,44 @@ export interface AnalyticsResponse {
   campaign?: string | null;
   expiredAction?: ("message" | "redirect") | null;
   expiredUrl?: string | null;
+  // v4.0 Features: Retargeting Pixels, Sentinel, Time Routing, CTA Overlays
+  pixels?: PixelConfig | null;
+  pixelBridge?: boolean;
+  autoFailover?: boolean;
+  timeRoutes?: TimeRoute[];
+  ctaOverlay?: CtaOverlayConfig | null;
+}
+
+export interface PixelConfig {
+  facebookPixelId?: string | null;
+  googleAnalyticsId?: string | null;
+  tiktokPixelId?: string | null;
+  linkedinPartnerId?: string | null;
+  twitterPixelId?: string | null;
+  meta?: string | null;
+  google?: string | null;
+  tiktok?: string | null;
+  linkedin?: string | null;
+  twitter?: string | null;
+}
+
+export interface TimeRoute {
+  days?: number[];
+  startHour: number;
+  endHour: number;
+  timezone?: string;
+  url: string;
+  label?: string | null;
+}
+
+export interface CtaOverlayConfig {
+  enabled: boolean;
+  bannerText: string;
+  buttonText: string;
+  buttonUrl: string;
+  avatarUrl?: string | null;
+  theme?: "dark" | "light" | "accent";
+  position?: "bottom" | "top";
 }
 
 export interface ImportLinkInput {
@@ -262,6 +352,7 @@ export interface BioPageData {
   ogDescription?: string | null;
   ogImage?: string | null;
   leadCapture?: BioLeadCapture;
+  pixels?: PixelConfig | null;
   views: number;
   createdAt: string;
   updatedAt: string;

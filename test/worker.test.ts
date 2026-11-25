@@ -2385,4 +2385,338 @@ describe("TinyLink Worker", () => {
     expect(prof).toBeDefined();
     expect(prof?.subscribersCount).toBe(1);
   });
+
+  it("US-007: retargeting pixels & conversion tracking studio", async () => {
+    const env = makeEnv();
+    const { ctx } = makeCtx();
+    const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+
+    // 1. Create link with pixel configuration and pixelBridge enabled
+    const shortenRes = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://example.com/shop",
+          custom: "pixel-track",
+          pixels: {
+            meta: "123456789012345",
+            google: "G-TEST12345",
+            tiktok: "C999999999",
+            linkedin: "888888",
+            twitter: "tw-999"
+          },
+          pixelBridge: true
+        })
+      }),
+      env,
+      ctx
+    );
+    expect(shortenRes.status).toBe(200);
+    const shortData = (await shortenRes.json()) as { slug: string; pixels: any; pixelBridge: boolean };
+    expect(shortData.slug).toBe("pixel-track");
+    expect(shortData.pixels?.meta).toBe("123456789012345");
+    expect(shortData.pixels?.google).toBe("G-TEST12345");
+    expect(shortData.pixelBridge).toBe(true);
+
+    // 2. Fetch redirect page — should render Pixel Bridge HTML with PIXEL_BRIDGE_CSP
+    const redirectRes = await worker.fetch!(makeRequest("/pixel-track"), env, ctx);
+    expect(redirectRes.status).toBe(200);
+    expect(redirectRes.headers.get("Content-Type")).toContain("text/html");
+    const csp = redirectRes.headers.get("Content-Security-Policy") || "";
+    expect(csp).toContain("connect.facebook.net");
+    expect(csp).toContain("googletagmanager.com");
+    expect(csp).toContain("analytics.tiktok.com");
+    const html = await redirectRes.text();
+    expect(html).toContain('id="pixelBridgeConfig"');
+    expect(html).toContain('src="/assets/pixel-bridge.js"');
+    expect(html).toContain("123456789012345");
+    expect(html).toContain("https://example.com/shop");
+
+    // 3. Verify static asset /assets/pixel-bridge.js
+    const assetRes = await worker.fetch!(makeRequest("/assets/pixel-bridge.js"), env, ctx);
+    expect(assetRes.status).toBe(200);
+    expect(assetRes.headers.get("Content-Type")).toContain("javascript");
+    const assetBody = await assetRes.text();
+    expect(assetBody).toContain("pixelBridgeConfig");
+    expect(() => new Function(assetBody)).not.toThrow();
+
+    // 4. Create bio page with retargeting pixels
+    const bioRes = await worker.fetch!(
+      makeRequest("/api/bio", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          handle: "pixel-creator",
+          title: "Pixel Creator",
+          pixels: {
+            meta: "987654321098765",
+            google: "G-BIO12345"
+          },
+          links: [{ id: "l1", title: "Store", url: "https://example.com/store" }]
+        })
+      }),
+      env,
+      ctx
+    );
+    expect(bioRes.status).toBe(201);
+
+    // 5. Public bio page renders pixel config and script tag
+    const bioPageRes = await worker.fetch!(makeRequest("/bio/pixel-creator"), env, ctx);
+    expect(bioPageRes.status).toBe(200);
+    const bioCsp = bioPageRes.headers.get("Content-Security-Policy") || "";
+    expect(bioCsp).toContain("connect.facebook.net");
+    const bioHtml = await bioPageRes.text();
+    expect(bioHtml).toContain('id="pixelBridgeConfig"');
+    expect(bioHtml).toContain('src="/assets/pixel-bridge.js"');
+    expect(bioHtml).toContain("987654321098765");
+  });
+
+  it("US-008: automated link sentinel & broken URL auto-failover", async () => {
+    const env = makeEnv();
+    const { ctx } = makeCtx();
+    const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+
+    // 1. Create link with autoFailover and fallbackUrl
+    const createRes = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://down-service.example.com/api",
+          custom: "sentinel-test",
+          fallbackUrl: "https://backup.example.com/fallback",
+          autoFailover: true
+        })
+      }),
+      env,
+      ctx
+    );
+    expect(createRes.status).toBe(200);
+
+    // 2. Mock global fetch to simulate down destination (500)
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (input: any, init?: any) => {
+      const urlStr = typeof input === "string" ? input : (input?.url || "");
+      if (urlStr.includes("down-service.example.com")) {
+        return new Response("Service Unavailable", { status: 503, statusText: "Service Unavailable" });
+      }
+      return originalFetch(input, init);
+    };
+
+    try {
+      // 3. Trigger manual sentinel scan via POST /api/sentinel/scan
+      const scanRes = await worker.fetch!(
+        makeRequest("/api/sentinel/scan", {
+          method: "POST",
+          headers
+        }),
+        env,
+        ctx
+      );
+      expect(scanRes.status).toBe(200);
+      const scanData = (await scanRes.json()) as { scanned: number; broken: number; recovered: number; results: any[] };
+      expect(scanData.scanned).toBeGreaterThanOrEqual(1);
+      const brokenEntry = scanData.results.find((r) => r.slug === "sentinel-test");
+      expect(brokenEntry).toBeDefined();
+      expect(brokenEntry?.ok).toBe(false);
+      expect(brokenEntry?.status).toBe(503);
+
+      // 4. Request the link — auto-failover redirects to fallbackUrl
+      const redirectDown = await worker.fetch!(makeRequest("/sentinel-test"), env, ctx);
+      expect(redirectDown.status).toBe(302);
+      expect(redirectDown.headers.get("Location")).toBe("https://backup.example.com/fallback");
+
+      // 5. Mock destination recovering (200)
+      globalThis.fetch = async (input: any, init?: any) => {
+        const urlStr = typeof input === "string" ? input : (input?.url || "");
+        if (urlStr.includes("down-service.example.com")) {
+          return new Response("OK", { status: 200, statusText: "OK" });
+        }
+        return originalFetch(input, init);
+      };
+
+      // 6. Run scan again — destination recovered
+      const scanRes2 = await worker.fetch!(
+        makeRequest("/api/sentinel/scan", {
+          method: "POST",
+          headers
+        }),
+        env,
+        ctx
+      );
+      expect(scanRes2.status).toBe(200);
+      const scanData2 = (await scanRes2.json()) as { scanned: number; broken: number; recovered: number; results: any[] };
+      const recEntry = scanData2.results.find((r) => r.slug === "sentinel-test");
+      expect(recEntry?.ok).toBe(true);
+      expect(scanData2.recovered).toBeGreaterThanOrEqual(1);
+
+      // 7. Request the link — redirects back to original URL
+      const redirectUp = await worker.fetch!(makeRequest("/sentinel-test"), env, ctx);
+      expect(redirectUp.status).toBe(302);
+      expect(redirectUp.headers.get("Location")).toBe("https://down-service.example.com/api");
+
+      // 8. Test scheduled cron handler
+      if (typeof worker.scheduled === "function") {
+        await worker.scheduled({ scheduledTime: Date.now(), cron: "*/15 * * * *" }, env, ctx);
+      }
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("US-009: smart time-of-day & schedule routing", async () => {
+    const env = makeEnv();
+    const { ctx } = makeCtx();
+    const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+
+    // Create link with timeRoutes
+    const createRes = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://example.com/default-home",
+          custom: "time-route-test",
+          timeRoutes: [
+            {
+              startHour: 0,
+              endHour: 23,
+              days: [0, 1, 2, 3, 4, 5, 6],
+              url: "https://example.com/all-day-match"
+            }
+          ]
+        })
+      }),
+      env,
+      ctx
+    );
+    expect(createRes.status).toBe(200);
+    const data = (await createRes.json()) as { timeRoutes: any[] };
+    expect(data.timeRoutes.length).toBe(1);
+    expect(data.timeRoutes[0].url).toBe("https://example.com/all-day-match");
+
+    // Visitor request matches 0-23 rule on all days
+    const redirRes = await worker.fetch!(makeRequest("/time-route-test"), env, ctx);
+    expect(redirRes.status).toBe(302);
+    expect(redirRes.headers.get("Location")).toBe("https://example.com/all-day-match");
+
+    // Update link with a non-matching rule (e.g. impossible hour)
+    const updateRes = await worker.fetch!(
+      makeRequest("/api/urls/time-route-test", {
+        method: "PUT",
+        headers,
+        body: JSON.stringify({
+          url: "https://example.com/default-home",
+          timeRoutes: [
+            {
+              startHour: 1,
+              endHour: 2,
+              days: [(new Date().getUTCDay() + 3) % 7],
+              url: "https://example.com/impossible-route"
+            }
+          ]
+        })
+      }),
+      env,
+      ctx
+    );
+    expect(updateRes.status).toBe(200);
+
+    // Visitor request does not match, falls back to original destination
+    const fallbackRes = await worker.fetch!(makeRequest("/time-route-test"), env, ctx);
+    expect(fallbackRes.status).toBe(302);
+    expect(fallbackRes.headers.get("Location")).toBe("https://example.com/default-home");
+  });
+
+  it("US-010: interactive call-to-action (CTA) overlay banners", async () => {
+    const env = makeEnv();
+    const { ctx } = makeCtx();
+    const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+
+    // 1. Create link with CTA Overlay configuration
+    const createRes = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://external-blog.example.com/article",
+          custom: "cta-banner-link",
+          ctaOverlay: {
+            enabled: true,
+            bannerText: "Get 20% off all developer tools this week only!",
+            buttonText: "Claim Discount",
+            buttonUrl: "https://mysite.example.com/discount",
+            avatarUrl: "https://mysite.example.com/logo.png",
+            color: "#6366f1"
+          }
+        })
+      }),
+      env,
+      ctx
+    );
+    expect(createRes.status).toBe(200);
+    const data = (await createRes.json()) as { ctaOverlay: any };
+    expect(data.ctaOverlay?.enabled).toBe(true);
+    expect(data.ctaOverlay?.bannerText).toBe("Get 20% off all developer tools this week only!");
+
+    // 2. Fetch short URL — serves CTA overlay page with CTA_OVERLAY_CSP
+    const ctaRes = await worker.fetch!(makeRequest("/cta-banner-link"), env, ctx);
+    expect(ctaRes.status).toBe(200);
+    expect(ctaRes.headers.get("Content-Type")).toContain("text/html");
+    const csp = ctaRes.headers.get("Content-Security-Policy") || "";
+    expect(csp).toContain("frame-src * https: http:");
+    expect(csp).toContain("script-src 'self'");
+    const html = await ctaRes.text();
+    expect(html).toContain('id="ctaOverlayConfig"');
+    expect(html).toContain('src="/assets/cta-overlay.js"');
+    expect(html).toContain("Get 20% off all developer tools");
+    expect(html).toContain("Claim Discount");
+    expect(html).toContain("https://external-blog.example.com/article");
+
+    // 3. Verify static asset /assets/cta-overlay.js
+    const assetRes = await worker.fetch!(makeRequest("/assets/cta-overlay.js"), env, ctx);
+    expect(assetRes.status).toBe(200);
+    expect(assetRes.headers.get("Content-Type")).toContain("javascript");
+    const assetBody = await assetRes.text();
+    expect(assetBody).toContain("ctaOverlayConfig");
+    expect(() => new Function(assetBody)).not.toThrow();
+
+    // 4. Test CTA overlay with password protected link
+    const pwdRes = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://secret-site.example.com",
+          custom: "cta-locked",
+          password: "my-overlay-pass",
+          ctaOverlay: {
+            enabled: true,
+            bannerText: "Exclusive VIP preview",
+            buttonText: "Join VIP",
+            buttonUrl: "https://vip.example.com"
+          }
+        })
+      }),
+      env,
+      ctx
+    );
+    expect(pwdRes.status).toBe(200);
+
+    // Unlocking with correct password renders CTA overlay
+    const unlockRes = await worker.fetch!(
+      makeRequest("/cta-locked/unlock", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: "password=my-overlay-pass"
+      }),
+      env,
+      ctx
+    );
+    expect(unlockRes.status).toBe(200);
+    const unlockHtml = await unlockRes.text();
+    expect(unlockHtml).toContain('id="ctaOverlayConfig"');
+    expect(unlockHtml).toContain("Exclusive VIP preview");
+  });
 });

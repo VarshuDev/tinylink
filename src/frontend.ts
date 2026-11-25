@@ -1382,7 +1382,10 @@ export function renderDashboardHtml(authRequired: boolean): string {
     background: var(--surface);
     border: 1px solid var(--border-subtle);
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
   }
+  .adv-tabs::-webkit-scrollbar { display: none; }
   .adv-tab-btn {
     border: none;
     background: transparent;
@@ -1397,6 +1400,7 @@ export function renderDashboardHtml(authRequired: boolean): string {
     gap: 6px;
     white-space: nowrap;
     transition: background-color 140ms ease, color 140ms ease;
+    flex-shrink: 0;
   }
   .adv-tab-btn:hover { color: var(--text); }
   .adv-tab-btn[aria-selected="true"] {
@@ -1415,6 +1419,15 @@ export function renderDashboardHtml(authRequired: boolean): string {
     display: flex;
     flex-direction: column;
     gap: 14px;
+  }
+  .time-route-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    background: var(--surface-2);
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
   }
 
   /* ── Modal Segmented Tabs ── */
@@ -1853,6 +1866,14 @@ export function renderDashboardHtml(authRequired: boolean): string {
       gap: 6px;
     }
     .split-row .split-url-input {
+      width: 100%;
+      min-width: 0;
+    }
+    .time-route-row {
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .time-route-row .time-route-url {
       width: 100%;
       min-width: 0;
     }
@@ -2435,6 +2456,18 @@ export function renderDashboardHtml(authRequired: boolean): string {
               <span>Routing &amp; Schedule</span>
               <span class="adv-tab-dot" id="advDotRouting" hidden aria-hidden="true"></span>
             </button>
+            <button type="button" class="adv-tab-btn" role="tab" id="advTabTime" aria-selected="false" aria-controls="advPanelTime" data-adv-tab="time" tabindex="-1">
+              <span>Time Routing</span>
+              <span class="adv-tab-dot" id="advDotTime" hidden aria-hidden="true"></span>
+            </button>
+            <button type="button" class="adv-tab-btn" role="tab" id="advTabPixels" aria-selected="false" aria-controls="advPanelPixels" data-adv-tab="pixels" tabindex="-1">
+              <span>Tracking Pixels</span>
+              <span class="adv-tab-dot" id="advDotPixels" hidden aria-hidden="true"></span>
+            </button>
+            <button type="button" class="adv-tab-btn" role="tab" id="advTabOverlay" aria-selected="false" aria-controls="advPanelOverlay" data-adv-tab="overlay" tabindex="-1">
+              <span>CTA Overlay</span>
+              <span class="adv-tab-dot" id="advDotOverlay" hidden aria-hidden="true"></span>
+            </button>
             <button type="button" class="adv-tab-btn" role="tab" id="advTabUtm" aria-selected="false" aria-controls="advPanelUtm" data-adv-tab="utm" tabindex="-1">
               <span>UTM &amp; Social</span>
               <span class="adv-tab-dot" id="advDotUtm" hidden aria-hidden="true"></span>
@@ -2508,7 +2541,12 @@ export function renderDashboardHtml(authRequired: boolean): string {
               </div>
             </div>
 
-            <label class="check-row" for="deepLinkCheck" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border-subtle);">
+            <label class="check-row" for="autoFailoverCheck" style="margin-top:6px;">
+              <input type="checkbox" id="autoFailoverCheck">
+              <span>Auto-Failover to Fallback URL if destination is broken or unreachable (Sentinel scan)</span>
+            </label>
+
+            <label class="check-row" for="deepLinkCheck" style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border-subtle);">
               <input type="checkbox" id="deepLinkCheck">
               <span>Enable Smart Mobile App Deep Linking (auto-open YouTube, Spotify, X, Instagram, TikTok in app on mobile)</span>
             </label>
@@ -2531,6 +2569,81 @@ export function renderDashboardHtml(authRequired: boolean): string {
               </div>
               <p style="font-size:0.74rem;color:var(--text-muted);margin:0 0 8px 0;">Split incoming visitors across multiple destination URLs with custom percentage weights (must sum to 100%).</p>
               <div id="splitsContainer" style="display:flex;flex-direction:column;gap:8px;"></div>
+            </div>
+          </div>
+
+          <div class="adv-tab-panel" role="tabpanel" id="advPanelTime" aria-labelledby="advTabTime" hidden>
+            <div class="adv-subhead" style="margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;">
+              <span>Time-of-Day &amp; Day-of-Week Schedule Routing</span>
+              <button type="button" class="btn btn-secondary btn-sm" id="addTimeRouteBtn" style="min-height:30px;font-size:0.74rem;">+ Add Time Route</button>
+            </div>
+            <p style="font-size:0.74rem;color:var(--text-muted);margin:0 0 8px 0;">Route visitors dynamically based on their local time of day or day of week (detected via visitor Cloudflare timezone or UTC).</p>
+            <div id="timeRoutesContainer" style="display:flex;flex-direction:column;gap:8px;"></div>
+          </div>
+
+          <div class="adv-tab-panel" role="tabpanel" id="advPanelPixels" aria-labelledby="advTabPixels" hidden>
+            <div class="adv-subhead" style="margin-bottom:6px;">
+              <span>Retargeting Pixels &amp; Conversion Tracking</span>
+            </div>
+            <p style="font-size:0.74rem;color:var(--text-muted);margin:0 0 8px 0;">Track conversions and build custom retargeting audiences across Meta, Google Analytics 4, TikTok, LinkedIn, and Twitter/X.</p>
+            <label class="check-row" for="pixelBridgeCheck" style="margin-bottom:8px;">
+              <input type="checkbox" id="pixelBridgeCheck">
+              <span>Enable Pixel Bridge Interstitial (fires retargeting pixels before redirecting visitors)</span>
+            </label>
+            <div class="adv-grid">
+              <div class="adv-field">
+                <label for="pixelMetaInput" class="adv-label">Meta / Facebook Pixel ID</label>
+                <input type="text" id="pixelMetaInput" class="adv-input mono" placeholder="e.g. 123456789012345">
+              </div>
+              <div class="adv-field">
+                <label for="pixelGa4Input" class="adv-label">Google Analytics 4 Measurement ID</label>
+                <input type="text" id="pixelGa4Input" class="adv-input mono" placeholder="e.g. G-XXXXXXXXXX">
+              </div>
+              <div class="adv-field">
+                <label for="pixelTiktokInput" class="adv-label">TikTok Pixel ID</label>
+                <input type="text" id="pixelTiktokInput" class="adv-input mono" placeholder="e.g. C1234567890ABCDEF">
+              </div>
+              <div class="adv-field">
+                <label for="pixelLinkedinInput" class="adv-label">LinkedIn Partner ID</label>
+                <input type="text" id="pixelLinkedinInput" class="adv-input mono" placeholder="e.g. 1234567">
+              </div>
+              <div class="adv-field">
+                <label for="pixelTwitterInput" class="adv-label">Twitter / X Pixel ID</label>
+                <input type="text" id="pixelTwitterInput" class="adv-input mono" placeholder="e.g. o1234">
+              </div>
+            </div>
+          </div>
+
+          <div class="adv-tab-panel" role="tabpanel" id="advPanelOverlay" aria-labelledby="advTabOverlay" hidden>
+            <div class="adv-subhead" style="margin-bottom:6px;">
+              <span>Interactive Call-to-Action (CTA) Overlay</span>
+            </div>
+            <p style="font-size:0.74rem;color:var(--text-muted);margin:0 0 8px 0;">Float a branded banner with your custom message, call-to-action button, and avatar over external destination content.</p>
+            <label class="check-row" for="ctaOverlayCheck" style="margin-bottom:8px;">
+              <input type="checkbox" id="ctaOverlayCheck">
+              <span>Enable CTA Overlay Banner on destination page</span>
+            </label>
+            <div class="adv-grid">
+              <div class="adv-field" style="grid-column: 1 / -1;">
+                <label for="ctaMessageInput" class="adv-label">Banner Message</label>
+                <input type="text" id="ctaMessageInput" class="adv-input" maxlength="140" placeholder="e.g. Loved this article? Join 10k+ readers on our weekly newsletter!">
+              </div>
+              <div class="adv-field">
+                <label for="ctaButtonTextInput" class="adv-label">Button Text</label>
+                <input type="text" id="ctaButtonTextInput" class="adv-input" maxlength="40" placeholder="e.g. Subscribe Now">
+              </div>
+              <div class="adv-field">
+                <label for="ctaButtonUrlInput" class="adv-label">Button Destination URL</label>
+                <input type="url" id="ctaButtonUrlInput" class="adv-input" placeholder="https://example.com/join">
+              </div>
+              <div class="adv-field">
+                <label for="ctaAvatarUrlInput" class="adv-label">Brand / Avatar Image URL (optional)</label>
+                <input type="url" id="ctaAvatarUrlInput" class="adv-input" placeholder="https://example.com/logo.png">
+              </div>
+              <div class="adv-field">
+                <label for="ctaColorInput" class="adv-label">Button Accent Color (hex)</label>
+                <input type="text" id="ctaColorInput" class="adv-input mono" maxlength="20" placeholder="#6366f1">
+              </div>
             </div>
           </div>
 
@@ -2659,6 +2772,9 @@ export function renderDashboardHtml(authRequired: boolean): string {
             <button type="button" class="pill-btn" aria-pressed="true" data-filter="all">All</button>
             <button type="button" class="pill-btn" aria-pressed="false" data-filter="active">Active</button>
             <button type="button" class="pill-btn" aria-pressed="false" data-filter="expired">Expired</button>
+            <button type="button" class="pill-btn" aria-pressed="false" data-filter="healthy">Healthy</button>
+            <button type="button" class="pill-btn" aria-pressed="false" data-filter="broken">Broken</button>
+            <button type="button" class="pill-btn" aria-pressed="false" data-filter="failover">Failover</button>
           </div>
 
           <select id="sortSelect" class="sort-select" aria-label="Sort links">
@@ -2670,6 +2786,11 @@ export function renderDashboardHtml(authRequired: boolean): string {
           <select id="campaignFilterSelect" class="sort-select" aria-label="Filter by campaign" hidden>
             <option value="">All Campaigns</option>
           </select>
+
+          <button type="button" class="btn btn-secondary btn-sm" id="sentinelScanBtn" title="Run Automated Sentinel Scan across all destinations">
+            <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="224 128 192 128 168 48 88 208 64 128 32 128"/></svg>
+            <span>Sentinel Scan</span>
+          </button>
 
           <button type="button" class="btn btn-secondary btn-sm" id="campaignModalBtn" title="One-Click Multi-Channel Campaign Generator">
             <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="128" cy="128" r="96"/><circle cx="128" cy="128" r="64"/><circle cx="128" cy="128" r="32"/></svg>
@@ -2908,6 +3029,9 @@ export const DASHBOARD_APP_JS = `(function() {
   var studioPreviewMeta = document.getElementById('studioPreviewMeta');
   var advDotGeneral = document.getElementById('advDotGeneral');
   var advDotRouting = document.getElementById('advDotRouting');
+  var advDotTime = document.getElementById('advDotTime');
+  var advDotPixels = document.getElementById('advDotPixels');
+  var advDotOverlay = document.getElementById('advDotOverlay');
   var advDotUtm = document.getElementById('advDotUtm');
   var labelInput = document.getElementById('labelInput');
   var tagsInput = document.getElementById('tagsInput');
@@ -2923,6 +3047,7 @@ export const DASHBOARD_APP_JS = `(function() {
   var ogTitleInput = document.getElementById('ogTitleInput');
   var ogDescInput = document.getElementById('ogDescInput');
   var publicStatsCheck = document.getElementById('publicStatsCheck');
+  var autoFailoverCheck = document.getElementById('autoFailoverCheck');
   var deepLinkCheck = document.getElementById('deepLinkCheck');
   var startsAtInput = document.getElementById('startsAtInput');
   var fallbackUrlInput = document.getElementById('fallbackUrlInput');
@@ -2933,6 +3058,20 @@ export const DASHBOARD_APP_JS = `(function() {
   var addSplitVariantBtn = document.getElementById('addSplitVariantBtn');
   var splitsContainer = document.getElementById('splitsContainer');
   var splitsTotalWeightBadge = document.getElementById('splitsTotalWeightBadge');
+  var addTimeRouteBtn = document.getElementById('addTimeRouteBtn');
+  var timeRoutesContainer = document.getElementById('timeRoutesContainer');
+  var pixelBridgeCheck = document.getElementById('pixelBridgeCheck');
+  var pixelMetaInput = document.getElementById('pixelMetaInput');
+  var pixelGa4Input = document.getElementById('pixelGa4Input');
+  var pixelTiktokInput = document.getElementById('pixelTiktokInput');
+  var pixelLinkedinInput = document.getElementById('pixelLinkedinInput');
+  var pixelTwitterInput = document.getElementById('pixelTwitterInput');
+  var ctaOverlayCheck = document.getElementById('ctaOverlayCheck');
+  var ctaMessageInput = document.getElementById('ctaMessageInput');
+  var ctaButtonTextInput = document.getElementById('ctaButtonTextInput');
+  var ctaButtonUrlInput = document.getElementById('ctaButtonUrlInput');
+  var ctaAvatarUrlInput = document.getElementById('ctaAvatarUrlInput');
+  var ctaColorInput = document.getElementById('ctaColorInput');
 
   var resultBar = document.getElementById('resultBar');
   var resultQr = document.getElementById('resultQr');
@@ -2957,6 +3096,7 @@ export const DASHBOARD_APP_JS = `(function() {
   var statusFilterGroup = document.getElementById('statusFilterGroup');
   var sortSelect = document.getElementById('sortSelect');
   var campaignFilterSelect = document.getElementById('campaignFilterSelect');
+  var sentinelScanBtn = document.getElementById('sentinelScanBtn');
   var campaignModalBtn = document.getElementById('campaignModalBtn');
   var campaignSummaryBanner = document.getElementById('campaignSummaryBanner');
   var campaignBannerName = document.getElementById('campaignBannerName');
@@ -3518,6 +3658,99 @@ export const DASHBOARD_APP_JS = `(function() {
     });
   }
 
+  function addTimeRouteRow(container, route) {
+    if (!container) return;
+    var row = document.createElement('div');
+    row.className = 'time-route-row';
+    var days = [
+      { val: '', label: 'All Days' },
+      { val: 'weekdays', label: 'Mon - Fri' },
+      { val: 'weekends', label: 'Sat - Sun' },
+      { val: '1', label: 'Monday' },
+      { val: '2', label: 'Tuesday' },
+      { val: '3', label: 'Wednesday' },
+      { val: '4', label: 'Thursday' },
+      { val: '5', label: 'Friday' },
+      { val: '6', label: 'Saturday' },
+      { val: '0', label: 'Sunday' }
+    ];
+    var selDays = route && route.days && route.days.length > 0 ? (
+      route.days.length === 5 && [1,2,3,4,5].every(function(d){ return route.days.indexOf(d) !== -1; }) ? 'weekdays' :
+      route.days.length === 2 && [0,6].every(function(d){ return route.days.indexOf(d) !== -1; }) ? 'weekends' :
+      String(route.days[0])
+    ) : '';
+
+    var daysOptHtml = days.map(function(d) {
+      return '<option value="' + d.val + '"' + (selDays === d.val ? ' selected' : '') + '>' + d.label + '</option>';
+    }).join('');
+
+    var startH = route && typeof route.startHour === 'number' ? route.startHour : 9;
+    var endH = route && typeof route.endHour === 'number' ? route.endHour : 17;
+    var destU = (route && route.url) || '';
+
+    row.innerHTML =
+      '<select class="sort-select time-day-sel" style="min-width:110px;min-height:36px;">' + daysOptHtml + '</select>' +
+      '<div style="display:flex;align-items:center;gap:4px;">' +
+        '<input type="number" class="adv-input mono time-start-h" min="0" max="23" value="' + startH + '" style="width:54px;min-height:36px;" title="Start Hour (0-23)">' +
+        '<span style="font-size:0.76rem;color:var(--text-muted);">-</span>' +
+        '<input type="number" class="adv-input mono time-end-h" min="0" max="23" value="' + endH + '" style="width:54px;min-height:36px;" title="End Hour (0-23)">' +
+        '<span style="font-size:0.72rem;color:var(--text-muted);">h</span>' +
+      '</div>' +
+      '<input type="url" class="adv-input time-route-url" placeholder="https://example.com/day-offer" value="' + escapeHtml(destU) + '" style="flex:1;min-height:36px;">' +
+      '<button type="button" class="btn btn-ghost btn-icon time-route-del" style="min-width:32px;height:36px;padding:0;color:var(--danger);" title="Remove route">' +
+        '<svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"><line x1="200" y1="56" x2="56" y2="200"/><line x1="200" y1="200" x2="56" y2="56"/></svg>' +
+      '</button>';
+
+    row.querySelector('.time-route-del').addEventListener('click', function() {
+      row.remove();
+      updateAdvCount();
+    });
+    row.querySelectorAll('input, select').forEach(function(inp) {
+      inp.addEventListener('input', updateAdvCount);
+      inp.addEventListener('change', updateAdvCount);
+    });
+    container.appendChild(row);
+    if (!route) row.querySelector('.time-route-url').focus();
+    updateAdvCount();
+  }
+
+  function getTimeRoutesFromContainer(container) {
+    if (!container) return [];
+    var rows = container.querySelectorAll('.time-route-row');
+    var res = [];
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i];
+      var daySel = r.querySelector('.time-day-sel');
+      var startHInp = r.querySelector('.time-start-h');
+      var endHInp = r.querySelector('.time-end-h');
+      var urlInp = r.querySelector('.time-route-url');
+      var urlVal = urlInp ? urlInp.value.trim() : '';
+      if (!urlVal) continue;
+      var sh = startHInp ? parseInt(startHInp.value, 10) : 0;
+      var eh = endHInp ? parseInt(endHInp.value, 10) : 23;
+      if (isNaN(sh) || sh < 0 || sh > 23) sh = 0;
+      if (isNaN(eh) || eh < 0 || eh > 23) eh = 23;
+      var dVal = daySel ? daySel.value : '';
+      var daysArr = undefined;
+      if (dVal === 'weekdays') daysArr = [1, 2, 3, 4, 5];
+      else if (dVal === 'weekends') daysArr = [0, 6];
+      else if (dVal !== '') daysArr = [parseInt(dVal, 10)];
+      res.push({
+        startHour: sh,
+        endHour: eh,
+        days: daysArr,
+        url: urlVal
+      });
+    }
+    return res;
+  }
+
+  if (addTimeRouteBtn && timeRoutesContainer) {
+    addTimeRouteBtn.addEventListener('click', function() {
+      addTimeRouteRow(timeRoutesContainer, null);
+    });
+  }
+
   function renderHealthBadge(status) {
     if (!status) return '<span style="color:var(--text-muted);">Not audited yet</span>';
     if (status.ok) {
@@ -3539,10 +3772,25 @@ export const DASHBOARD_APP_JS = `(function() {
     if (fallbackUrlInput.value.trim()) routeCount++;
     if (routeIosInput.value.trim()) routeCount++;
     if (routeAndroidInput.value.trim()) routeCount++;
+    if (autoFailoverCheck && autoFailoverCheck.checked) routeCount++;
     var geoCount = geoRoutesContainer.querySelectorAll('.geo-row').length;
     if (geoCount > 0) routeCount += geoCount;
     var splitsCount = splitsContainer ? splitsContainer.querySelectorAll('.split-row').length : 0;
     if (splitsCount > 0) routeCount += splitsCount;
+
+    var timeCount = timeRoutesContainer ? timeRoutesContainer.querySelectorAll('.time-route-row').length : 0;
+
+    var pixelCount = 0;
+    if (pixelBridgeCheck && pixelBridgeCheck.checked) pixelCount++;
+    if (pixelMetaInput && pixelMetaInput.value.trim()) pixelCount++;
+    if (pixelGa4Input && pixelGa4Input.value.trim()) pixelCount++;
+    if (pixelTiktokInput && pixelTiktokInput.value.trim()) pixelCount++;
+    if (pixelLinkedinInput && pixelLinkedinInput.value.trim()) pixelCount++;
+    if (pixelTwitterInput && pixelTwitterInput.value.trim()) pixelCount++;
+
+    var overlayCount = 0;
+    if (ctaOverlayCheck && ctaOverlayCheck.checked) overlayCount++;
+    if (ctaMessageInput && ctaMessageInput.value.trim()) overlayCount++;
 
     var utmCount = 0;
     if (utmSource.value.trim() || utmMedium.value.trim() || utmCampaign.value.trim()) utmCount++;
@@ -3550,9 +3798,12 @@ export const DASHBOARD_APP_JS = `(function() {
 
     if (advDotGeneral) advDotGeneral.hidden = genCount === 0;
     if (advDotRouting) advDotRouting.hidden = routeCount === 0;
+    if (advDotTime) advDotTime.hidden = timeCount === 0;
+    if (advDotPixels) advDotPixels.hidden = pixelCount === 0;
+    if (advDotOverlay) advDotOverlay.hidden = overlayCount === 0;
     if (advDotUtm) advDotUtm.hidden = utmCount === 0;
 
-    var count = genCount + routeCount + utmCount;
+    var count = genCount + routeCount + timeCount + pixelCount + overlayCount + utmCount;
     if (count > 0) {
       advActiveCount.textContent = count + ' set';
       advActiveCount.hidden = false;
@@ -3603,11 +3854,16 @@ export const DASHBOARD_APP_JS = `(function() {
       badges.push('Cap ' + cap);
     }
     if (startsAtInput.value) badges.push('Scheduled');
+    if (autoFailoverCheck && autoFailoverCheck.checked) badges.push('Failover');
     if (routeIosInput.value.trim() || routeAndroidInput.value.trim()) badges.push('Device route');
     var geoLen = geoRoutesContainer.querySelectorAll('.geo-row').length;
     if (geoLen > 0) badges.push('Geo (' + geoLen + ')');
     var splitLen = splitsContainer ? splitsContainer.querySelectorAll('.split-row').length : 0;
     if (splitLen > 0) badges.push('A/B (' + splitLen + ')');
+    var timeLen = timeRoutesContainer ? timeRoutesContainer.querySelectorAll('.time-route-row').length : 0;
+    if (timeLen > 0) badges.push('Time (' + timeLen + ')');
+    if (pixelBridgeCheck && pixelBridgeCheck.checked) badges.push('Pixel Bridge');
+    if (ctaOverlayCheck && ctaOverlayCheck.checked) badges.push('CTA Overlay');
 
     studioPreviewMeta.textContent = badges.length ? badges.join(' · ') : 'Ready to shorten';
     studioPreviewMeta.className = 'preview-meta-pill' + (rawUrl && /^https?:\\/\\//i.test(rawUrl) && slugValid ? ' is-valid' : '');
@@ -3618,6 +3874,9 @@ export const DASHBOARD_APP_JS = `(function() {
     var map = {
       general: document.getElementById('advPanelGeneral'),
       routing: document.getElementById('advPanelRouting'),
+      time: document.getElementById('advPanelTime'),
+      pixels: document.getElementById('advPanelPixels'),
+      overlay: document.getElementById('advPanelOverlay'),
       utm: document.getElementById('advPanelUtm')
     };
     for (var i = 0; i < advTabButtons.length; i++) {
@@ -3667,10 +3926,12 @@ export const DASHBOARD_APP_JS = `(function() {
     });
   }
 
-  [labelInput, tagsInput, maxClicksCustom, linkPasswordInput, utmSource, utmMedium, utmCampaign, ogTitleInput, ogDescInput, startsAtInput, fallbackUrlInput, routeIosInput, routeAndroidInput].forEach(function(el) {
-    el.addEventListener('input', updateAdvCount);
+  [labelInput, tagsInput, maxClicksCustom, linkPasswordInput, utmSource, utmMedium, utmCampaign, ogTitleInput, ogDescInput, startsAtInput, fallbackUrlInput, routeIosInput, routeAndroidInput, pixelMetaInput, pixelGa4Input, pixelTiktokInput, pixelLinkedinInput, pixelTwitterInput, ctaMessageInput, ctaButtonTextInput, ctaButtonUrlInput, ctaAvatarUrlInput, ctaColorInput].forEach(function(el) {
+    if (el) el.addEventListener('input', updateAdvCount);
   });
-  publicStatsCheck.addEventListener('change', updateAdvCount);
+  [publicStatsCheck, autoFailoverCheck, deepLinkCheck, pixelBridgeCheck, ctaOverlayCheck].forEach(function(el) {
+    if (el) el.addEventListener('change', updateAdvCount);
+  });
 
   function mergeUtmIntoUrl(rawUrl) {
     var src = utmSource.value.trim();
@@ -3806,6 +4067,7 @@ export const DASHBOARD_APP_JS = `(function() {
       if (!isNaN(d.getTime())) payload.startsAt = d.toISOString();
     }
     if (fallbackUrlInput.value.trim()) payload.fallbackUrl = fallbackUrlInput.value.trim();
+    if (autoFailoverCheck && autoFailoverCheck.checked) payload.autoFailover = true;
 
     var devRoutes = {};
     if (routeIosInput.value.trim()) devRoutes.ios = routeIosInput.value.trim();
@@ -3835,6 +4097,37 @@ export const DASHBOARD_APP_JS = `(function() {
       payload.splits = splits;
     }
 
+    var tRoutes = getTimeRoutesFromContainer(timeRoutesContainer);
+    if (tRoutes.length > 0) payload.timeRoutes = tRoutes;
+
+    var pixObj = {};
+    if (pixelMetaInput && pixelMetaInput.value.trim()) pixObj.meta = pixelMetaInput.value.trim();
+    if (pixelGa4Input && pixelGa4Input.value.trim()) pixObj.google = pixelGa4Input.value.trim();
+    if (pixelTiktokInput && pixelTiktokInput.value.trim()) pixObj.tiktok = pixelTiktokInput.value.trim();
+    if (pixelLinkedinInput && pixelLinkedinInput.value.trim()) pixObj.linkedin = pixelLinkedinInput.value.trim();
+    if (pixelTwitterInput && pixelTwitterInput.value.trim()) pixObj.twitter = pixelTwitterInput.value.trim();
+    if (Object.keys(pixObj).length > 0) {
+      payload.pixels = pixObj;
+      if (pixelBridgeCheck && pixelBridgeCheck.checked) payload.pixelBridge = true;
+    }
+
+    if (ctaOverlayCheck && ctaOverlayCheck.checked && ctaMessageInput && ctaButtonTextInput && ctaButtonUrlInput) {
+      var msg = ctaMessageInput.value.trim();
+      var bTxt = ctaButtonTextInput.value.trim();
+      var bUrl = ctaButtonUrlInput.value.trim();
+      if (msg && bTxt && bUrl) {
+        payload.ctaOverlay = {
+          enabled: true,
+          bannerText: msg,
+          message: msg,
+          buttonText: bTxt,
+          buttonUrl: bUrl,
+          avatarUrl: (ctaAvatarUrlInput && ctaAvatarUrlInput.value.trim()) || undefined,
+          color: (ctaColorInput && ctaColorInput.value.trim()) || undefined
+        };
+      }
+    }
+
     shortenBtn.disabled = true;
     shortenBtn.querySelector('span').textContent = 'Shortening…';
 
@@ -3860,10 +4153,14 @@ export const DASHBOARD_APP_JS = `(function() {
       shortenForm.reset();
       expiresValue.value = 'never';
       maxClicksCustom.hidden = true;
+      if (autoFailoverCheck) autoFailoverCheck.checked = false;
+      if (pixelBridgeCheck) pixelBridgeCheck.checked = false;
+      if (ctaOverlayCheck) ctaOverlayCheck.checked = false;
       if (deepLinkCheck) deepLinkCheck.checked = false;
       if (expiredActionSelect) expiredActionSelect.value = 'message';
       if (expiredUrlInput) { expiredUrlInput.value = ''; expiredUrlInput.hidden = true; }
       geoRoutesContainer.innerHTML = '';
+      if (timeRoutesContainer) timeRoutesContainer.innerHTML = '';
       if (splitsContainer) splitsContainer.innerHTML = '';
       updateSplitsTotal();
       var pills = expiryPills.querySelectorAll('[data-expiry]');
@@ -3891,8 +4188,13 @@ export const DASHBOARD_APP_JS = `(function() {
         botClicks: 0,
         startsAt: data.startsAt || null,
         fallbackUrl: data.fallbackUrl || null,
+        autoFailover: !!data.autoFailover,
         isPending: !!data.isPending,
         geoRoutes: data.geoRoutes || {},
+        timeRoutes: data.timeRoutes || [],
+        pixels: data.pixels || null,
+        pixelBridge: !!data.pixelBridge,
+        ctaOverlay: data.ctaOverlay || null,
         deviceRoutes: data.deviceRoutes || {},
         deepLink: !!data.deepLink,
         campaign: data.campaign || null,
@@ -4034,6 +4336,9 @@ export const DASHBOARD_APP_JS = `(function() {
       var inactive = isLinkInactive(u);
       if (currentFilter === 'active' && inactive) return false;
       if (currentFilter === 'expired' && !inactive) return false;
+      if (currentFilter === 'healthy' && (!u.healthStatus || !u.healthStatus.ok)) return false;
+      if (currentFilter === 'broken' && (!u.healthStatus || u.healthStatus.ok)) return false;
+      if (currentFilter === 'failover' && (!u.autoFailover || !u.fallbackUrl)) return false;
       if (currentCampaign) {
         if (u.campaign !== currentCampaign && (!u.tags || u.tags.indexOf(currentCampaign) === -1)) return false;
       }
@@ -4148,6 +4453,18 @@ export const DASHBOARD_APP_JS = `(function() {
     }
     if (u.splits && u.splits.length > 0) {
       chips.push('<span class="meta-chip geo" style="border-color:rgba(192,132,252,0.3);color:var(--geo);">' + ICONS.split + '<span>A/B (' + u.splits.length + ')</span></span>');
+    }
+    if (u.autoFailover) {
+      chips.push('<span class="meta-chip" style="border-color:rgba(239,68,68,0.3);color:var(--warning);">' + ICONS.activity + '<span>Failover</span></span>');
+    }
+    if (u.pixels && (u.pixels.meta || u.pixels.google || u.pixels.tiktok || u.pixels.linkedin || u.pixels.twitter)) {
+      chips.push('<span class="meta-chip" style="border-color:rgba(168,85,247,0.3);color:var(--geo);">' + ICONS.chart + '<span>' + (u.pixelBridge ? 'Bridge' : 'Pixels') + '</span></span>');
+    }
+    if (u.timeRoutes && u.timeRoutes.length > 0) {
+      chips.push('<span class="meta-chip" style="border-color:rgba(56,189,248,0.3);color:var(--link);"><span>Time (' + u.timeRoutes.length + ')</span></span>');
+    }
+    if (u.ctaOverlay && u.ctaOverlay.enabled) {
+      chips.push('<span class="meta-chip" style="border-color:rgba(234,179,8,0.3);color:var(--warning);"><span>CTA</span></span>');
     }
     if (u.healthStatus) {
       if (u.healthStatus.ok) {
@@ -4579,6 +4896,24 @@ export const DASHBOARD_APP_JS = `(function() {
     applyFilterUI(btn.getAttribute('data-filter'));
     renderLinksView();
   });
+
+  if (sentinelScanBtn) {
+    sentinelScanBtn.addEventListener('click', async function() {
+      sentinelScanBtn.disabled = true;
+      var origHtml = sentinelScanBtn.innerHTML;
+      sentinelScanBtn.innerHTML = ICONS.refresh + '<span>Scanning…</span>';
+      try {
+        var res = await api('/api/sentinel/scan', { method: 'POST' });
+        showToast('Sentinel scan: ' + res.scanned + ' scanned, ' + res.broken + ' broken, ' + res.recovered + ' recovered', res.broken > 0 ? 'warning' : 'success');
+        await loadLinks();
+      } catch (err) {
+        showToast('Sentinel scan failed: ' + err.message, 'error');
+      } finally {
+        sentinelScanBtn.disabled = false;
+        sentinelScanBtn.innerHTML = origHtml;
+      }
+    });
+  }
 
   sortSelect.addEventListener('change', function() {
     currentSort = sortSelect.value;
@@ -5395,6 +5730,10 @@ export const DASHBOARD_APP_JS = `(function() {
                 '<input type="url" id="editRouteAndroidInput" class="adv-input" value="' + escapeHtml(data.deviceRoutes?.android || '') + '" placeholder="https://play.google.com/store/apps/...">' +
               '</div>' +
             '</div>' +
+            '<label class="check-row" for="editAutoFailoverCheck" style="margin-top:6px;">' +
+              '<input type="checkbox" id="editAutoFailoverCheck"' + (data.autoFailover ? ' checked' : '') + '>' +
+              '<span>Auto-Failover to Fallback URL if destination is broken/unreachable</span>' +
+            '</label>' +
             '<label class="check-row" for="editDeepLinkCheck" style="margin-top:6px;">' +
               '<input type="checkbox" id="editDeepLinkCheck"' + (data.deepLink ? ' checked' : '') + '>' +
               '<span>Enable Smart Deep Linking (open native mobile apps on iOS/Android)</span>' +
@@ -5408,13 +5747,80 @@ export const DASHBOARD_APP_JS = `(function() {
             '</div>' +
             '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border-subtle);">' +
               '<div class="adv-subhead" style="margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;gap:8px;">' +
-                '<div style="display:flex;align-items:center;gap:6px;">' +
-                  '<span>A/B Split Testing &amp; Traffic Weighting</span>' +
-                  '<span id="editSplitsTotalBadge" class="meta-chip mono" style="font-size:0.7rem;font-weight:700;" hidden>Total: 0%</span>' +
-                '</div>' +
+                '<span>Time-of-Day Schedule Routing</span>' +
+                '<button type="button" class="btn btn-secondary btn-sm" id="editAddTimeRouteBtn" style="min-height:28px;font-size:0.74rem;">+ Add Time Route</button>' +
+              '</div>' +
+              '<div id="editTimeRoutesContainer" style="display:flex;flex-direction:column;gap:8px;"></div>' +
+            '</div>' +
+            '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border-subtle);">' +
+              '<div class="adv-subhead" style="margin-bottom:6px;">' +
+                '<span>A/B Split Testing &amp; Traffic Weighting</span>' +
+                '<span id="editSplitsTotalBadge" class="meta-chip mono" style="font-size:0.7rem;font-weight:700;" hidden>Total: 0%</span>' +
                 '<button type="button" class="btn btn-secondary btn-sm" id="editAddSplitBtn" style="min-height:28px;font-size:0.74rem;">+ Add Variant</button>' +
               '</div>' +
               '<div id="editSplitsContainer" style="display:flex;flex-direction:column;gap:8px;"></div>' +
+            '</div>' +
+            '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border-subtle);">' +
+              '<div class="adv-subhead" style="margin-bottom:6px;">' +
+                '<span>Retargeting Pixels &amp; Conversion Tracking</span>' +
+              '</div>' +
+              '<label class="check-row" for="editPixelBridgeCheck" style="margin-bottom:8px;">' +
+                '<input type="checkbox" id="editPixelBridgeCheck"' + (data.pixelBridge ? ' checked' : '') + '>' +
+                '<span>Enable Pixel Bridge Interstitial</span>' +
+              '</label>' +
+              '<div class="adv-grid">' +
+                '<div class="adv-field">' +
+                  '<label for="editPixelMeta" class="adv-label">Meta / Facebook Pixel ID</label>' +
+                  '<input type="text" id="editPixelMeta" class="adv-input mono" value="' + escapeHtml((data.pixels && data.pixels.meta) || '') + '" placeholder="Pixel ID">' +
+                '</div>' +
+                '<div class="adv-field">' +
+                  '<label for="editPixelGa4" class="adv-label">GA4 Measurement ID</label>' +
+                  '<input type="text" id="editPixelGa4" class="adv-input mono" value="' + escapeHtml((data.pixels && data.pixels.google) || '') + '" placeholder="G-XXXXXXXXXX">' +
+                '</div>' +
+                '<div class="adv-field">' +
+                  '<label for="editPixelTiktok" class="adv-label">TikTok Pixel ID</label>' +
+                  '<input type="text" id="editPixelTiktok" class="adv-input mono" value="' + escapeHtml((data.pixels && data.pixels.tiktok) || '') + '" placeholder="Pixel ID">' +
+                '</div>' +
+                '<div class="adv-field">' +
+                  '<label for="editPixelLinkedin" class="adv-label">LinkedIn Partner ID</label>' +
+                  '<input type="text" id="editPixelLinkedin" class="adv-input mono" value="' + escapeHtml((data.pixels && data.pixels.linkedin) || '') + '" placeholder="Partner ID">' +
+                '</div>' +
+                '<div class="adv-field">' +
+                  '<label for="editPixelTwitter" class="adv-label">Twitter / X Pixel ID</label>' +
+                  '<input type="text" id="editPixelTwitter" class="adv-input mono" value="' + escapeHtml((data.pixels && data.pixels.twitter) || '') + '" placeholder="Pixel ID">' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
+            '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border-subtle);">' +
+              '<div class="adv-subhead" style="margin-bottom:6px;">' +
+                '<span>Interactive Call-to-Action (CTA) Overlay</span>' +
+              '</div>' +
+              '<label class="check-row" for="editCtaOverlayCheck" style="margin-bottom:8px;">' +
+                '<input type="checkbox" id="editCtaOverlayCheck"' + (data.ctaOverlay && data.ctaOverlay.enabled ? ' checked' : '') + '>' +
+                '<span>Enable CTA Overlay Banner</span>' +
+              '</label>' +
+              '<div class="adv-grid">' +
+                '<div class="adv-field" style="grid-column: 1 / -1;">' +
+                  '<label for="editCtaMessage" class="adv-label">Banner Message</label>' +
+                  '<input type="text" id="editCtaMessage" class="adv-input" maxlength="140" value="' + escapeHtml((data.ctaOverlay && (data.ctaOverlay.bannerText || data.ctaOverlay.message)) || '') + '" placeholder="Banner text">' +
+                '</div>' +
+                '<div class="adv-field">' +
+                  '<label for="editCtaButtonText" class="adv-label">Button Text</label>' +
+                  '<input type="text" id="editCtaButtonText" class="adv-input" maxlength="40" value="' + escapeHtml((data.ctaOverlay && data.ctaOverlay.buttonText) || '') + '" placeholder="e.g. Learn More">' +
+                '</div>' +
+                '<div class="adv-field">' +
+                  '<label for="editCtaButtonUrl" class="adv-label">Button Destination URL</label>' +
+                  '<input type="url" id="editCtaButtonUrl" class="adv-input" value="' + escapeHtml((data.ctaOverlay && data.ctaOverlay.buttonUrl) || '') + '" placeholder="https://example.com/join">' +
+                '</div>' +
+                '<div class="adv-field">' +
+                  '<label for="editCtaAvatarUrl" class="adv-label">Avatar / Logo URL (optional)</label>' +
+                  '<input type="url" id="editCtaAvatarUrl" class="adv-input" value="' + escapeHtml((data.ctaOverlay && data.ctaOverlay.avatarUrl) || '') + '" placeholder="https://example.com/logo.png">' +
+                '</div>' +
+                '<div class="adv-field">' +
+                  '<label for="editCtaColor" class="adv-label">Button Accent Color (hex)</label>' +
+                  '<input type="text" id="editCtaColor" class="adv-input mono" maxlength="20" value="' + escapeHtml((data.ctaOverlay && data.ctaOverlay.color) || '') + '" placeholder="#6366f1">' +
+                '</div>' +
+              '</div>' +
             '</div>' +
             '<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:10px;">' +
               '<label class="check-row" for="editPublicStatsCheck">' +
@@ -5548,6 +5954,7 @@ export const DASHBOARD_APP_JS = `(function() {
       var editOgTitleInput = document.getElementById('editOgTitleInput');
       var editOgDescInput = document.getElementById('editOgDescInput');
       var editPublicStatsCheck = document.getElementById('editPublicStatsCheck');
+      var editAutoFailoverCheck = document.getElementById('editAutoFailoverCheck');
       var editExpiredActionSelect = document.getElementById('editExpiredActionSelect');
       var editExpiredUrlWrap = document.getElementById('editExpiredUrlWrap');
       var editExpiredUrlInput = document.getElementById('editExpiredUrlInput');
@@ -5560,6 +5967,20 @@ export const DASHBOARD_APP_JS = `(function() {
       var editGeoRoutesContainer = document.getElementById('editGeoRoutesContainer');
       var editAddSplitBtn = document.getElementById('editAddSplitBtn');
       var editSplitsContainer = document.getElementById('editSplitsContainer');
+      var editAddTimeRouteBtn = document.getElementById('editAddTimeRouteBtn');
+      var editTimeRoutesContainer = document.getElementById('editTimeRoutesContainer');
+      var editPixelBridgeCheck = document.getElementById('editPixelBridgeCheck');
+      var editPixelMeta = document.getElementById('editPixelMeta');
+      var editPixelGa4 = document.getElementById('editPixelGa4');
+      var editPixelTiktok = document.getElementById('editPixelTiktok');
+      var editPixelLinkedin = document.getElementById('editPixelLinkedin');
+      var editPixelTwitter = document.getElementById('editPixelTwitter');
+      var editCtaOverlayCheck = document.getElementById('editCtaOverlayCheck');
+      var editCtaMessage = document.getElementById('editCtaMessage');
+      var editCtaButtonText = document.getElementById('editCtaButtonText');
+      var editCtaButtonUrl = document.getElementById('editCtaButtonUrl');
+      var editCtaAvatarUrl = document.getElementById('editCtaAvatarUrl');
+      var editCtaColor = document.getElementById('editCtaColor');
       var saveEditBtn = document.getElementById('saveEditBtn');
       var editError = document.getElementById('editError');
       var editErrorText = document.getElementById('editErrorText');
@@ -5573,6 +5994,18 @@ export const DASHBOARD_APP_JS = `(function() {
       editAddGeoRouteBtn.addEventListener('click', function() {
         addGeoRow(editGeoRoutesContainer, '', '');
       });
+
+      if (data.timeRoutes && data.timeRoutes.length > 0 && editTimeRoutesContainer) {
+        data.timeRoutes.forEach(function(tr) {
+          addTimeRouteRow(editTimeRoutesContainer, tr);
+        });
+      }
+
+      if (editAddTimeRouteBtn && editTimeRoutesContainer) {
+        editAddTimeRouteBtn.addEventListener('click', function() {
+          addTimeRouteRow(editTimeRoutesContainer, null);
+        });
+      }
 
       if (data.splits && data.splits.length > 0 && editSplitsContainer) {
         data.splits.forEach(function(s) {
@@ -5658,6 +6091,8 @@ export const DASHBOARD_APP_JS = `(function() {
           updatePayload.fallbackUrl = null;
         }
 
+        updatePayload.autoFailover = editAutoFailoverCheck ? editAutoFailoverCheck.checked : false;
+
         var nextDevRoutes = {};
         if (editRouteIosInput.value.trim()) nextDevRoutes.ios = editRouteIosInput.value.trim();
         if (editRouteAndroidInput.value.trim()) nextDevRoutes.android = editRouteAndroidInput.value.trim();
@@ -5675,6 +6110,38 @@ export const DASHBOARD_APP_JS = `(function() {
           }
         }
         updatePayload.geoRoutes = nextGeoRoutes;
+
+        updatePayload.timeRoutes = getTimeRoutesFromContainer(editTimeRoutesContainer);
+
+        var editPix = {};
+        if (editPixelMeta && editPixelMeta.value.trim()) editPix.meta = editPixelMeta.value.trim();
+        if (editPixelGa4 && editPixelGa4.value.trim()) editPix.google = editPixelGa4.value.trim();
+        if (editPixelTiktok && editPixelTiktok.value.trim()) editPix.tiktok = editPixelTiktok.value.trim();
+        if (editPixelLinkedin && editPixelLinkedin.value.trim()) editPix.linkedin = editPixelLinkedin.value.trim();
+        if (editPixelTwitter && editPixelTwitter.value.trim()) editPix.twitter = editPixelTwitter.value.trim();
+        updatePayload.pixels = Object.keys(editPix).length > 0 ? editPix : null;
+        updatePayload.pixelBridge = editPixelBridgeCheck ? editPixelBridgeCheck.checked : false;
+
+        if (editCtaOverlayCheck && editCtaOverlayCheck.checked && editCtaMessage && editCtaButtonText && editCtaButtonUrl) {
+          var cMsg = editCtaMessage.value.trim();
+          var cBtn = editCtaButtonText.value.trim();
+          var cUrl = editCtaButtonUrl.value.trim();
+          if (cMsg && cBtn && cUrl) {
+            updatePayload.ctaOverlay = {
+              enabled: true,
+              bannerText: cMsg,
+              message: cMsg,
+              buttonText: cBtn,
+              buttonUrl: cUrl,
+              avatarUrl: (editCtaAvatarUrl && editCtaAvatarUrl.value.trim()) || undefined,
+              color: (editCtaColor && editCtaColor.value.trim()) || undefined
+            };
+          } else {
+            updatePayload.ctaOverlay = null;
+          }
+        } else {
+          updatePayload.ctaOverlay = null;
+        }
 
         var nextSplits = getSplitsFromContainer(editSplitsContainer);
         if (nextSplits && nextSplits.length > 0) {
@@ -5728,8 +6195,13 @@ export const DASHBOARD_APP_JS = `(function() {
             publicStats: !!updated.publicStats,
             startsAt: updated.startsAt,
             fallbackUrl: updated.fallbackUrl,
+            autoFailover: !!updated.autoFailover,
             isPending: !!updated.isPending,
             geoRoutes: updated.geoRoutes || {},
+            timeRoutes: updated.timeRoutes || [],
+            pixels: updated.pixels || null,
+            pixelBridge: !!updated.pixelBridge,
+            ctaOverlay: updated.ctaOverlay || null,
             deviceRoutes: updated.deviceRoutes || {},
             splits: updated.splits || [],
             healthStatus: updated.healthStatus || null,
@@ -6597,6 +7069,17 @@ export const DASHBOARD_APP_JS = `(function() {
             '</div>' +
           '</div>' +
 
+          '<div>' +
+            '<label style="font-size:0.8rem;font-weight:600;display:block;margin-bottom:6px;color:var(--text);">Retargeting Pixels &amp; Tracking</label>' +
+            '<div class="bio-form-grid-2">' +
+              '<input type="text" id="bioPixelMeta" class="input mono" placeholder="Meta Pixel ID" value="' + escapeHtml((profile.pixels && profile.pixels.meta) || '') + '" style="font-size:0.82rem;" />' +
+              '<input type="text" id="bioPixelGa4" class="input mono" placeholder="GA4 ID (G-XXXXXXXXXX)" value="' + escapeHtml((profile.pixels && profile.pixels.google) || '') + '" style="font-size:0.82rem;" />' +
+              '<input type="text" id="bioPixelTiktok" class="input mono" placeholder="TikTok Pixel ID" value="' + escapeHtml((profile.pixels && profile.pixels.tiktok) || '') + '" style="font-size:0.82rem;" />' +
+              '<input type="text" id="bioPixelLinkedin" class="input mono" placeholder="LinkedIn Partner ID" value="' + escapeHtml((profile.pixels && profile.pixels.linkedin) || '') + '" style="font-size:0.82rem;" />' +
+              '<input type="text" id="bioPixelTwitter" class="input mono" placeholder="Twitter / X Pixel ID" value="' + escapeHtml((profile.pixels && profile.pixels.twitter) || '') + '" style="grid-column:1 / -1;font-size:0.82rem;" />' +
+            '</div>' +
+          '</div>' +
+
           '<div id="bioModalError" class="alert-box" style="display:none;" role="alert">' +
             '<span id="bioModalErrorText"></span>' +
           '</div>' +
@@ -6642,6 +7125,12 @@ export const DASHBOARD_APP_JS = `(function() {
     var socialDiscord = document.getElementById('bioSocialDiscord');
     var socialEmail = document.getElementById('bioSocialEmail');
     var socialWebsite = document.getElementById('bioSocialWebsite');
+
+    var bioPixelMeta = document.getElementById('bioPixelMeta');
+    var bioPixelGa4 = document.getElementById('bioPixelGa4');
+    var bioPixelTiktok = document.getElementById('bioPixelTiktok');
+    var bioPixelLinkedin = document.getElementById('bioPixelLinkedin');
+    var bioPixelTwitter = document.getElementById('bioPixelTwitter');
 
     var bioLeadCaptureCheck = document.getElementById('bioLeadCaptureCheck');
     var bioLeadCaptureFields = document.getElementById('bioLeadCaptureFields');
@@ -6890,6 +7379,13 @@ export const DASHBOARD_APP_JS = `(function() {
         return;
       }
 
+      var bioPix = {};
+      if (bioPixelMeta && bioPixelMeta.value.trim()) bioPix.meta = bioPixelMeta.value.trim();
+      if (bioPixelGa4 && bioPixelGa4.value.trim()) bioPix.google = bioPixelGa4.value.trim();
+      if (bioPixelTiktok && bioPixelTiktok.value.trim()) bioPix.tiktok = bioPixelTiktok.value.trim();
+      if (bioPixelLinkedin && bioPixelLinkedin.value.trim()) bioPix.linkedin = bioPixelLinkedin.value.trim();
+      if (bioPixelTwitter && bioPixelTwitter.value.trim()) bioPix.twitter = bioPixelTwitter.value.trim();
+
       var payload = {
         handle: handleToEdit ? undefined : handleVal,
         title: titleVal,
@@ -6897,6 +7393,7 @@ export const DASHBOARD_APP_JS = `(function() {
         avatarUrl: avatarVal,
         verified: verifiedVal,
         theme: currentTheme,
+        pixels: Object.keys(bioPix).length > 0 ? bioPix : null,
         socials: {
           instagram: socialInsta.value.trim() || null,
           twitter: socialTwitter.value.trim() || null,

@@ -91,6 +91,64 @@
       "priority": 6,
       "passes": true,
       "notes": "Completed: Added leadCapture config to BioPageData. Rendered responsive newsletter block on public /bio/:handle with /assets/bio.js AJAX subscription handler. Added POST /bio/:handle/subscribe endpoint with rate limiting, deduplication, and persistence under b:leads:<handle>. Added GET /api/bio/:handle/subscribers with RFC4180 CSV export. Added Leads modal, subscriber count badge, and Lead Capture configuration in Bio Editor with live mobile preview. Verified with unit tests."
+    },
+    {
+      "id": "US-007",
+      "title": "Retargeting Pixels & Conversion Tracking Studio",
+      "description": "As a marketer, I want to attach Meta Pixel, GA4, TikTok, LinkedIn, and Twitter retargeting pixels to short links and bio pages so I can build custom advertising audiences.",
+      "acceptanceCriteria": [
+        "PixelConfig schema supports facebookPixelId, googleAnalyticsId, tiktokPixelId, linkedinPartnerId, twitterPixelId",
+        "Edge serves high-speed pixel bridge interstitial for pixel-enabled short links with automatic forward and meta refresh fallback",
+        "Public bio pages inject active pixels into header matching CSP whitelist",
+        "Console provides Tracking Pixels tab in Shorten Studio, Inspector modal, and Bio Studio",
+        "Typecheck and tests pass with 0 errors"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "Completed: Added PixelConfig schema supporting facebookPixelId, googleAnalyticsId, tiktokPixelId, linkedinPartnerId, and twitterPixelId with shorthand aliases. Built Pixel Bridge interstitial (/assets/pixel-bridge.js) with strict CSP headers (connect.facebook.net, googletagmanager.com, analytics.tiktok.com, snapchat.com, px.ads.linkedin.com, static.ads-twitter.com). Integrated pixel bridge into bio pages and added Tracking Pixels UI to Advanced Studio, Inspector modal, and Bio Studio editor."
+    },
+    {
+      "id": "US-008",
+      "title": "Automated Link Sentinel & Broken URL Auto-Failover",
+      "description": "As an operations manager, I want automatic background health checks of destination URLs with auto-failover to backup URLs when a destination goes down.",
+      "acceptanceCriteria": [
+        "POST /api/sentinel/scan and scheduled cron verify active URLs for HTTP errors and record latency in KV",
+        "Automatically routes traffic to fallbackUrl when primary destination is broken",
+        "Dispatches link.down and link.recovered webhook events",
+        "Console displays Sentinel health status filter and live status indicators",
+        "Typecheck and tests pass with 0 errors"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "Completed: Added checkDestinationHealth and runSentinelScan with scheduled cron and POST /api/sentinel/scan endpoints. Implemented auto-failover routing to fallbackUrl when destination HTTP status >= 400 or network fails. Dispatches link.down and link.recovered webhooks. Built Sentinel Scan button, health chips, and Healthy/Broken/Failover filters in dashboard."
+    },
+    {
+      "id": "US-009",
+      "title": "Smart Time-of-Day & Schedule Routing",
+      "description": "As a business owner, I want short links to route to different URLs based on the visitor's local hour and day of the week.",
+      "acceptanceCriteria": [
+        "TimeRoute schema supports days, startHour, endHour, timezone, and destination URL",
+        "Edge redirect engine determines visitor local time using cf.timezone and matches active time route",
+        "Console provides Time & Schedule Routing rule builder in Advanced Studio and Inspector",
+        "Typecheck and tests pass with 0 errors"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": "Completed: Added TimeRoute schema supporting days (0-6), startHour (0-23), endHour (1-24), timezone, and destination URL. Implemented evaluateTimeRoute matching against visitor local time via request timezone / cf.timezone with fallback to UTC. Added Time Routing builder UI in Advanced Studio and Inspector modal with live row additions/removals and validation."
+    },
+    {
+      "id": "US-010",
+      "title": "Interactive Call-to-Action (CTA) Overlay Banners",
+      "description": "As a curator, I want short links sharing external articles to display a sleek branded floating CTA banner with my avatar and newsletter link.",
+      "acceptanceCriteria": [
+        "CtaOverlayConfig schema supports enabled, bannerText, buttonText, buttonUrl, avatarUrl, theme, position",
+        "Edge serves responsive frame overlay displaying external content with floating branded CTA bar and close button",
+        "Console provides CTA Overlay designer with live preview",
+        "Typecheck and tests pass with 0 errors"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": "Completed: Added CtaOverlayConfig schema supporting enabled, bannerText, buttonText, buttonUrl, avatarUrl, theme, and position. Implemented renderCtaOverlayHtml rendering responsive iframe with floating branded CTA banner bar, avatar, action button, and dismiss toggle backed by /assets/cta-overlay.js and strict CTA_OVERLAY_CSP. Built CTA Overlay designer panel in Advanced Studio and Inspector modal."
     }
   ]
 }

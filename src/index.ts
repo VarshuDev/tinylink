@@ -2,13 +2,17 @@ import QRCode from "qrcode";
 import { DASHBOARD_APP_JS, renderDashboardHtml } from "./frontend";
 import {
   BIO_PAGE_JS,
+  CTA_OVERLAY_JS,
+  PIXEL_BRIDGE_JS,
   STATUS_PAGE_JS,
   THEME_INIT_JS,
   UNLOCK_PAGE_JS,
   escapeHtml,
   renderBioPageHtml,
+  renderCtaOverlayHtml,
   renderDeepLinkBridgeHtml,
   renderPasswordPage,
+  renderPixelBridgeHtml,
   renderPreviewMetaPage,
   renderPublicStatsPage,
   renderStatusPage,
@@ -23,11 +27,14 @@ import type {
   BioSocials,
   BioTheme,
   BrandedQrOptions,
+  CtaOverlayConfig,
   Env,
   ImportLinkInput,
   LinkHealthStatus,
+  PixelConfig,
   PublicWebhookConfig,
   SplitRoute,
+  TimeRoute,
   TimelineBucket,
   URLData,
   URLListEntry,
@@ -114,6 +121,30 @@ const HTML_UNLOCK_CSP = [
 ].join("; ");
 
 const API_CSP = "default-src 'none'; frame-ancestors 'none'";
+
+export const PIXEL_BRIDGE_CSP = [
+  "default-src 'self'",
+  "script-src 'self' https://connect.facebook.net https://www.googletagmanager.com https://analytics.tiktok.com https://snap.licdn.com https://static.ads-twitter.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https://www.facebook.com https://www.google-analytics.com https://analytics.google.com https://analytics.tiktok.com https://px.ads.linkedin.com https://analytics.twitter.com",
+  "connect-src 'self' https://www.facebook.com https://connect.facebook.net https://www.google-analytics.com https://analytics.google.com https://analytics.tiktok.com https://px.ads.linkedin.com https://analytics.twitter.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "frame-ancestors 'none'",
+].join("; ");
+
+export const CTA_OVERLAY_CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https:",
+  "connect-src 'self'",
+  "frame-src * https: http:",
+  "object-src 'none'",
+  "base-uri 'self'",
+].join("; ");
 
 const APP_ICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <rect width="512" height="512" rx="112" fill="#090D16"/>
@@ -869,11 +900,23 @@ export function pickSplitVariant(splits: SplitRoute[]): { url: string; index: nu
 export function resolveDestinationUrl(
   data: URLData,
   country: string,
-  os: "ios" | "android" | "desktop"
-): { targetUrl: string; reason: "device" | "geo" | "split" | "fallback" | "default"; splitVariantUrl?: string } {
-  // Auto-failover if target destination is marked broken (5xx) and fallbackUrl is set
-  if (data.healthStatus && !data.healthStatus.ok && data.fallbackUrl && data.healthStatus.status >= 500) {
+  os: "ios" | "android" | "desktop",
+  req?: Request
+): { targetUrl: string; reason: "device" | "geo" | "split" | "fallback" | "time" | "default"; splitVariantUrl?: string } {
+  // Auto-failover if target destination is marked broken and autoFailover is enabled (or status >= 500) and fallbackUrl is set
+  if (
+    data.fallbackUrl &&
+    ((data.autoFailover && data.healthStatus && !data.healthStatus.ok) ||
+      (data.healthStatus && !data.healthStatus.ok && data.healthStatus.status >= 500))
+  ) {
     return { targetUrl: data.fallbackUrl, reason: "fallback" };
+  }
+  // Smart Time-of-Day Routing
+  if (data.timeRoutes && data.timeRoutes.length > 0) {
+    const timeMatch = evaluateTimeRoute(data.timeRoutes, req);
+    if (timeMatch) {
+      return { targetUrl: timeMatch, reason: "time" };
+    }
   }
   if (data.deviceRoutes && data.deviceRoutes[os]?.trim()) {
     return { targetUrl: data.deviceRoutes[os]!.trim(), reason: "device" };
@@ -1405,6 +1448,190 @@ export function normalizeExpiredAction(
   return { expiredAction: null, expiredUrl: null, error: "Expired action must be either 'message' or 'redirect'" };
 }
 
+export function hasAnyPixel(pixels?: PixelConfig | null): boolean {
+  if (!pixels) return false;
+  return !!(
+    (pixels.facebookPixelId && pixels.facebookPixelId.trim()) ||
+    (pixels.googleAnalyticsId && pixels.googleAnalyticsId.trim()) ||
+    (pixels.tiktokPixelId && pixels.tiktokPixelId.trim()) ||
+    (pixels.linkedinPartnerId && pixels.linkedinPartnerId.trim()) ||
+    (pixels.twitterPixelId && pixels.twitterPixelId.trim())
+  );
+}
+
+export function normalizePixelConfig(raw: unknown): PixelConfig | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const obj = raw as Record<string, unknown>;
+
+  const clean = (val: unknown): string | null => {
+    if (typeof val !== "string") return null;
+    const trimmed = val.trim();
+    if (!trimmed || trimmed.length > 64) return null;
+    if (!/^[a-zA-Z0-9_\-]+$/.test(trimmed)) return null;
+    return trimmed;
+  };
+
+  const fb = clean(obj.facebookPixelId ?? obj.meta ?? obj.facebook);
+  const ga = clean(obj.googleAnalyticsId ?? obj.googleAnalytics ?? obj.google ?? obj.ga4);
+  const tt = clean(obj.tiktokPixelId ?? obj.tiktok);
+  const li = clean(obj.linkedinPartnerId ?? obj.linkedin);
+  const tw = clean(obj.twitterPixelId ?? obj.twitter);
+
+  if (!fb && !ga && !tt && !li && !tw) return null;
+
+  return {
+    ...(fb ? { facebookPixelId: fb, meta: fb } : {}),
+    ...(ga ? { googleAnalyticsId: ga, google: ga } : {}),
+    ...(tt ? { tiktokPixelId: tt, tiktok: tt } : {}),
+    ...(li ? { linkedinPartnerId: li, linkedin: li } : {}),
+    ...(tw ? { twitterPixelId: tw, twitter: tw } : {}),
+  };
+}
+
+export function normalizeTimeRoutes(
+  raw: unknown,
+  baseOrigin: string
+): { routes?: TimeRoute[]; error?: string } {
+  if (!raw) return { routes: [] };
+  if (!Array.isArray(raw)) return { error: "Time routes must be an array" };
+  if (raw.length > 20) return { error: "Maximum 20 time routes allowed" };
+
+  const routes: TimeRoute[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const r = raw[i];
+    if (!r || typeof r !== "object") return { error: `Time route at index ${i} is invalid` };
+    const obj = r as Record<string, unknown>;
+    if (typeof obj.url !== "string" || !obj.url.trim()) {
+      return { error: `Time route at index ${i} must specify a valid destination URL` };
+    }
+    const valid = validateDestinationUrl(obj.url.trim(), baseOrigin);
+    if (valid.error || !valid.url) {
+      return { error: `Time route at index ${i} URL error: ${valid.error || "invalid format"}` };
+    }
+    const startHour = Number(obj.startHour);
+    const endHour = Number(obj.endHour);
+    if (isNaN(startHour) || startHour < 0 || startHour > 23) {
+      return { error: `Time route at index ${i} startHour must be between 0 and 23` };
+    }
+    if (isNaN(endHour) || endHour < 0 || endHour > 24) {
+      return { error: `Time route at index ${i} endHour must be between 0 and 24` };
+    }
+    let days: number[] | undefined;
+    if (Array.isArray(obj.days)) {
+      days = obj.days
+        .map((d) => Number(d))
+        .filter((d) => !isNaN(d) && d >= 0 && d <= 6);
+    }
+    const tz = typeof obj.timezone === "string" && obj.timezone.trim() ? obj.timezone.trim().slice(0, 50) : undefined;
+    const label = typeof obj.label === "string" && obj.label.trim() ? obj.label.trim().slice(0, 40) : null;
+
+    routes.push({
+      url: valid.url,
+      startHour,
+      endHour,
+      ...(days && days.length ? { days } : {}),
+      ...(tz ? { timezone: tz } : {}),
+      label,
+    });
+  }
+  return { routes };
+}
+
+export function normalizeCtaOverlay(
+  raw: unknown,
+  baseOrigin: string
+): { config?: CtaOverlayConfig | null; error?: string } {
+  if (!raw) return { config: null };
+  if (typeof raw !== "object" || Array.isArray(raw)) return { error: "CTA overlay configuration must be an object" };
+  const obj = raw as Record<string, unknown>;
+  if (!obj.enabled) return { config: null };
+
+  const bannerText = typeof obj.bannerText === "string" ? obj.bannerText.trim().slice(0, 150) : (typeof obj.message === "string" ? obj.message.trim().slice(0, 150) : "");
+  const buttonText = typeof obj.buttonText === "string" ? obj.buttonText.trim().slice(0, 40) : "";
+  const buttonUrlRaw = typeof obj.buttonUrl === "string" ? obj.buttonUrl.trim() : "";
+
+  if (!bannerText) return { error: "CTA overlay requires bannerText (up to 150 characters)" };
+  if (!buttonText) return { error: "CTA overlay requires buttonText (up to 40 characters)" };
+  if (!buttonUrlRaw) return { error: "CTA overlay requires buttonUrl" };
+
+  const validBtn = validateDestinationUrl(buttonUrlRaw, baseOrigin);
+  if (validBtn.error || !validBtn.url) {
+    return { error: `CTA overlay button URL error: ${validBtn.error || "invalid format"}` };
+  }
+
+  let avatarUrl: string | null = null;
+  if (typeof obj.avatarUrl === "string" && obj.avatarUrl.trim()) {
+    const validAv = validateDestinationUrl(obj.avatarUrl.trim(), baseOrigin);
+    if (!validAv.error && validAv.url) {
+      avatarUrl = validAv.url;
+    }
+  }
+
+  const theme = obj.theme === "light" || obj.theme === "accent" ? obj.theme : "dark";
+  const position = obj.position === "top" ? "top" : "bottom";
+
+  return {
+    config: {
+      enabled: true,
+      bannerText,
+      buttonText,
+      buttonUrl: validBtn.url,
+      avatarUrl,
+      theme,
+      position,
+    },
+  };
+}
+
+export function evaluateTimeRoute(routes: TimeRoute[] | undefined, req?: Request): string | null {
+  if (!routes || !routes.length) return null;
+
+  const cfTimezone = req ? ((req as any).cf?.timezone as string | undefined) : undefined;
+
+  for (const route of routes) {
+    if (!route.url) continue;
+    const tz = route.timezone || cfTimezone || "UTC";
+    try {
+      const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        hourCycle: "h23",
+        hour: "numeric",
+        weekday: "short",
+      });
+      const parts = formatter.formatToParts(new Date());
+      let hour = 0;
+      let weekdayStr = "Sun";
+      for (const p of parts) {
+        if (p.type === "hour") hour = parseInt(p.value, 10);
+        if (p.type === "weekday") weekdayStr = p.value;
+      }
+      const dayMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+      const currentDay = dayMap[weekdayStr] ?? new Date().getDay();
+
+      if (Array.isArray(route.days) && route.days.length > 0) {
+        if (!route.days.includes(currentDay)) continue;
+      }
+
+      const start = Number(route.startHour) || 0;
+      const end = Number(route.endHour) || 24;
+
+      if (start <= end) {
+        if (hour >= start && hour < end) {
+          return route.url;
+        }
+      } else {
+        if (hour >= start || hour < end) {
+          return route.url;
+        }
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
 export function normalizeBioLeadCapture(raw: unknown): BioLeadCapture | undefined {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
   const rec = raw as Record<string, unknown>;
@@ -1453,6 +1680,11 @@ function buildMetadataIfFits(data: URLData): URLMetadata | undefined {
     ...(data.campaign ? { campaign: data.campaign } : {}),
     ...(data.expiredAction ? { expiredAction: data.expiredAction } : {}),
     ...(data.expiredUrl ? { expiredUrl: data.expiredUrl } : {}),
+    ...(data.pixels && hasAnyPixel(data.pixels) ? { hasPixels: true } : {}),
+    ...(data.pixelBridge ? { pixelBridge: true } : {}),
+    ...(data.autoFailover ? { autoFailover: true } : {}),
+    ...(data.timeRoutes && data.timeRoutes.length ? { hasTimeRoutes: true } : {}),
+    ...(data.ctaOverlay?.enabled ? { hasCtaOverlay: true } : {}),
   };
 
   if (encoder.encode(JSON.stringify(full)).length <= MAX_KV_META_BYTES) {
@@ -1758,6 +1990,11 @@ function toListEntry(
     campaign: (d as any).campaign ?? null,
     expiredAction: (d as any).expiredAction ?? null,
     expiredUrl: (d as any).expiredUrl ?? null,
+    pixels: (d as any).pixels ?? null,
+    pixelBridge: !!(d as any).pixelBridge,
+    autoFailover: !!(d as any).autoFailover,
+    timeRoutes: (d as any).timeRoutes ?? [],
+    ctaOverlay: (d as any).ctaOverlay ?? null,
   };
 }
 
@@ -1804,6 +2041,11 @@ async function listAllEntries(env: Env): Promise<URLListEntry[]> {
           campaign: meta.campaign ?? null,
           expiredAction: meta.expiredAction ?? null,
           expiredUrl: meta.expiredUrl ?? null,
+          pixels: null,
+          pixelBridge: !!meta.pixelBridge,
+          autoFailover: !!meta.autoFailover,
+          timeRoutes: [],
+          ctaOverlay: null,
         });
       } else {
         fallbackGets.push(
@@ -1905,10 +2147,18 @@ async function sendWebhookPost(
         ? "Click Limit Reached"
         : payload.event === "link.expired"
         ? "Link Expired"
+        : payload.event === "link.down"
+        ? "Link Destination DOWN (Failover Triggered)"
+        : payload.event === "link.recovered"
+        ? "Link Destination RECOVERED"
         : "Webhook Ping Test";
 
     const color =
-      payload.event === "link.limit_reached"
+      payload.event === "link.down"
+        ? 0xef4444
+        : payload.event === "link.recovered"
+        ? 0x22c55e
+        : payload.event === "link.limit_reached"
         ? 0xf59e0b
         : payload.event === "link.expired"
         ? 0xef4444
@@ -1962,6 +2212,10 @@ async function sendWebhookPost(
         ? "Click Limit Reached"
         : payload.event === "link.expired"
         ? "Link Expired"
+        : payload.event === "link.down"
+        ? "Link Destination DOWN (Failover Triggered)"
+        : payload.event === "link.recovered"
+        ? "Link Destination RECOVERED"
         : "Webhook Ping Test";
 
     const slackBody = {
@@ -2036,7 +2290,7 @@ async function sendWebhookPost(
 function dispatchWebhookEvent(
   env: Env,
   ctx: ExecutionContext,
-  event: "link.clicked" | "link.limit_reached" | "link.expired",
+  event: "link.clicked" | "link.limit_reached" | "link.expired" | "link.down" | "link.recovered",
   slug: string,
   data: URLData,
   req: Request,
@@ -2057,6 +2311,8 @@ function dispatchWebhookEvent(
         if (event === "link.clicked" && config.events?.onClicked === false) return;
         if (event === "link.limit_reached" && !config.events?.onLimitReached) return;
         if (event === "link.expired" && !config.events?.onExpired) return;
+        if (event === "link.down" && config.events?.onDown === false) return;
+        if (event === "link.recovered" && config.events?.onRecovered === false) return;
 
         const ip = getClientIp(req);
         const ipHash = (await computeIpHash(ip, env)).slice(0, 12);
@@ -2119,6 +2375,11 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
     campaign?: string | null;
     expiredAction?: ("message" | "redirect") | null;
     expiredUrl?: string | null;
+    pixels?: unknown;
+    pixelBridge?: boolean;
+    autoFailover?: boolean;
+    timeRoutes?: unknown;
+    ctaOverlay?: unknown;
   };
   const bodyParsed = await readBoundedJson<typeof body>(req);
   if (bodyParsed.error || !bodyParsed.data) {
@@ -2161,6 +2422,14 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
   const expiredParsed = normalizeExpiredAction(body.expiredAction, body.expiredUrl, req.url);
   if (expiredParsed.error) return err(expiredParsed.error);
 
+  const pixels = normalizePixelConfig(body.pixels);
+  const pixelBridge = body.pixelBridge === true;
+  const autoFailover = body.autoFailover === true;
+  const timeRoutesParsed = normalizeTimeRoutes(body.timeRoutes, req.url);
+  if (timeRoutesParsed.error) return err(timeRoutesParsed.error);
+  const ctaOverlayParsed = normalizeCtaOverlay(body.ctaOverlay, req.url);
+  if (ctaOverlayParsed.error) return err(ctaOverlayParsed.error);
+
   let passwordHash: string | null = null;
   if (typeof body.password === "string" && body.password.length > 0) {
     if (body.password.length > 128) return err("Link password must be 128 characters or fewer");
@@ -2201,6 +2470,11 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
         campaign: match.campaign ?? null,
         expiredAction: match.expiredAction ?? null,
         expiredUrl: match.expiredUrl ?? null,
+        pixels: match.pixels ?? null,
+        pixelBridge: !!match.pixelBridge,
+        autoFailover: !!match.autoFailover,
+        timeRoutes: match.timeRoutes ?? [],
+        ctaOverlay: match.ctaOverlay ?? null,
         deduplicated: true,
         qrSvg,
       });
@@ -2275,6 +2549,11 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
     campaign,
     expiredAction: expiredParsed.expiredAction,
     expiredUrl: expiredParsed.expiredUrl,
+    pixels,
+    pixelBridge,
+    autoFailover,
+    timeRoutes: timeRoutesParsed.routes,
+    ctaOverlay: ctaOverlayParsed.config,
   };
 
   await saveUrlRecord(env, slug!, data);
@@ -2307,6 +2586,11 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
     campaign: data.campaign ?? null,
     expiredAction: data.expiredAction ?? null,
     expiredUrl: data.expiredUrl ?? null,
+    pixels: data.pixels ?? null,
+    pixelBridge: !!data.pixelBridge,
+    autoFailover: !!data.autoFailover,
+    timeRoutes: data.timeRoutes ?? [],
+    ctaOverlay: data.ctaOverlay ?? null,
     qrSvg,
   });
 }
@@ -2402,6 +2686,11 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
     campaign?: string | null;
     expiredAction?: ("message" | "redirect") | null;
     expiredUrl?: string | null;
+    pixels?: unknown;
+    pixelBridge?: boolean;
+    autoFailover?: boolean;
+    timeRoutes?: unknown;
+    ctaOverlay?: unknown;
   };
   const bodyParsed = await readBoundedJson<typeof body>(req);
   if (bodyParsed.error || !bodyParsed.data) {
@@ -2426,6 +2715,11 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
   const hasDeepLink = body.deepLink !== undefined;
   const hasCampaign = body.campaign !== undefined;
   const hasExpiredAction = body.expiredAction !== undefined || body.expiredUrl !== undefined;
+  const hasPixels = body.pixels !== undefined;
+  const hasPixelBridge = body.pixelBridge !== undefined;
+  const hasAutoFailover = body.autoFailover !== undefined;
+  const hasTimeRoutes = body.timeRoutes !== undefined;
+  const hasCtaOverlay = body.ctaOverlay !== undefined;
 
   if (
     !hasUrl &&
@@ -2445,7 +2739,12 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
     !hasSplits &&
     !hasDeepLink &&
     !hasCampaign &&
-    !hasExpiredAction
+    !hasExpiredAction &&
+    !hasPixels &&
+    !hasPixelBridge &&
+    !hasAutoFailover &&
+    !hasTimeRoutes &&
+    !hasCtaOverlay
   ) {
     return err("Provide at least one field to update");
   }
@@ -2579,6 +2878,38 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
     data.expiredUrl = expParsed.expiredUrl;
   }
 
+  if (hasPixels) {
+    data.pixels = normalizePixelConfig(body.pixels);
+  }
+
+  if (hasPixelBridge) {
+    data.pixelBridge = body.pixelBridge === true;
+  }
+
+  if (hasAutoFailover) {
+    data.autoFailover = body.autoFailover === true;
+  }
+
+  if (hasTimeRoutes) {
+    if (body.timeRoutes === null || (Array.isArray(body.timeRoutes) && body.timeRoutes.length === 0)) {
+      data.timeRoutes = [];
+    } else {
+      const parsed = normalizeTimeRoutes(body.timeRoutes, req.url);
+      if (parsed.error) return err(parsed.error);
+      data.timeRoutes = parsed.routes;
+    }
+  }
+
+  if (hasCtaOverlay) {
+    if (body.ctaOverlay === null) {
+      data.ctaOverlay = null;
+    } else {
+      const parsed = normalizeCtaOverlay(body.ctaOverlay, req.url);
+      if (parsed.error) return err(parsed.error);
+      data.ctaOverlay = parsed.config ?? null;
+    }
+  }
+
   if (data.startsAt && data.expiresAt && new Date(data.startsAt) >= new Date(data.expiresAt)) {
     return err("Activation start time must be before link expiration time");
   }
@@ -2607,6 +2938,11 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
     campaign: data.campaign ?? null,
     expiredAction: data.expiredAction ?? null,
     expiredUrl: data.expiredUrl ?? null,
+    pixels: data.pixels ?? null,
+    pixelBridge: !!data.pixelBridge,
+    autoFailover: !!data.autoFailover,
+    timeRoutes: data.timeRoutes ?? [],
+    ctaOverlay: data.ctaOverlay ?? null,
     message: "Link updated successfully",
   });
 }
@@ -2623,21 +2959,7 @@ async function handleDelete(slug: string, env: Env, req: Request, ctx: Execution
   return json({ deleted: slug });
 }
 
-async function handleCheckHealth(slug: string, env: Env, req: Request, ctx: ExecutionContext): Promise<Response> {
-  const auth = await authenticateApiRequest(req, env, ctx);
-  if (!auth.ok) return auth.response!;
-  if (!SLUG_RE.test(slug)) return err("Invalid slug", 400);
-
-  const raw = await env.URL_KV.get(key(slug));
-  if (!raw) return err("URL not found", 404);
-
-  const data: URLData = JSON.parse(raw);
-  const targetUrl = data.originalUrl;
-  const valid = validateDestinationUrl(targetUrl, req.url);
-  if (valid.error || !valid.url) {
-    return err("Target URL failed security verification", 400);
-  }
-
+export async function checkDestinationHealth(targetUrl: string): Promise<LinkHealthStatus> {
   const start = Date.now();
   let status = 0;
   let statusText = "Network Error";
@@ -2652,14 +2974,14 @@ async function handleCheckHealth(slug: string, env: Env, req: Request, ctx: Exec
         method: "HEAD",
         redirect: "follow",
         signal: controller.signal,
-        headers: { "User-Agent": "TinyLink-HealthCheck/3.3" },
+        headers: { "User-Agent": "TinyLink-Sentinel/4.0" },
       });
       if (res.status === 405) {
         res = await fetch(targetUrl, {
           method: "GET",
           redirect: "follow",
           signal: controller.signal,
-          headers: { "User-Agent": "TinyLink-HealthCheck/3.3" },
+          headers: { "User-Agent": "TinyLink-Sentinel/4.0" },
         });
       }
     } catch (e: unknown) {
@@ -2683,14 +3005,115 @@ async function handleCheckHealth(slug: string, env: Env, req: Request, ctx: Exec
   }
 
   const latencyMs = Math.max(1, Date.now() - start);
-  const healthStatus: LinkHealthStatus = {
+  return {
     ok,
     status,
     statusText,
     latencyMs,
     checkedAt: new Date().toISOString(),
   };
+}
 
+export async function runSentinelScan(
+  env: Env,
+  ctx?: ExecutionContext
+): Promise<{
+  scanned: number;
+  healthy: number;
+  broken: number;
+  recovered: number;
+  failovers: number;
+  results: Array<{ slug: string; status: number; ok: boolean; latencyMs: number }>;
+}> {
+  const list = await listAllEntries(env);
+  const activeLinks = list.filter((l) => !l.isExpired && !l.isExhausted).slice(0, 50);
+
+  let healthy = 0;
+  let broken = 0;
+  let recovered = 0;
+  let failovers = 0;
+  const results: Array<{ slug: string; status: number; ok: boolean; latencyMs: number }> = [];
+
+  for (const item of activeLinks) {
+    try {
+      const raw = await env.URL_KV.get(key(item.slug));
+      if (!raw) continue;
+      const data: URLData = JSON.parse(raw);
+
+      const oldHealthOk = data.healthStatus ? data.healthStatus.ok : true;
+      const newHealth = await checkDestinationHealth(data.originalUrl);
+      data.healthStatus = newHealth;
+
+      if (newHealth.ok) {
+        healthy++;
+        if (!oldHealthOk) {
+          recovered++;
+          if (ctx) {
+            dispatchWebhookEvent(
+              env,
+              ctx,
+              "link.recovered",
+              item.slug,
+              data,
+              new Request(`https://tinylink.internal/${item.slug}`),
+              data.originalUrl
+            );
+          }
+        }
+      } else {
+        broken++;
+        if (data.autoFailover && data.fallbackUrl) {
+          failovers++;
+        }
+        if (oldHealthOk && ctx) {
+          dispatchWebhookEvent(
+            env,
+            ctx,
+            "link.down",
+            item.slug,
+            data,
+            new Request(`https://tinylink.internal/${item.slug}`),
+            data.originalUrl
+          );
+        }
+      }
+
+      await saveUrlRecord(env, item.slug, data);
+      results.push({
+        slug: item.slug,
+        status: newHealth.status,
+        ok: newHealth.ok,
+        latencyMs: newHealth.latencyMs,
+      });
+    } catch {}
+  }
+
+  return {
+    scanned: results.length,
+    healthy,
+    broken,
+    recovered,
+    failovers,
+    results,
+  };
+}
+
+async function handleCheckHealth(slug: string, env: Env, req: Request, ctx: ExecutionContext): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+  if (!SLUG_RE.test(slug)) return err("Invalid slug", 400);
+
+  const raw = await env.URL_KV.get(key(slug));
+  if (!raw) return err("URL not found", 404);
+
+  const data: URLData = JSON.parse(raw);
+  const targetUrl = data.originalUrl;
+  const valid = validateDestinationUrl(targetUrl, req.url);
+  if (valid.error || !valid.url) {
+    return err("Target URL failed security verification", 400);
+  }
+
+  const healthStatus = await checkDestinationHealth(targetUrl);
   data.healthStatus = healthStatus;
   await saveUrlRecord(env, slug, data);
 
@@ -2698,6 +3121,14 @@ async function handleCheckHealth(slug: string, env: Env, req: Request, ctx: Exec
     slug,
     health: healthStatus,
   });
+}
+
+async function handleSentinelScan(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+
+  const summary = await runSentinelScan(env, ctx);
+  return json(summary);
 }
 
 async function handleGenerateQr(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
@@ -3102,7 +3533,7 @@ async function handleRedirect(
   const shortUrl = `${origin}/${slug}`;
   const country = getVisitorCountry(req);
   const os = detectOsCategory(ua);
-  const { targetUrl, splitVariantUrl } = resolveDestinationUrl(data, country, os);
+  const { targetUrl, splitVariantUrl } = resolveDestinationUrl(data, country, os, req);
 
   // Handle POST unlock submission for password-protected links
   if (req.method === "POST") {
@@ -3193,6 +3624,40 @@ async function handleRedirect(
           }
         );
       }
+    }
+    if (data.ctaOverlay?.enabled) {
+      return new Response(
+        renderCtaOverlayHtml({
+          slug,
+          targetUrl,
+          config: data.ctaOverlay,
+        }),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "no-store",
+            "Content-Security-Policy": CTA_OVERLAY_CSP,
+          },
+        }
+      );
+    }
+    if (data.pixelBridge && data.pixels && hasAnyPixel(data.pixels)) {
+      return new Response(
+        renderPixelBridgeHtml({
+          slug,
+          targetUrl,
+          pixels: data.pixels,
+        }),
+        {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "no-store",
+            "Content-Security-Policy": PIXEL_BRIDGE_CSP,
+          },
+        }
+      );
     }
     return safeRedirect(targetUrl, 303);
   }
@@ -3286,6 +3751,42 @@ async function handleRedirect(
         }
       );
     }
+  }
+
+  if (data.ctaOverlay?.enabled) {
+    return new Response(
+      renderCtaOverlayHtml({
+        slug,
+        targetUrl,
+        config: data.ctaOverlay,
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store",
+          "Content-Security-Policy": CTA_OVERLAY_CSP,
+        },
+      }
+    );
+  }
+
+  if (data.pixelBridge && data.pixels && hasAnyPixel(data.pixels)) {
+    return new Response(
+      renderPixelBridgeHtml({
+        slug,
+        targetUrl,
+        pixels: data.pixels,
+      }),
+      {
+        status: 200,
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-store",
+          "Content-Security-Policy": PIXEL_BRIDGE_CSP,
+        },
+      }
+    );
   }
 
   return safeRedirect(targetUrl, 302);
@@ -3571,12 +4072,16 @@ async function handlePublicBioPage(handle: string, req: Request, env: Env, ctx: 
 
   const origin = getRequestOrigin(req);
   const html = renderBioPageHtml(data, origin);
+  const headers: Record<string, string> = {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "public, max-age=30, s-maxage=60",
+  };
+  if (data.pixels && hasAnyPixel(data.pixels)) {
+    headers["Content-Security-Policy"] = PIXEL_BRIDGE_CSP;
+  }
   return new Response(html, {
     status: 200,
-    headers: {
-      "Content-Type": "text/html; charset=utf-8",
-      "Cache-Control": "public, max-age=30, s-maxage=60",
-    },
+    headers,
   });
 }
 
@@ -3684,6 +4189,7 @@ async function handleBioCreate(env: Env, req: Request, ctx: ExecutionContext): P
     ogDescription?: string | null;
     ogImage?: string | null;
     leadCapture?: unknown;
+    pixels?: unknown;
   };
   const bodyParsed = await readBoundedJson<typeof body>(req);
   if (bodyParsed.error || !bodyParsed.data) {
@@ -3736,6 +4242,7 @@ async function handleBioCreate(env: Env, req: Request, ctx: ExecutionContext): P
     ogDescription: typeof body.ogDescription === "string" ? body.ogDescription.trim().slice(0, 220) : null,
     ogImage: typeof body.ogImage === "string" ? body.ogImage.trim() : null,
     leadCapture: normalizeBioLeadCapture(body.leadCapture),
+    pixels: normalizePixelConfig(body.pixels),
     views: 0,
     createdAt: now,
     updatedAt: now,
@@ -3768,6 +4275,7 @@ async function handleBioUpdate(handle: string, env: Env, req: Request, ctx: Exec
     ogDescription?: string | null;
     ogImage?: string | null;
     leadCapture?: unknown;
+    pixels?: unknown;
   };
   const bodyParsed = await readBoundedJson<typeof body>(req);
   if (bodyParsed.error || !bodyParsed.data) {
@@ -3841,6 +4349,9 @@ async function handleBioUpdate(handle: string, env: Env, req: Request, ctx: Exec
   }
   if (body.leadCapture !== undefined) {
     existingPage.leadCapture = normalizeBioLeadCapture(body.leadCapture);
+  }
+  if (body.pixels !== undefined) {
+    existingPage.pixels = normalizePixelConfig(body.pixels);
   }
 
   existingPage.updatedAt = new Date().toISOString();
@@ -4118,6 +4629,13 @@ export default {
     const res = await handleRoute(req, env, ctx);
     return applySecurityHeaders(res, req, env);
   },
+  async scheduled(
+    _controller: ScheduledController,
+    env: Env,
+    ctx: ExecutionContext
+  ): Promise<void> {
+    await runSentinelScan(env, ctx);
+  },
 } as ExportedHandler<Env>;
 
 async function handleRoute(
@@ -4212,6 +4730,24 @@ async function handleRoute(
     });
   }
 
+  if (path === "/assets/pixel-bridge.js" && req.method === "GET") {
+    return new Response(PIXEL_BRIDGE_JS, {
+      headers: {
+        "Content-Type": "application/javascript; charset=utf-8",
+        "Cache-Control": "public, max-age=3600",
+      },
+    });
+  }
+
+  if (path === "/assets/cta-overlay.js" && req.method === "GET") {
+    return new Response(CTA_OVERLAY_JS, {
+      headers: {
+        "Content-Type": "application/javascript; charset=utf-8",
+        "Cache-Control": "public, max-age=3600",
+      },
+    });
+  }
+
   if (path === "/robots.txt") {
     const robotsTxt = [
       "User-agent: *",
@@ -4285,6 +4821,7 @@ async function handleRoute(
   if (path === "/api/list" && req.method === "GET") return handleList(env, req, ctx);
   if (path === "/api/shorten" && req.method === "POST") return handleShorten(req, env, ctx);
   if (path === "/api/campaigns" && req.method === "POST") return handleCreateCampaign(req, env, ctx);
+  if (path === "/api/sentinel/scan" && req.method === "POST") return handleSentinelScan(req, env, ctx);
   if (path === "/api/bulk-delete" && req.method === "POST") return handleBulkDelete(req, env, ctx);
   if (path === "/api/import" && req.method === "POST") return handleImport(req, env, ctx);
   if (path === "/api/qr" && req.method === "POST") return handleGenerateQr(req, env, ctx);
@@ -4382,7 +4919,10 @@ async function handleRoute(
 
   // Redirect & unlock routes (strip accidental trailing slashes cleanly)
   if (path !== "/" && !path.startsWith("/api/") && (req.method === "GET" || req.method === "POST")) {
-    const cleanRaw = path.slice(1).replace(/\/+$/, "");
+    let cleanRaw = path.slice(1).replace(/\/+$/, "");
+    if (cleanRaw.endsWith("/unlock")) {
+      cleanRaw = cleanRaw.slice(0, -"/unlock".length);
+    }
     const slug = decodeSlugParam(cleanRaw);
     if (slug) {
       return handleRedirect(slug, req, env, ctx);
