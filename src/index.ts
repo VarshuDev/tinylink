@@ -3,6 +3,7 @@ import { DASHBOARD_APP_JS, renderDashboardHtml } from "./frontend";
 import {
   BIO_PAGE_JS,
   CTA_OVERLAY_JS,
+  DOCS_PAGE_JS,
   PIXEL_BRIDGE_JS,
   STATUS_PAGE_JS,
   THEME_INIT_JS,
@@ -11,6 +12,7 @@ import {
   renderBioPageHtml,
   renderCtaOverlayHtml,
   renderDeepLinkBridgeHtml,
+  renderDocsHtml,
   renderPasswordPage,
   renderPixelBridgeHtml,
   renderPreviewMetaPage,
@@ -18,6 +20,10 @@ import {
   renderStatusPage,
 } from "./pages";
 import type {
+  AiMetadataResponse,
+  AiSuggestResponse,
+  ApiKeyRecord,
+  ApiKeyScope,
   AnalyticsResponse,
   BioLead,
   BioLeadCapture,
@@ -27,8 +33,11 @@ import type {
   BioSocials,
   BioTheme,
   BrandedQrOptions,
+  ClickStreamEntry,
   CtaOverlayConfig,
+  CustomDomainRecord,
   Env,
+  GoalConversionRecord,
   ImportLinkInput,
   LinkHealthStatus,
   PixelConfig,
@@ -356,6 +365,12 @@ function applySecurityHeaders(res: Response, req: Request, env: Env): Response {
   const contentType = (headers.get("Content-Type") || "").toLowerCase();
   const isRedirect = res.status >= 300 && res.status < 400;
   const isApi = url.pathname.startsWith("/api/");
+
+  if ((req as any)._rateLimitHeaders) {
+    for (const [k, v] of Object.entries((req as any)._rateLimitHeaders)) {
+      if (!headers.has(k)) headers.set(k, v as string);
+    }
+  }
 
   headers.set("X-Content-Type-Options", "nosniff");
   headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
@@ -719,16 +734,139 @@ async function readBoundedJson<T = unknown>(
   }
 }
 
+export async function hashApiKey(token: string): Promise<string> {
+  const hashBuffer = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token.trim()));
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+export function generateApiKeyToken(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  const hex = Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return `tl_live_${hex}`;
+}
+
+export function generateKeyId(): string {
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  const hex = Array.from(bytes)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return `key_${hex}`;
+}
+
+interface ApiKeyVerificationResult {
+  ok: boolean;
+  apiKey?: ApiKeyRecord;
+  error?: string;
+  status?: number;
+  rateLimitHeaders?: Record<string, string>;
+}
+
+async function verifyApiKey(
+  token: string,
+  env: Env,
+  ctx: ExecutionContext,
+  requiredScope?: ApiKeyScope
+): Promise<ApiKeyVerificationResult> {
+  if (!token || !token.startsWith("tl_live_")) {
+    return { ok: false, error: "Invalid API key format", status: 401 };
+  }
+  const keyHash = await hashApiKey(token);
+  const raw = await env.URL_KV.get(`apikey:${keyHash}`);
+  if (!raw) {
+    return { ok: false, error: "Invalid or revoked API key", status: 401 };
+  }
+  let record: ApiKeyRecord;
+  try {
+    record = JSON.parse(raw);
+  } catch {
+    return { ok: false, error: "Corrupted API key record", status: 500 };
+  }
+
+  // Granular Scope check
+  if (requiredScope && (!record.scopes || !record.scopes.includes(requiredScope))) {
+    return {
+      ok: false,
+      error: `Forbidden: API key lacks required scope '${requiredScope}'`,
+      status: 403,
+    };
+  }
+
+  // Tiered Rate Limiting per key (record.rateLimit req/min, default 60)
+  const limit = record.rateLimit && record.rateLimit > 0 ? record.rateLimit : 60;
+  const currentMinute = Math.floor(Date.now() / 60000);
+  const windowKey = `rl:key:${record.id}:${currentMinute}`;
+  const currentRaw = await env.URL_KV.get(windowKey);
+  const currentCount = currentRaw ? parseInt(currentRaw, 10) : 0;
+  const remaining = Math.max(0, limit - currentCount - 1);
+  const resetSeconds = 60 - (Math.floor(Date.now() / 1000) % 60);
+
+  const rateLimitHeaders: Record<string, string> = {
+    "X-RateLimit-Limit": String(limit),
+    "X-RateLimit-Remaining": String(remaining),
+    "X-RateLimit-Reset": String(resetSeconds),
+  };
+
+  if (currentCount >= limit) {
+    return {
+      ok: false,
+      error: "Rate limit exceeded for API key",
+      status: 429,
+      rateLimitHeaders: {
+        ...rateLimitHeaders,
+        "Retry-After": String(resetSeconds),
+      },
+    };
+  }
+
+  ctx.waitUntil(
+    (async () => {
+      try {
+        await env.URL_KV.put(windowKey, String(currentCount + 1), { expirationTtl: 70 });
+        record.lastUsedAt = new Date().toISOString();
+        await env.URL_KV.put(`apikey:${keyHash}`, JSON.stringify(record));
+      } catch {}
+    })()
+  );
+
+  return { ok: true, apiKey: record, rateLimitHeaders };
+}
+
 interface AuthResult {
   ok: boolean;
+  apiKey?: ApiKeyRecord;
   response?: Response;
 }
 
 async function authenticateApiRequest(
   req: Request,
   env: Env,
-  ctx: ExecutionContext
+  ctx: ExecutionContext,
+  requiredScope?: ApiKeyScope
 ): Promise<AuthResult> {
+  const authHeader = req.headers.get("Authorization");
+  const bearerMatch = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+  const apiKeyCandidate = req.headers.get("X-API-Key") || (bearerMatch?.startsWith("tl_live_") ? bearerMatch : null);
+
+  if (apiKeyCandidate) {
+    const keyRes = await verifyApiKey(apiKeyCandidate, env, ctx, requiredScope);
+    if (keyRes.rateLimitHeaders) {
+      (req as any)._rateLimitHeaders = keyRes.rateLimitHeaders;
+    }
+    if (!keyRes.ok) {
+      return {
+        ok: false,
+        response: err(keyRes.error || "Unauthorized", keyRes.status || 401, keyRes.rateLimitHeaders || {}),
+      };
+    }
+    return { ok: true, apiKey: keyRes.apiKey };
+  }
+
   if (isMisconfigured(env)) {
     return {
       ok: false,
@@ -949,6 +1087,10 @@ function getVisitorCountry(req: Request): string {
   if (cf && typeof cf.country === "string" && cf.country.trim()) {
     return cf.country.trim().toUpperCase();
   }
+  const header = req.headers.get("CF-IPCountry") || req.headers.get("X-Country");
+  if (header && header.trim()) {
+    return header.trim().toUpperCase();
+  }
   return "Unknown";
 }
 
@@ -1160,9 +1302,73 @@ function validateExternalUrl(
   return { url };
 }
 
+export function isSuspiciousThreatUrl(targetUrl: string): { threat: boolean; reason?: string } {
+  try {
+    const parsed = new URL(targetUrl);
+    const host = parsed.hostname.toLowerCase();
+    const pathname = parsed.pathname.toLowerCase();
+    const full = `${host}${pathname}`;
+
+    // 1. Phishing & credential harvesting keywords
+    const highRiskPhrases = [
+      "login-verify",
+      "account-update",
+      "secure-banking-auth",
+      "paypal-verify",
+      "appleid-reset",
+      "microsoft-online-login",
+      "crypto-airdrop-claim",
+      "free-giftcard-generator",
+      "banking-confirm",
+      "recover-wallet-seed",
+      "discord-nitro-free",
+      "steam-community-trade-verify",
+    ];
+
+    for (const phrase of highRiskPhrases) {
+      if (full.includes(phrase)) {
+        return { threat: true, reason: `Destination URL flagged as deceptive: contains suspicious phrase '${phrase}'` };
+      }
+    }
+
+    // 2. Punycode / IDN spoofing check (e.g. xn-- domains mimicking brands)
+    if (host.startsWith("xn--") || host.includes(".xn--")) {
+      const suspiciousBrands = ["paypal", "apple", "google", "bank", "crypto", "amazon", "microsoft"];
+      for (const brand of suspiciousBrands) {
+        if (full.includes(brand)) {
+          return { threat: true, reason: "Destination URL flagged as potential punycode brand spoofing" };
+        }
+      }
+    }
+
+    // 3. Multi-level subdomains spoofing recognizable brands on disposable domains
+    const parts = host.split(".");
+    if (parts.length >= 4) {
+      const brandSpoofs = ["paypal", "chase", "bankofamerica", "wellsfargo", "coinbase", "binance", "metamask"];
+      const prefix = parts.slice(0, parts.length - 2).join(".");
+      for (const brand of brandSpoofs) {
+        if (prefix.includes(brand)) {
+          return { threat: true, reason: `Destination URL flagged as deceptive brand spoofing for '${brand}'` };
+        }
+      }
+    }
+
+    return { threat: false };
+  } catch {
+    return { threat: false };
+  }
+}
+
 function validateDestinationUrl(rawUrl: string | undefined, reqUrl: string): { url?: string; error?: string } {
   if (!rawUrl || !rawUrl.trim()) return { error: "Missing 'url' field" };
-  return validateExternalUrl(rawUrl, reqUrl, { requireHttps: false, maxLength: MAX_URL_LENGTH });
+  const res = validateExternalUrl(rawUrl, reqUrl, { requireHttps: false, maxLength: MAX_URL_LENGTH });
+  if (res.error || !res.url) return res;
+
+  const threat = isSuspiciousThreatUrl(res.url);
+  if (threat.threat) {
+    return { error: threat.reason || "Destination URL flagged as potentially malicious or deceptive" };
+  }
+  return res;
 }
 
 function normalizeLabel(raw: unknown): string | null {
@@ -2351,7 +2557,7 @@ function dispatchWebhookEvent(
 // ─── API Handlers ─────────────────────────────────────────────────────────────
 
 async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
-  const auth = await authenticateApiRequest(req, env, ctx);
+  const auth = await authenticateApiRequest(req, env, ctx, "write:links");
   if (!auth.ok) return auth.response!;
 
   let body: {
@@ -2596,7 +2802,7 @@ async function handleShorten(req: Request, env: Env, ctx: ExecutionContext) {
 }
 
 async function handleList(env: Env, req: Request, ctx: ExecutionContext) {
-  const auth = await authenticateApiRequest(req, env, ctx);
+  const auth = await authenticateApiRequest(req, env, ctx, "read:links");
   if (!auth.ok) return auth.response!;
 
   const urls = await listAllEntries(env);
@@ -2604,7 +2810,7 @@ async function handleList(env: Env, req: Request, ctx: ExecutionContext) {
 }
 
 async function handleAnalytics(slug: string, env: Env, req: Request, ctx: ExecutionContext) {
-  const auth = await authenticateApiRequest(req, env, ctx);
+  const auth = await authenticateApiRequest(req, env, ctx, "read:analytics");
   if (!auth.ok) return auth.response!;
   if (!SLUG_RE.test(slug)) return err("Invalid slug", 400);
 
@@ -2653,12 +2859,13 @@ async function handleAnalytics(slug: string, env: Env, req: Request, ctx: Execut
     campaign: data.campaign ?? null,
     expiredAction: data.expiredAction ?? null,
     expiredUrl: data.expiredUrl ?? null,
+    goals: data.goals || {},
     qrSvg,
   });
 }
 
 async function handleUpdate(slug: string, env: Env, req: Request, ctx: ExecutionContext) {
-  const auth = await authenticateApiRequest(req, env, ctx);
+  const auth = await authenticateApiRequest(req, env, ctx, "write:links");
   if (!auth.ok) return auth.response!;
   if (!SLUG_RE.test(slug)) return err("Invalid slug", 400);
 
@@ -2948,7 +3155,7 @@ async function handleUpdate(slug: string, env: Env, req: Request, ctx: Execution
 }
 
 async function handleDelete(slug: string, env: Env, req: Request, ctx: ExecutionContext) {
-  const auth = await authenticateApiRequest(req, env, ctx);
+  const auth = await authenticateApiRequest(req, env, ctx, "delete:links");
   if (!auth.ok) return auth.response!;
   if (!SLUG_RE.test(slug)) return err("Invalid slug", 400);
 
@@ -3198,6 +3405,387 @@ async function handleGetQr(slug: string, req: Request, env: Env): Promise<Respon
     slug,
     shortUrl: targetUrl,
     originalUrl: data.originalUrl,
+  });
+}
+
+export async function generateAiSuggestions(
+  urlStr: string,
+  title?: string,
+  _env?: Env
+): Promise<AiSuggestResponse> {
+  const url = new URL(urlStr);
+  const host = url.hostname.toLowerCase().replace(/^www\./, "");
+  const domainBase = host.split(".")[0];
+  const pathParts = url.pathname
+    .split("/")
+    .filter(Boolean)
+    .map((p) => p.toLowerCase().replace(/[^a-z0-9_-]/g, ""))
+    .filter((p) => p.length >= 2 && p.length <= 25);
+
+  const words: string[] = [];
+  if (title) {
+    const titleWords = title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, "")
+      .split(/\s+/)
+      .filter((w) => w.length >= 3 && !["the", "and", "for", "with", "this", "that", "from"].includes(w));
+    words.push(...titleWords.slice(0, 5));
+  }
+
+  const candidates: string[] = [];
+  if (pathParts.length > 0) {
+    const lastPart = pathParts[pathParts.length - 1];
+    candidates.push(lastPart);
+    if (pathParts.length >= 2) {
+      candidates.push(`${pathParts[0]}-${lastPart}`.slice(0, 30));
+    }
+    candidates.push(`${domainBase}-${lastPart}`.slice(0, 30));
+  }
+  if (words.length > 0) {
+    candidates.push(words.slice(0, 2).join("-"));
+    candidates.push(`${words[0]}-${domainBase}`.slice(0, 30));
+  }
+  candidates.push(`${domainBase}-link`);
+  candidates.push(`${domainBase}-go`);
+
+  const cleanSlugs: string[] = [];
+  for (const c of candidates) {
+    const clean = c.toLowerCase().replace(/[^a-z0-9-]/g, "").replace(/-+/g, "-").replace(/^-|-$/g, "");
+    if (clean.length >= 3 && clean.length <= 32 && !RESERVED_SLUGS.has(clean) && !cleanSlugs.includes(clean)) {
+      cleanSlugs.push(clean);
+    }
+  }
+
+  const tagsSet = new Set<string>();
+  if (domainBase && domainBase.length >= 3) tagsSet.add(domainBase);
+  for (const p of pathParts.slice(0, 3)) {
+    if (p.length >= 3) tagsSet.add(p);
+  }
+  for (const w of words.slice(0, 3)) {
+    if (w.length >= 3) tagsSet.add(w);
+  }
+
+  return {
+    slugs: cleanSlugs.slice(0, 5),
+    tags: Array.from(tagsSet).slice(0, 6),
+    title: title || `${domainBase.toUpperCase()} Resource`,
+  };
+}
+
+async function handleAiSuggest(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+
+  const bodyParsed = await readBoundedJson<{ url?: string; title?: string }>(req);
+  if (bodyParsed.error || !bodyParsed.data || !bodyParsed.data.url) {
+    return err("Missing 'url' parameter", 400);
+  }
+
+  const valid = validateDestinationUrl(bodyParsed.data.url, req.url);
+  if (valid.error || !valid.url) {
+    return err(valid.error || "Invalid destination URL", 400);
+  }
+
+  const result = await generateAiSuggestions(valid.url, bodyParsed.data.title, env);
+
+  const availableSlugs: string[] = [];
+  for (const slug of result.slugs) {
+    const existing = await env.URL_KV.get(key(slug));
+    if (!existing) {
+      availableSlugs.push(slug);
+    } else {
+      const alt = `${slug}-${Math.floor(10 + Math.random() * 89)}`;
+      availableSlugs.push(alt);
+    }
+  }
+
+  return json({
+    ok: true,
+    slugs: availableSlugs,
+    tags: result.tags,
+    title: result.title,
+  });
+}
+
+async function handleAiMetadata(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+
+  const bodyParsed = await readBoundedJson<{ url?: string }>(req);
+  if (bodyParsed.error || !bodyParsed.data || !bodyParsed.data.url) {
+    return err("Missing 'url' parameter", 400);
+  }
+
+  const valid = validateDestinationUrl(bodyParsed.data.url, req.url);
+  if (valid.error || !valid.url) {
+    return err(valid.error || "Invalid destination URL", 400);
+  }
+
+  let ogTitle = "";
+  let ogDescription = "";
+  let siteName = "";
+  const tags: string[] = [];
+
+  const parsedUrl = new URL(valid.url);
+  const host = parsedUrl.hostname.toLowerCase().replace(/^www\./, "");
+  siteName = host.split(".")[0];
+  tags.push(siteName);
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3500);
+
+    const resp = await fetch(valid.url, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": "TinyLink-Bot/1.0 (+https://tinylink.dev/bot)",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
+    });
+    clearTimeout(timeout);
+
+    if (resp.ok) {
+      const text = await resp.text();
+      const snippet = text.slice(0, 65536);
+
+      const titleMatch =
+        snippet.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i) ||
+        snippet.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:title["']/i) ||
+        snippet.match(/<title[^>]*>([^<]+)<\/title>/i);
+      if (titleMatch && titleMatch[1]) {
+        ogTitle = escapeHtml(titleMatch[1].trim()).slice(0, 100);
+      }
+
+      const descMatch =
+        snippet.match(/<meta[^>]*property=["']og:description["'][^>]*content=["']([^"']+)["']/i) ||
+        snippet.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:description["']/i) ||
+        snippet.match(/<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["']/i) ||
+        snippet.match(/<meta[^>]*content=["']([^"']+)["'][^>]*name=["']description["']/i);
+      if (descMatch && descMatch[1]) {
+        ogDescription = escapeHtml(descMatch[1].trim()).slice(0, 200);
+      }
+
+      const kwMatch = snippet.match(/<meta[^>]*name=["']keywords["'][^>]*content=["']([^"']+)["']/i);
+      if (kwMatch && kwMatch[1]) {
+        const extracted = kwMatch[1]
+          .split(",")
+          .map((k) => k.trim().toLowerCase().replace(/[^a-z0-9_-]/g, ""))
+          .filter((k) => k.length >= 2)
+          .slice(0, 5);
+        tags.push(...extracted);
+      }
+    }
+  } catch {}
+
+  if (!ogTitle) {
+    const pathSlug = parsedUrl.pathname.split("/").filter(Boolean).pop() || siteName;
+    ogTitle = pathSlug
+      .replace(/[-_]/g, " ")
+      .replace(/\b\w/g, (l) => l.toUpperCase())
+      .slice(0, 90);
+  }
+  if (!ogDescription) {
+    ogDescription = `Direct short link to ${siteName.toUpperCase()} destination via TinyLink.`;
+  }
+
+  const cleanTags = Array.from(new Set(tags)).filter(Boolean).slice(0, 6);
+
+  return json({
+    ok: true,
+    ogTitle,
+    ogDescription,
+    tags: cleanTags,
+    siteName,
+  });
+}
+
+const RECENT_CLICKS_KEY = "recent:clicks";
+const MAX_RECENT_CLICKS = 50;
+
+export async function recordClickStream(
+  env: Env,
+  entry: ClickStreamEntry,
+  ctx?: ExecutionContext
+): Promise<void> {
+  const task = (async () => {
+    try {
+      const raw = await env.URL_KV.get(RECENT_CLICKS_KEY);
+      const list: ClickStreamEntry[] = raw ? JSON.parse(raw) : [];
+      list.unshift(entry);
+      if (list.length > MAX_RECENT_CLICKS) list.length = MAX_RECENT_CLICKS;
+      await env.URL_KV.put(RECENT_CLICKS_KEY, JSON.stringify(list));
+    } catch {}
+  })();
+  if (ctx) ctx.waitUntil(task);
+  else await task;
+}
+
+async function handleStreamClicks(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx, "read:analytics");
+  if (!auth.ok) return auth.response!;
+
+  const url = new URL(req.url);
+  const filterSlug = url.searchParams.get("slug")?.trim().toLowerCase();
+
+  const raw = await env.URL_KV.get(RECENT_CLICKS_KEY);
+  let list: ClickStreamEntry[] = raw ? JSON.parse(raw) : [];
+  if (filterSlug) {
+    list = list.filter((item) => item.slug.toLowerCase() === filterSlug);
+  }
+
+  return json({
+    ok: true,
+    count: list.length,
+    clicks: list,
+  });
+}
+
+async function handleTrackGoal(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  let body: { slug?: string; goal?: string };
+  const bodyParsed = await readBoundedJson<typeof body>(req);
+  if (bodyParsed.error || !bodyParsed.data) {
+    return err(bodyParsed.error || "Invalid JSON body", 400);
+  }
+  body = bodyParsed.data;
+
+  const slug = typeof body.slug === "string" ? body.slug.trim() : "";
+  const goal = typeof body.goal === "string" ? body.goal.trim().toLowerCase().slice(0, 32) : "";
+
+  if (!slug || !SLUG_RE.test(slug)) {
+    return err("Invalid or missing 'slug'", 400);
+  }
+  if (!goal || !/^[a-z0-9_-]{2,32}$/.test(goal)) {
+    return err("Invalid 'goal' name: must be 2-32 lowercase alphanumeric, '-', or '_'", 400);
+  }
+
+  const raw = await env.URL_KV.get(key(slug));
+  if (!raw) {
+    return err("Short link not found", 404);
+  }
+
+  const data = JSON.parse(raw) as URLData;
+  if (!data.goals) {
+    data.goals = {};
+  }
+  data.goals[goal] = (data.goals[goal] || 0) + 1;
+
+  await saveUrlRecord(env, slug, data);
+
+  const totalClicks = data.clicks || 0;
+  const count = data.goals[goal];
+  const conversionRate = totalClicks > 0 ? Number(((count / totalClicks) * 100).toFixed(2)) : 0;
+
+  return json({
+    ok: true,
+    slug,
+    goal,
+    count,
+    totalClicks,
+    conversionRate: `${conversionRate}%`,
+  });
+}
+
+async function handleExportAnalytics(
+  slug: string,
+  env: Env,
+  req: Request,
+  ctx: ExecutionContext
+): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx, "read:analytics");
+  if (!auth.ok) return auth.response!;
+
+  const raw = await env.URL_KV.get(key(slug));
+  if (!raw) return err("Short link not found", 404);
+
+  const data = JSON.parse(raw) as URLData;
+  const url = new URL(req.url);
+  const format = (url.searchParams.get("format") || "csv").toLowerCase();
+
+  const totalClicks = data.clicks || 0;
+  const topCountry = Object.entries(data.countries || {}).sort((a, b) => b[1] - a[1])[0]?.[0] || "None";
+  const topDevice = Object.entries(data.devices || {}).sort((a, b) => b[1] - a[1])[0]?.[0] || "None";
+  const topReferrer = Object.entries(data.referrers || {}).sort((a, b) => b[1] - a[1])[0]?.[0] || "Direct";
+  const goalsTotal = Object.values(data.goals || {}).reduce((sum, c) => sum + c, 0);
+
+  if (format === "json") {
+    return new Response(
+      JSON.stringify(
+        {
+          slug,
+          originalUrl: data.originalUrl,
+          createdAt: data.createdAt,
+          totalClicks,
+          topCountry,
+          topDevice,
+          topReferrer,
+          goals: data.goals || {},
+          countries: data.countries || {},
+          devices: data.devices || {},
+          referrers: data.referrers || {},
+          dailyClicks: data.dailyClicks || {},
+          hourlyClicks: data.hourlyClicks || {},
+        },
+        null,
+        2
+      ),
+      {
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+          "Content-Disposition": `attachment; filename="tinylink-analytics-${slug}.json"`,
+          "Cache-Control": "no-store",
+        },
+      }
+    );
+  }
+
+  const rows: string[] = [
+    "Metric,Value",
+    `Slug,"${slug}"`,
+    `Destination,"${data.originalUrl.replace(/"/g, '""')}"`,
+    `Created At,"${data.createdAt}"`,
+    `Total Clicks,${totalClicks}`,
+    `Top Country,"${topCountry}"`,
+    `Top Device,"${topDevice}"`,
+    `Top Referrer,"${topReferrer}"`,
+    `Total Goal Conversions,${goalsTotal}`,
+    "",
+    "Goal Name,Conversions,Conversion Rate",
+  ];
+
+  if (data.goals && Object.keys(data.goals).length > 0) {
+    for (const [g, count] of Object.entries(data.goals)) {
+      const rate = totalClicks > 0 ? ((count / totalClicks) * 100).toFixed(2) + "%" : "0%";
+      rows.push(`"${g}",${count},${rate}`);
+    }
+  } else {
+    rows.push("None,0,0%");
+  }
+
+  rows.push("");
+  rows.push("Country,Clicks");
+  for (const [c, count] of Object.entries(data.countries || {})) {
+    rows.push(`"${c}",${count}`);
+  }
+
+  rows.push("");
+  rows.push("Device,Clicks");
+  for (const [d, count] of Object.entries(data.devices || {})) {
+    rows.push(`"${d}",${count}`);
+  }
+
+  rows.push("");
+  rows.push("Referrer,Clicks");
+  for (const [r, count] of Object.entries(data.referrers || {})) {
+    rows.push(`"${r}",${count}`);
+  }
+
+  const csvBody = rows.join("\r\n");
+  return new Response(csvBody, {
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="tinylink-analytics-${slug}.csv"`,
+      "Cache-Control": "no-store",
+    },
   });
 }
 
@@ -3453,9 +4041,16 @@ async function handleRedirect(
   slug: string,
   req: Request,
   env: Env,
-  ctx: ExecutionContext
+  ctx: ExecutionContext,
+  customDomain?: CustomDomainRecord | null
 ) {
   if (!SLUG_RE.test(slug)) {
+    if (customDomain?.custom404Html) {
+      return new Response(customDomain.custom404Html, {
+        status: 404,
+        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Custom-Domain": customDomain.domain },
+      });
+    }
     return new Response(
       renderStatusPage({
         status: 404,
@@ -3470,6 +4065,12 @@ async function handleRedirect(
   const raw = await env.URL_KV.get(key(slug));
 
   if (!raw) {
+    if (customDomain?.custom404Html) {
+      return new Response(customDomain.custom404Html, {
+        status: 404,
+        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Custom-Domain": customDomain.domain },
+      });
+    }
     return new Response(
       renderStatusPage({
         status: 404,
@@ -3594,6 +4195,18 @@ async function handleRedirect(
     }
 
     applyHumanHit(data, req, splitVariantUrl);
+    recordClickStream(
+      env,
+      {
+        slug,
+        timestamp: new Date().toISOString(),
+        country: getVisitorCountry(req),
+        device: detectDevice(req.headers.get("User-Agent") ?? ""),
+        referrer: parseReferrer(req.headers.get("Referer")),
+        destination: targetUrl,
+      },
+      ctx
+    );
     const hitLimitNow = !!(data.maxClicks && data.clicks >= data.maxClicks);
     if (data.maxClicks) {
       await saveUrlRecord(env, slug, data);
@@ -3720,6 +4333,18 @@ async function handleRedirect(
 
   // Track human analytics
   applyHumanHit(data, req, splitVariantUrl);
+  recordClickStream(
+    env,
+    {
+      slug,
+      timestamp: new Date().toISOString(),
+      country: getVisitorCountry(req),
+      device: detectDevice(req.headers.get("User-Agent") ?? ""),
+      referrer: parseReferrer(req.headers.get("Referer")),
+      destination: targetUrl,
+    },
+    ctx
+  );
   const hitLimitNow = !!(data.maxClicks && data.clicks >= data.maxClicks);
   if (data.maxClicks) {
     await saveUrlRecord(env, slug, data);
@@ -3974,6 +4599,201 @@ async function handleTestWebhook(req: Request, env: Env, ctx: ExecutionContext) 
 
   const res = await sendWebhookPost(checked.url, targetSecret, testPayload);
   return json(res);
+}
+
+// ─── Scoped API Keys Handlers (US-013) ─────────────────────────────────────────
+
+async function handleCreateApiKey(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+
+  let body: {
+    name?: string;
+    scopes?: ApiKeyScope[];
+    rateLimit?: number;
+  };
+  const bodyParsed = await readBoundedJson<typeof body>(req);
+  if (bodyParsed.error || !bodyParsed.data) {
+    return err(bodyParsed.error || "Invalid JSON body", bodyParsed.status || 400);
+  }
+  body = bodyParsed.data;
+
+  if (!body.name || typeof body.name !== "string" || !body.name.trim()) {
+    return err("Key name is required", 400);
+  }
+  if (body.name.trim().length > 100) {
+    return err("Key name must not exceed 100 characters", 400);
+  }
+
+  const allowedScopes: ApiKeyScope[] = ["read:links", "write:links", "delete:links", "read:analytics"];
+  let finalScopes: ApiKeyScope[] = ["read:links", "write:links"];
+  if (Array.isArray(body.scopes)) {
+    for (const s of body.scopes) {
+      if (!allowedScopes.includes(s)) {
+        return err(`Invalid scope: '${s}'. Allowed scopes: ${allowedScopes.join(", ")}`, 400);
+      }
+    }
+    finalScopes = Array.from(new Set(body.scopes));
+  }
+
+  let finalRateLimit = 100;
+  if (typeof body.rateLimit === "number" && Number.isFinite(body.rateLimit)) {
+    if (body.rateLimit < 1 || body.rateLimit > 10000) {
+      return err("rateLimit must be between 1 and 10000 requests per minute", 400);
+    }
+    finalRateLimit = Math.floor(body.rateLimit);
+  }
+
+  const rawToken = generateApiKeyToken();
+  const id = generateKeyId();
+  const keyHash = await hashApiKey(rawToken);
+  const keyPrefix = `${rawToken.slice(0, 14)}...`;
+
+  const record: ApiKeyRecord = {
+    id,
+    name: body.name.trim(),
+    keyPrefix,
+    keyHash,
+    scopes: finalScopes,
+    rateLimit: finalRateLimit,
+    createdAt: new Date().toISOString(),
+    lastUsedAt: null,
+  };
+
+  await env.URL_KV.put(`apikey:${keyHash}`, JSON.stringify(record));
+
+  // Update index
+  const indexRaw = await env.URL_KV.get("apikeys:index");
+  const keysIndex: ApiKeyRecord[] = indexRaw ? JSON.parse(indexRaw) : [];
+  keysIndex.unshift(record);
+  await env.URL_KV.put("apikeys:index", JSON.stringify(keysIndex));
+
+  return json({ ok: true, key: record, token: rawToken }, 201);
+}
+
+async function handleListApiKeys(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+
+  const indexRaw = await env.URL_KV.get("apikeys:index");
+  const keys: ApiKeyRecord[] = indexRaw ? JSON.parse(indexRaw) : [];
+  return json({ ok: true, keys });
+}
+
+async function handleDeleteApiKey(id: string, req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+
+  const indexRaw = await env.URL_KV.get("apikeys:index");
+  const keysIndex: ApiKeyRecord[] = indexRaw ? JSON.parse(indexRaw) : [];
+  const existing = keysIndex.find((k) => k.id === id);
+  if (!existing) {
+    return err("API key not found", 404);
+  }
+
+  await env.URL_KV.delete(`apikey:${existing.keyHash}`);
+  const filtered = keysIndex.filter((k) => k.id !== id);
+  await env.URL_KV.put("apikeys:index", JSON.stringify(filtered));
+
+  return json({ ok: true, deleted: id });
+}
+
+// ─── Custom Domain Multi-Tenancy Handlers (US-014) ───────────────────────────
+
+const DOMAIN_NAME_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
+
+async function handleListDomains(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+
+  const indexRaw = await env.URL_KV.get("domains:index");
+  const domainNames: string[] = indexRaw ? JSON.parse(indexRaw) : [];
+  const domains: CustomDomainRecord[] = [];
+
+  for (const name of domainNames) {
+    const raw = await env.URL_KV.get(`domain:${name}`);
+    if (raw) {
+      try {
+        domains.push(JSON.parse(raw));
+      } catch {}
+    }
+  }
+
+  return json({ ok: true, domains });
+}
+
+async function handleCreateDomain(req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+
+  let body: {
+    domain?: string;
+    rootRedirect?: string | null;
+    custom404Html?: string | null;
+  };
+  const bodyParsed = await readBoundedJson<typeof body>(req);
+  if (bodyParsed.error || !bodyParsed.data) {
+    return err(bodyParsed.error || "Invalid JSON body", bodyParsed.status || 400);
+  }
+  body = bodyParsed.data;
+
+  if (!body.domain || typeof body.domain !== "string") {
+    return err("Domain is required", 400);
+  }
+
+  const cleanDomain = body.domain.replace(/^https?:\/\//i, "").replace(/\/.*$/, "").toLowerCase().trim();
+  if (!DOMAIN_NAME_RE.test(cleanDomain) || cleanDomain.length > 253) {
+    return err("Invalid domain format. Example: tinylink.devs.li or go.mybrand.com", 400);
+  }
+
+  let rootRedirect: string | null = null;
+  if (body.rootRedirect && typeof body.rootRedirect === "string" && body.rootRedirect.trim()) {
+    try {
+      const parsedUrl = new URL(body.rootRedirect.trim());
+      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+        return err("rootRedirect must use http or https protocol", 400);
+      }
+      rootRedirect = parsedUrl.toString();
+    } catch {
+      return err("Invalid rootRedirect URL", 400);
+    }
+  }
+
+  const record: CustomDomainRecord = {
+    domain: cleanDomain,
+    rootRedirect,
+    custom404Html: typeof body.custom404Html === "string" ? body.custom404Html : null,
+    status: "active",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  await env.URL_KV.put(`domain:${cleanDomain}`, JSON.stringify(record));
+
+  // Add to index
+  const indexRaw = await env.URL_KV.get("domains:index");
+  const domainNames: string[] = indexRaw ? JSON.parse(indexRaw) : [];
+  if (!domainNames.includes(cleanDomain)) {
+    domainNames.push(cleanDomain);
+    await env.URL_KV.put("domains:index", JSON.stringify(domainNames));
+  }
+
+  return json({ ok: true, domain: record }, 201);
+}
+
+async function handleDeleteDomain(domain: string, req: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const auth = await authenticateApiRequest(req, env, ctx);
+  if (!auth.ok) return auth.response!;
+
+  const cleanDomain = domain.replace(/^https?:\/\//i, "").replace(/\/.*$/, "").toLowerCase().trim();
+  await env.URL_KV.delete(`domain:${cleanDomain}`);
+
+  const indexRaw = await env.URL_KV.get("domains:index");
+  const domainNames: string[] = indexRaw ? JSON.parse(indexRaw) : [];
+  const filtered = domainNames.filter((d) => d !== cleanDomain);
+  await env.URL_KV.put("domains:index", JSON.stringify(filtered));
+
+  return json({ ok: true, deleted: cleanDomain });
 }
 
 // ─── Bio Page Helpers & Handlers ──────────────────────────────────────────────
@@ -4646,6 +5466,25 @@ async function handleRoute(
   const url = new URL(req.url);
   const path = url.pathname;
 
+  const hostHeader = (req.headers.get("X-Forwarded-Host") || req.headers.get("Host") || "")
+    .split(":")[0]
+    .toLowerCase()
+    .trim();
+
+  let customDomain: CustomDomainRecord | null = null;
+  if (hostHeader) {
+    const rawDomain = await env.URL_KV.get(`domain:${hostHeader}`);
+    if (rawDomain) {
+      try {
+        customDomain = JSON.parse(rawDomain);
+      } catch {}
+    }
+  }
+
+  if (customDomain && (path === "/" || path === "") && customDomain.rootRedirect) {
+    return Response.redirect(customDomain.rootRedirect, 302);
+  }
+
   if (req.method === "OPTIONS") {
     const originCheck = resolveAllowedOrigin(req, env);
     if (!originCheck.allowed) {
@@ -4699,6 +5538,15 @@ async function handleRoute(
       headers: {
         "Content-Type": "application/javascript; charset=utf-8",
         "Cache-Control": "public, max-age=0, must-revalidate",
+      },
+    });
+  }
+
+  if (path === "/assets/docs.js" && req.method === "GET") {
+    return new Response(DOCS_PAGE_JS, {
+      headers: {
+        "Content-Type": "application/javascript; charset=utf-8",
+        "Cache-Control": "public, max-age=3600",
       },
     });
   }
@@ -4812,13 +5660,38 @@ async function handleRoute(
   if (path === "/api/health" && req.method === "GET") {
     return json({ ok: true, authRequired: isAuthRequired(env), service: "tinylink" });
   }
+  if (path === "/api/docs" && req.method === "GET") {
+    return new Response(renderDocsHtml(getRequestOrigin(req)), {
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Content-Security-Policy": HTML_CSP,
+        "Cache-Control": "public, max-age=3600",
+      },
+    });
+  }
   if (path === "/api/auth/session" && req.method === "GET") return handleAuthSession(req, env);
   if (path === "/api/auth/login" && req.method === "POST") return handleAuthLogin(req, env, ctx);
   if (path === "/api/auth/logout" && req.method === "POST") return handleAuthLogout(req);
+  if (path === "/api/keys" && req.method === "GET") return handleListApiKeys(req, env, ctx);
+  if (path === "/api/keys" && req.method === "POST") return handleCreateApiKey(req, env, ctx);
+  if (path.startsWith("/api/keys/") && req.method === "DELETE") {
+    const id = path.slice("/api/keys/".length);
+    if (!id) return err("Invalid key ID", 400);
+    return handleDeleteApiKey(id, req, env, ctx);
+  }
+  if (path === "/api/domains" && req.method === "GET") return handleListDomains(req, env, ctx);
+  if (path === "/api/domains" && req.method === "POST") return handleCreateDomain(req, env, ctx);
+  if (path.startsWith("/api/domains/") && req.method === "DELETE") {
+    const domain = path.slice("/api/domains/".length);
+    if (!domain) return err("Invalid domain", 400);
+    return handleDeleteDomain(domain, req, env, ctx);
+  }
   if (path === "/api/settings/webhooks" && req.method === "GET") return handleGetWebhookSettings(req, env, ctx);
   if (path === "/api/settings/webhooks" && req.method === "POST") return handleSaveWebhookSettings(req, env, ctx);
   if (path === "/api/settings/webhooks/test" && req.method === "POST") return handleTestWebhook(req, env, ctx);
   if (path === "/api/list" && req.method === "GET") return handleList(env, req, ctx);
+  if (path === "/api/ai/suggest" && req.method === "POST") return handleAiSuggest(req, env, ctx);
+  if (path === "/api/ai/metadata" && req.method === "POST") return handleAiMetadata(req, env, ctx);
   if (path === "/api/shorten" && req.method === "POST") return handleShorten(req, env, ctx);
   if (path === "/api/campaigns" && req.method === "POST") return handleCreateCampaign(req, env, ctx);
   if (path === "/api/sentinel/scan" && req.method === "POST") return handleSentinelScan(req, env, ctx);
@@ -4830,8 +5703,16 @@ async function handleRoute(
     if (!slug || !SLUG_RE.test(slug)) return err("Invalid slug", 400);
     return handleGetQr(slug, req, env);
   }
+  if (path === "/api/stream/clicks" && req.method === "GET") return handleStreamClicks(req, env, ctx);
+  if (path === "/api/goals/track" && req.method === "POST") return handleTrackGoal(req, env, ctx);
   if (path.startsWith("/api/analytics/") && req.method === "GET") {
-    const slug = decodeSlugParam(path.slice("/api/analytics/".length));
+    const rest = path.slice("/api/analytics/".length);
+    if (rest.endsWith("/export")) {
+      const slug = decodeSlugParam(rest.slice(0, -"/export".length));
+      if (!slug || !SLUG_RE.test(slug)) return err("Invalid slug", 400);
+      return handleExportAnalytics(slug, env, req, ctx);
+    }
+    const slug = decodeSlugParam(rest);
     if (!slug || !SLUG_RE.test(slug)) return err("Invalid slug", 400);
     return handleAnalytics(slug, env, req, ctx);
   }
@@ -4925,10 +5806,22 @@ async function handleRoute(
     }
     const slug = decodeSlugParam(cleanRaw);
     if (slug) {
-      return handleRedirect(slug, req, env, ctx);
+      return handleRedirect(slug, req, env, ctx, customDomain);
+    }
+    if (customDomain?.custom404Html) {
+      return new Response(customDomain.custom404Html, {
+        status: 404,
+        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Custom-Domain": customDomain.domain },
+      });
     }
   }
 
   // Frontend Dashboard
+  if (customDomain && customDomain.custom404Html && path !== "/") {
+    return new Response(customDomain.custom404Html, {
+      status: 404,
+      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "X-Custom-Domain": customDomain.domain },
+    });
+  }
   return frontend(env);
 }

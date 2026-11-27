@@ -1855,3 +1855,493 @@ export function renderBioPageHtml(data: BioPageData, origin: string): string {
 </body>
 </html>`;
 }
+
+// ── OpenAPI Documentation & Interactive Playground ──
+
+export const DOCS_PAGE_JS = `(function() {
+  'use strict';
+
+  var tokenInput = document.getElementById('docsToken');
+  var endpointSelect = document.getElementById('docsEndpoint');
+  var methodEl = document.getElementById('docsMethod');
+  var pathEl = document.getElementById('docsPath');
+  var paramInput = document.getElementById('docsParam');
+  var paramGroup = document.getElementById('docsParamGroup');
+  var bodyInput = document.getElementById('docsBody');
+  var bodyGroup = document.getElementById('docsBodyGroup');
+  var sendBtn = document.getElementById('docsSendBtn');
+  var resetBtn = document.getElementById('docsResetBtn');
+  var statusBadge = document.getElementById('docsStatusBadge');
+  var latencyBadge = document.getElementById('docsLatencyBadge');
+  var headersEl = document.getElementById('docsHeaders');
+  var responseEl = document.getElementById('docsResponse');
+  var copyResponseBtn = document.getElementById('docsCopyBtn');
+
+  var ENDPOINTS = {
+    'shorten': { method: 'POST', path: '/api/shorten', hasParam: false, hasBody: true, defaultBody: '{\\n  "url": "https://example.com/target",\\n  "custom": "test-slug",\\n  "tags": ["prod", "demo"]\\n}' },
+    'list': { method: 'GET', path: '/api/list', hasParam: false, hasBody: false },
+    'analytics': { method: 'GET', path: '/api/analytics/:slug', hasParam: true, paramPlaceholder: 'Slug (e.g. test-slug)', defaultParam: 'test-slug', hasBody: false },
+    'export_csv': { method: 'GET', path: '/api/analytics/:slug/export?format=csv', hasParam: true, paramPlaceholder: 'Slug (e.g. test-slug)', defaultParam: 'test-slug', hasBody: false },
+    'stream_clicks': { method: 'GET', path: '/api/stream/clicks', hasParam: false, hasBody: false },
+    'goals_track': { method: 'POST', path: '/api/goals/track', hasParam: false, hasBody: true, defaultBody: '{\\n  "slug": "test-slug",\\n  "goal": "purchase"\\n}' },
+    'ai_suggest': { method: 'POST', path: '/api/ai/suggest', hasParam: false, hasBody: true, defaultBody: '{\\n  "url": "https://stripe.com/docs",\\n  "title": "Stripe API Reference"\\n}' },
+    'ai_metadata': { method: 'POST', path: '/api/ai/metadata', hasParam: false, hasBody: true, defaultBody: '{\\n  "url": "https://github.com"\\n}' },
+    'keys_list': { method: 'GET', path: '/api/keys', hasParam: false, hasBody: false },
+    'keys_create': { method: 'POST', path: '/api/keys', hasParam: false, hasBody: true, defaultBody: '{\\n  "name": "Production Service Key",\\n  "scopes": ["read:links", "write:links", "read:analytics"],\\n  "rateLimit": 120\\n}' },
+    'keys_delete': { method: 'DELETE', path: '/api/keys/:id', hasParam: true, paramPlaceholder: 'Key ID (e.g. key_123456)', defaultParam: 'key_id_here', hasBody: false },
+    'domains_list': { method: 'GET', path: '/api/domains', hasParam: false, hasBody: false },
+    'domains_create': { method: 'POST', path: '/api/domains', hasParam: false, hasBody: true, defaultBody: '{\\n  "domain": "tinylink.devs.li",\\n  "rootRedirect": "https://github.com/VarshuDev/tinylink"\\n}' },
+    'domains_delete': { method: 'DELETE', path: '/api/domains/:domain', hasParam: true, paramPlaceholder: 'Domain name (e.g. tinylink.devs.li)', defaultParam: 'tinylink.devs.li', hasBody: false }
+  };
+
+  function updateForm() {
+    var key = endpointSelect.value;
+    var ep = ENDPOINTS[key];
+    if (!ep) return;
+
+    methodEl.textContent = ep.method;
+    methodEl.className = 'http-badge http-' + ep.method.toLowerCase();
+    pathEl.textContent = ep.path;
+
+    if (ep.hasParam) {
+      paramGroup.hidden = false;
+      paramInput.placeholder = ep.paramPlaceholder || 'Parameter';
+      paramInput.value = ep.defaultParam || '';
+    } else {
+      paramGroup.hidden = true;
+    }
+
+    if (ep.hasBody) {
+      bodyGroup.hidden = false;
+      bodyInput.value = ep.defaultBody || '{}';
+    } else {
+      bodyGroup.hidden = true;
+    }
+  }
+
+  endpointSelect.addEventListener('change', updateForm);
+  updateForm();
+
+  sendBtn.addEventListener('click', async function() {
+    var key = endpointSelect.value;
+    var ep = ENDPOINTS[key];
+    if (!ep) return;
+
+    var actualPath = ep.path;
+    if (ep.hasParam) {
+      var val = (paramInput.value || '').trim();
+      actualPath = actualPath.replace(/:[a-zA-Z0-9_]+/, encodeURIComponent(val));
+    }
+
+    var token = (tokenInput.value || '').trim();
+    var headers = {};
+    if (token) {
+      if (token.startsWith('tl_live_')) {
+        headers['X-API-Key'] = token;
+      } else {
+        headers['X-Auth-Token'] = token;
+      }
+    }
+
+    var fetchOpts = {
+      method: ep.method,
+      headers: headers
+    };
+
+    if (ep.hasBody) {
+      headers['Content-Type'] = 'application/json';
+      fetchOpts.body = bodyInput.value;
+    }
+
+    statusBadge.textContent = 'Sending...';
+    statusBadge.className = 'status-badge status-loading';
+    statusBadge.hidden = false;
+    latencyBadge.hidden = true;
+    headersEl.textContent = '';
+    responseEl.textContent = '';
+
+    var t0 = performance.now();
+    try {
+      var res = await fetch(actualPath, fetchOpts);
+      var t1 = performance.now();
+      var latency = Math.round(t1 - t0);
+
+      statusBadge.textContent = res.status + ' ' + res.statusText;
+      statusBadge.className = 'status-badge ' + (res.ok ? 'status-ok' : (res.status >= 500 ? 'status-err' : 'status-warn'));
+      latencyBadge.textContent = latency + 'ms';
+      latencyBadge.hidden = false;
+
+      var headerLines = [];
+      res.headers.forEach(function(val, name) {
+        if (name.toLowerCase().startsWith('x-ratelimit') || name.toLowerCase().startsWith('content-type') || name.toLowerCase().startsWith('x-custom-domain')) {
+          headerLines.push(name + ': ' + val);
+        }
+      });
+      headersEl.textContent = headerLines.length ? headerLines.join('\\n') : '(Standard security headers returned)';
+
+      var text = await res.text();
+      try {
+        var parsed = JSON.parse(text);
+        responseEl.textContent = JSON.stringify(parsed, null, 2);
+      } catch (e) {
+        responseEl.textContent = text;
+      }
+    } catch (err) {
+      statusBadge.textContent = 'Network Error';
+      statusBadge.className = 'status-badge status-err';
+      responseEl.textContent = String(err);
+    }
+  });
+
+  resetBtn.addEventListener('click', function() {
+    updateForm();
+    statusBadge.hidden = true;
+    latencyBadge.hidden = true;
+    headersEl.textContent = '';
+    responseEl.textContent = '';
+  });
+
+  copyResponseBtn.addEventListener('click', function() {
+    var text = responseEl.textContent || '';
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    var oldText = copyResponseBtn.textContent;
+    copyResponseBtn.textContent = 'Copied!';
+    setTimeout(function() { copyResponseBtn.textContent = oldText; }, 1800);
+  });
+})();
+`;
+
+export function renderDocsHtml(origin: string): string {
+  const originEsc = escapeHtml(origin);
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TinyLink OpenAPI Documentation &amp; Developer Console</title>
+  <meta name="description" content="Official API reference, OpenAPI specifications, and interactive testing playground for the TinyLink Edge URL Shortener.">
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <script src="/assets/theme.js"></script>
+  <style>
+    :root {
+      --bg: #090D16;
+      --bg-card: #111827;
+      --bg-hover: #1F2937;
+      --border: rgba(148, 163, 184, 0.16);
+      --text: #F8FAFC;
+      --text-muted: #94A3B8;
+      --link: #38BDF8;
+      --accent: #22C55E;
+      --warning: #F59E0B;
+      --danger: #EF4444;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    [data-theme="light"] {
+      --bg: #F8FAFC;
+      --bg-card: #FFFFFF;
+      --bg-hover: #F1F5F9;
+      --border: rgba(100, 116, 139, 0.18);
+      --text: #0F172A;
+      --text-muted: #64748B;
+      --link: #0284C7;
+      --accent: #16A34A;
+      --warning: #D97706;
+      --danger: #DC2626;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+      padding-bottom: 60px;
+    }
+    .header {
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-card);
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .logo-badge {
+      background: rgba(34, 197, 94, 0.14);
+      color: var(--accent);
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .header h1 { font-size: 1.15rem; font-weight: 700; }
+    .header-links a { color: var(--link); text-decoration: none; font-size: 0.85rem; font-weight: 600; margin-left: 16px; }
+    .header-links a:hover { text-decoration: underline; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px 16px; }
+    .hero-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .hero-box h2 { font-size: 1.3rem; margin-bottom: 8px; }
+    .hero-box p { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 16px; }
+    .auth-banner {
+      background: rgba(56, 189, 248, 0.08);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 0.85rem;
+    }
+    .auth-banner strong { color: var(--link); }
+    .auth-banner code { font-family: var(--font-mono); background: rgba(0,0,0,0.25); padding: 2px 6px; border-radius: 4px; }
+    .playground-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin-bottom: 32px;
+    }
+    .playground-card h3 { font-size: 1.15rem; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+    .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 14px; }
+    @media (max-width: 768px) { .field-row { grid-template-columns: 1fr; } }
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: 0.8rem; font-weight: 600; color: var(--text-muted); }
+    .input, .select, .textarea {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 0.88rem;
+      padding: 9px 12px;
+      border-radius: 6px;
+      font-family: inherit;
+    }
+    .textarea { font-family: var(--font-mono); resize: vertical; min-height: 90px; }
+    .input:focus, .select:focus, .textarea:focus { outline: 2px solid var(--link); border-color: transparent; }
+    .http-badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      font-family: var(--font-mono);
+    }
+    .http-get { background: rgba(34, 197, 94, 0.18); color: var(--accent); }
+    .http-post { background: rgba(56, 189, 248, 0.18); color: var(--link); }
+    .http-delete { background: rgba(239, 68, 68, 0.18); color: var(--danger); }
+    .btn-row { display: flex; align-items: center; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+    .btn {
+      padding: 9px 18px;
+      font-size: 0.88rem;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+    }
+    .btn-primary { background: var(--link); color: #000; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-ghost { background: transparent; border-color: var(--border); color: var(--text); }
+    .btn-ghost:hover { background: var(--bg-hover); }
+    .response-pane {
+      margin-top: 20px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .response-header {
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .status-badge {
+      font-size: 0.78rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-family: var(--font-mono);
+    }
+    .status-ok { background: rgba(34, 197, 94, 0.18); color: var(--accent); }
+    .status-warn { background: rgba(245, 158, 11, 0.18); color: var(--warning); }
+    .status-err { background: rgba(239, 68, 68, 0.18); color: var(--danger); }
+    .status-loading { background: rgba(56, 189, 248, 0.18); color: var(--link); }
+    .code-box {
+      padding: 14px;
+      font-family: var(--font-mono);
+      font-size: 0.82rem;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      max-height: 400px;
+      line-height: 1.45;
+    }
+    .section-title { font-size: 1.2rem; font-weight: 700; margin: 32px 0 16px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    .spec-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    .spec-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+    .spec-path { font-family: var(--font-mono); font-size: 0.95rem; font-weight: 600; }
+    .spec-desc { font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px; }
+    .scope-tag { font-size: 0.72rem; padding: 2px 7px; border-radius: 4px; background: rgba(148, 163, 184, 0.14); color: var(--text-muted); font-family: var(--font-mono); }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="header-left">
+      <span class="logo-badge">OpenAPI 3.1</span>
+      <h1>TinyLink Developer Platform &amp; API Reference</h1>
+    </div>
+    <div class="header-links">
+      <a href="${originEsc}/">Console Dashboard</a>
+      <a href="https://github.com/VarshuDev/tinylink" target="_blank" rel="noopener noreferrer">GitHub Repo</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="hero-box">
+      <h2>Edge-Accelerated URL Intelligence API</h2>
+      <p>Direct programmatic access to TinyLink's link creation, AI suggestions, real-time analytics stream, conversion goals, scoped API tokens, and custom domain multi-tenancy.</p>
+      <div class="auth-banner">
+        <strong>Authentication:</strong> Pass your scoped API token via <code>X-API-Key: tl_live_...</code> or <code>Authorization: Bearer tl_live_...</code>. Admin master tokens pass via <code>X-Auth-Token: ...</code>.<br>
+        <strong>Rate Limits:</strong> Managed via <code>X-RateLimit-Limit</code>, <code>X-RateLimit-Remaining</code>, and <code>X-RateLimit-Reset</code> response headers.
+      </div>
+    </div>
+
+    <section class="playground-card" aria-labelledby="playgroundTitle">
+      <h3 id="playgroundTitle">Interactive API Playground</h3>
+      <div class="field-row">
+        <div class="field">
+          <label for="docsToken">API Key or Admin Token</label>
+          <input type="password" id="docsToken" class="input" placeholder="tl_live_... or master admin token">
+        </div>
+        <div class="field">
+          <label for="docsEndpoint">Select Target Endpoint</label>
+          <select id="docsEndpoint" class="select">
+            <option value="shorten">POST /api/shorten - Create Short Link</option>
+            <option value="list">GET /api/list - List All Links</option>
+            <option value="analytics">GET /api/analytics/:slug - Detailed Link Analytics</option>
+            <option value="export_csv">GET /api/analytics/:slug/export - Export CSV Report</option>
+            <option value="stream_clicks">GET /api/stream/clicks - Real-Time Click Stream</option>
+            <option value="goals_track">POST /api/goals/track - Record Conversion Goal</option>
+            <option value="ai_suggest">POST /api/ai/suggest - AI Slug &amp; Tag Suggestions</option>
+            <option value="ai_metadata">POST /api/ai/metadata - AI Social Metadata Scraper</option>
+            <option value="keys_list">GET /api/keys - List Scoped API Keys</option>
+            <option value="keys_create">POST /api/keys - Generate New Scoped API Key</option>
+            <option value="keys_delete">DELETE /api/keys/:id - Revoke API Key</option>
+            <option value="domains_list">GET /api/domains - List Custom Domains</option>
+            <option value="domains_create">POST /api/domains - Register Custom Domain</option>
+            <option value="domains_delete">DELETE /api/domains/:domain - Delete Custom Domain</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="margin-bottom:14px;display:flex;align-items:center;gap:10px;">
+        <span id="docsMethod" class="http-badge http-post">POST</span>
+        <code id="docsPath" style="font-family:var(--font-mono);font-size:0.9rem;">/api/shorten</code>
+      </div>
+
+      <div class="field" id="docsParamGroup" hidden style="margin-bottom:14px;">
+        <label for="docsParam">Route Parameter</label>
+        <input type="text" id="docsParam" class="input" placeholder="Parameter value">
+      </div>
+
+      <div class="field" id="docsBodyGroup" style="margin-bottom:14px;">
+        <label for="docsBody">Request Payload (JSON)</label>
+        <textarea id="docsBody" class="textarea" rows="4"></textarea>
+      </div>
+
+      <div class="btn-row">
+        <button type="button" class="btn btn-primary" id="docsSendBtn">Send Request</button>
+        <button type="button" class="btn btn-ghost" id="docsResetBtn">Reset</button>
+      </div>
+
+      <div class="response-pane">
+        <div class="response-header">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:0.8rem;font-weight:700;color:var(--text-muted);">Response</span>
+            <span class="status-badge status-ok" id="docsStatusBadge" hidden>200 OK</span>
+            <span style="font-size:0.75rem;color:var(--text-muted);" id="docsLatencyBadge" hidden>0ms</span>
+          </div>
+          <button type="button" class="btn btn-ghost" id="docsCopyBtn" style="padding:4px 10px;font-size:0.75rem;">Copy Response</button>
+        </div>
+        <div class="code-box" style="border-bottom:1px solid var(--border);color:var(--text-muted);font-size:0.75rem;" id="docsHeaders"></div>
+        <div class="code-box" id="docsResponse">// Click Send Request above to inspect live API output</div>
+      </div>
+    </section>
+
+    <h2 class="section-title">OpenAPI 3.1 Endpoint Reference</h2>
+
+    <div class="spec-card">
+      <div class="spec-top">
+        <span class="http-badge http-post">POST</span>
+        <span class="spec-path">/api/shorten</span>
+        <span class="scope-tag">Scope: write:links</span>
+      </div>
+      <p class="spec-desc">Creates an edge short link with support for custom slug, expiration, click quotas, password hashing, and A/B split testing.</p>
+    </div>
+
+    <div class="spec-card">
+      <div class="spec-top">
+        <span class="http-badge http-get">GET</span>
+        <span class="spec-path">/api/list</span>
+        <span class="scope-tag">Scope: read:links</span>
+      </div>
+      <p class="spec-desc">Returns a list of all active links with aggregated analytics, labels, and tags.</p>
+    </div>
+
+    <div class="spec-card">
+      <div class="spec-top">
+        <span class="http-badge http-get">GET</span>
+        <span class="spec-path">/api/analytics/{slug}</span>
+        <span class="scope-tag">Scope: read:analytics</span>
+      </div>
+      <p class="spec-desc">Retrieves detailed analytics including geographic distribution, devices, referrers, hourly traffic, and conversion goals.</p>
+    </div>
+
+    <div class="spec-card">
+      <div class="spec-top">
+        <span class="http-badge http-get">GET</span>
+        <span class="spec-path">/api/stream/clicks</span>
+        <span class="scope-tag">Scope: read:analytics</span>
+      </div>
+      <p class="spec-desc">Streams live click telemetry with country, device, referrer, and timestamp.</p>
+    </div>
+
+    <div class="spec-card">
+      <div class="spec-top">
+        <span class="http-badge http-post">POST</span>
+        <span class="spec-path">/api/keys</span>
+        <span class="scope-tag">Admin Auth Required</span>
+      </div>
+      <p class="spec-desc">Provisions a scoped API key (format: tl_live_...) with granular permissions and per-key rate limits.</p>
+    </div>
+
+    <div class="spec-card">
+      <div class="spec-top">
+        <span class="http-badge http-post">POST</span>
+        <span class="spec-path">/api/domains</span>
+        <span class="scope-tag">Admin Auth Required</span>
+      </div>
+      <p class="spec-desc">Registers a custom branded domain with custom root redirect and branded 404 handler.</p>
+    </div>
+  </main>
+
+  <script src="/assets/docs.js"></script>
+</body>
+</html>`;
+}
+

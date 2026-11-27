@@ -2719,4 +2719,430 @@ describe("TinyLink Worker", () => {
     expect(unlockHtml).toContain('id="ctaOverlayConfig"');
     expect(unlockHtml).toContain("Exclusive VIP preview");
   });
+
+  it("US-011: AI edge intelligence & threat shield studio", async () => {
+    const env = makeEnv();
+    const { ctx } = makeCtx();
+    const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+
+    // 1. POST /api/ai/suggest returns contextual slugs and tags
+    const sugRes = await worker.fetch!(
+      makeRequest("/api/ai/suggest", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://github.com/facebook/react",
+          title: "React UI Library",
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(sugRes.status).toBe(200);
+    const sugData = (await sugRes.json()) as { ok: boolean; slugs: string[]; tags: string[] };
+    expect(sugData.ok).toBe(true);
+    expect(Array.isArray(sugData.slugs)).toBe(true);
+    expect(sugData.slugs.length).toBeGreaterThanOrEqual(1);
+    expect(sugData.slugs.some((s) => s.includes("react") || s.includes("github"))).toBe(true);
+    expect(Array.isArray(sugData.tags)).toBe(true);
+
+    // 2. POST /api/ai/metadata generates or extracts social preview metadata
+    const metaRes = await worker.fetch!(
+      makeRequest("/api/ai/metadata", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://example.com/products/wireless-headphones",
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(metaRes.status).toBe(200);
+    const metaData = (await metaRes.json()) as { ok: boolean; ogTitle: string; ogDescription: string; tags: string[] };
+    expect(metaData.ok).toBe(true);
+    expect(typeof metaData.ogTitle).toBe("string");
+    expect(metaData.ogTitle.length).toBeGreaterThan(0);
+    expect(typeof metaData.ogDescription).toBe("string");
+    expect(metaData.ogDescription.length).toBeGreaterThan(0);
+    expect(Array.isArray(metaData.tags)).toBe(true);
+
+    // 3. Pre-shortening threat scanner blocks phishing/malicious destination
+    const badRes = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://malicious-phish-domain.com/login-verify-account-update",
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(badRes.status).toBe(400);
+    const badData = (await badRes.json()) as { error: string };
+    expect(badData.error).toContain("Destination URL flagged as deceptive");
+
+    // 4. Dashboard serves AI Auto-Fill button
+    const dashRes = await worker.fetch!(makeRequest("/"), env, ctx);
+    expect(dashRes.status).toBe(200);
+    const dashHtml = await dashRes.text();
+    expect(dashHtml).toContain('id="aiAutoFillBtn"');
+  });
+
+  it("US-012: advanced real-time analytics & geo heatmap studio", async () => {
+    const env = makeEnv();
+    const { ctx } = makeCtx();
+    const headers = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+
+    // 1. Create link to test analytics & goal conversions
+    const createRes = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          url: "https://myshop.example.com/checkout",
+          custom: "goal-test-link",
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(createRes.status).toBe(200);
+
+    // 2. Click the link with headers to populate click stream and geo metrics
+    const clickRes = await worker.fetch!(
+      makeRequest("/goal-test-link", {
+        headers: {
+          "CF-IPCountry": "US",
+          "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)",
+          Referer: "https://twitter.com/post/123",
+        },
+      }),
+      env,
+      ctx
+    );
+    expect(clickRes.status).toBe(302);
+
+    // 3. GET /api/stream/clicks retrieves real-time click stream
+    const streamRes = await worker.fetch!(makeRequest("/api/stream/clicks", { headers }), env, ctx);
+    expect(streamRes.status).toBe(200);
+    const streamData = (await streamRes.json()) as { ok: boolean; count: number; clicks: any[] };
+    expect(streamData.ok).toBe(true);
+    expect(streamData.count).toBeGreaterThanOrEqual(1);
+    const clickItem = streamData.clicks.find((c) => c.slug === "goal-test-link");
+    expect(clickItem).toBeDefined();
+    expect(clickItem.country).toBe("US");
+    expect(clickItem.device).toBe("mobile");
+
+    // 4. POST /api/goals/track records conversion goal
+    const goalRes = await worker.fetch!(
+      makeRequest("/api/goals/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slug: "goal-test-link",
+          goal: "purchase",
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(goalRes.status).toBe(200);
+    const goalData = (await goalRes.json()) as { ok: boolean; count: number; conversionRate: string };
+    expect(goalData.ok).toBe(true);
+    expect(goalData.count).toBe(1);
+    expect(goalData.conversionRate).toBe("100%");
+
+    // 5. GET /api/analytics/:slug/export outputs CSV and JSON reports
+    const exportCsvRes = await worker.fetch!(
+      makeRequest("/api/analytics/goal-test-link/export?format=csv", { headers }),
+      env,
+      ctx
+    );
+    expect(exportCsvRes.status).toBe(200);
+    expect(exportCsvRes.headers.get("Content-Type")).toContain("text/csv");
+    expect(exportCsvRes.headers.get("Content-Disposition")).toContain('filename="tinylink-analytics-goal-test-link.csv"');
+    const csvContent = await exportCsvRes.text();
+    expect(csvContent).toContain("Total Clicks,1");
+    expect(csvContent).toContain('"purchase",1');
+
+    const exportJsonRes = await worker.fetch!(
+      makeRequest("/api/analytics/goal-test-link/export?format=json", { headers }),
+      env,
+      ctx
+    );
+    expect(exportJsonRes.status).toBe(200);
+    expect(exportJsonRes.headers.get("Content-Type")).toContain("application/json");
+    const jsonContent = (await exportJsonRes.json()) as { slug: string; totalClicks: number; goals: any };
+    expect(jsonContent.slug).toBe("goal-test-link");
+    expect(jsonContent.totalClicks).toBe(1);
+    expect(jsonContent.goals?.purchase).toBe(1);
+
+    // 6. Verify frontend script includes export buttons and geo heatmap
+    const appJsRes = await worker.fetch!(makeRequest("/assets/app.js"), env, ctx);
+    expect(appJsRes.status).toBe(200);
+    const appJs = await appJsRes.text();
+    expect(appJs).toContain('id="modalExportCsvBtn"');
+    expect(appJs).toContain('id="modalExportJsonBtn"');
+    expect(appJs).toContain("buildWorldHeatmapHtml");
+  });
+
+  it("US-013: developer platform & scoped API key studio", async () => {
+    const env = makeEnv();
+    const { ctx } = makeCtx();
+    const adminHeaders = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+
+    // 1. Unauthenticated requests to /api/keys return 401
+    const unauthRes = await worker.fetch!(makeRequest("/api/keys", { method: "GET" }), env, ctx);
+    expect(unauthRes.status).toBe(401);
+
+    // 2. POST /api/keys provisions a scoped API key
+    const createKeyRes = await worker.fetch!(
+      makeRequest("/api/keys", {
+        method: "POST",
+        headers: adminHeaders,
+        body: JSON.stringify({
+          name: "CI/CD Pipeline Key",
+          scopes: ["read:links", "write:links"],
+          rateLimit: 30,
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(createKeyRes.status).toBe(201);
+    const keyData = (await createKeyRes.json()) as { ok: boolean; token: string; key: any };
+    expect(keyData.ok).toBe(true);
+    expect(keyData.token).toMatch(/^tl_live_[0-9a-f]{32}$/);
+    expect(keyData.key.name).toBe("CI/CD Pipeline Key");
+    expect(keyData.key.scopes).toEqual(["read:links", "write:links"]);
+    expect(keyData.key.rateLimit).toBe(30);
+
+    const apiKeyToken = keyData.token;
+    const apiKeyId = keyData.key.id;
+
+    // 3. GET /api/keys lists provisioned keys
+    const listKeysRes = await worker.fetch!(makeRequest("/api/keys", { headers: adminHeaders }), env, ctx);
+    expect(listKeysRes.status).toBe(200);
+    const listKeysData = (await listKeysRes.json()) as { ok: boolean; keys: any[] };
+    expect(listKeysData.ok).toBe(true);
+    expect(listKeysData.keys.some((k) => k.id === apiKeyId)).toBe(true);
+
+    // 4. API key authentication validates key scopes and returns X-RateLimit-* headers
+    // 4a. Shorten link with X-API-Key header (write:links is permitted)
+    const shortenRes = await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-API-Key": apiKeyToken,
+        },
+        body: JSON.stringify({
+          url: "https://stripe.com/developer",
+          custom: "scoped-key-link",
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(shortenRes.status).toBe(200);
+    expect(shortenRes.headers.get("X-RateLimit-Limit")).toBe("30");
+    expect(shortenRes.headers.has("X-RateLimit-Remaining")).toBe(true);
+    expect(shortenRes.headers.has("X-RateLimit-Reset")).toBe(true);
+
+    // 4b. GET /api/list using Authorization: Bearer tl_live_... (read:links is permitted)
+    const listWithKeyRes = await worker.fetch!(
+      makeRequest("/api/list", {
+        headers: {
+          Authorization: `Bearer ${apiKeyToken}`,
+        },
+      }),
+      env,
+      ctx
+    );
+    expect(listWithKeyRes.status).toBe(200);
+    expect(listWithKeyRes.headers.get("X-RateLimit-Limit")).toBe("30");
+
+    // 4c. DELETE /api/urls/:slug with a key lacking delete:links returns 403 Forbidden
+    const deleteForbiddenRes = await worker.fetch!(
+      makeRequest("/api/urls/scoped-key-link", {
+        method: "DELETE",
+        headers: {
+          "X-API-Key": apiKeyToken,
+        },
+      }),
+      env,
+      ctx
+    );
+    expect(deleteForbiddenRes.status).toBe(403);
+    const forbiddenData = (await deleteForbiddenRes.json()) as { error: string };
+    expect(forbiddenData.error).toContain("delete:links");
+
+    // 5. DELETE /api/keys/:id revokes the key
+    const revokeRes = await worker.fetch!(
+      makeRequest(`/api/keys/${apiKeyId}`, {
+        method: "DELETE",
+        headers: adminHeaders,
+      }),
+      env,
+      ctx
+    );
+    expect(revokeRes.status).toBe(200);
+    const revokeData = (await revokeRes.json()) as { ok: boolean; deleted: string };
+    expect(revokeData.ok).toBe(true);
+    expect(revokeData.deleted).toBe(apiKeyId);
+
+    // 5b. Revoked key now fails authentication
+    const revokedUseRes = await worker.fetch!(
+      makeRequest("/api/list", {
+        headers: {
+          "X-API-Key": apiKeyToken,
+        },
+      }),
+      env,
+      ctx
+    );
+    expect(revokedUseRes.status).toBe(401);
+
+    // 6. GET /api/docs serves OpenAPI documentation and playground
+    const docsRes = await worker.fetch!(makeRequest("/api/docs"), env, ctx);
+    expect(docsRes.status).toBe(200);
+    expect(docsRes.headers.get("Content-Type")).toContain("text/html");
+    const docsHtml = await docsRes.text();
+    expect(docsHtml).toContain("TinyLink Developer Platform");
+    expect(docsHtml).toContain("OpenAPI 3.1");
+    expect(docsHtml).toContain("/assets/docs.js");
+
+    // 7. GET /assets/docs.js serves interactive playground script
+    const docsJsRes = await worker.fetch!(makeRequest("/assets/docs.js"), env, ctx);
+    expect(docsJsRes.status).toBe(200);
+    expect(docsJsRes.headers.get("Content-Type")).toContain("application/javascript");
+    const docsJs = await docsJsRes.text();
+    expect(docsJs).toContain("docsSendBtn");
+
+    // 8. Dashboard HTML includes the API Keys launcher button
+    const dashRes = await worker.fetch!(makeRequest("/"), env, ctx);
+    expect(dashRes.status).toBe(200);
+    const dashHtml = await dashRes.text();
+    expect(dashHtml).toContain('id="apiKeysBtn"');
+  });
+
+  it("US-014: custom domain multi-tenancy manager & branded 404 studio", async () => {
+    const env = makeEnv();
+    const { ctx } = makeCtx();
+    const adminHeaders = { "Content-Type": "application/json", "X-Auth-Token": "test-secret-token" };
+
+    // 1. Unauthenticated requests to /api/domains return 401
+    const unauthRes = await worker.fetch!(makeRequest("/api/domains", { method: "GET" }), env, ctx);
+    expect(unauthRes.status).toBe(401);
+
+    // 2. POST /api/domains provisions a custom domain with rootRedirect and custom404Html
+    const custom404 = '<!DOCTYPE html><html><body><h1 id="brandTitle">Custom Branded 404 for MyBrand</h1></body></html>';
+    const registerRes = await worker.fetch!(
+      makeRequest("/api/domains", {
+        method: "POST",
+        headers: adminHeaders,
+        body: JSON.stringify({
+          domain: "tinylink.devs.li",
+          rootRedirect: "https://varshudev.portfolio.example.com",
+          custom404Html: custom404,
+        }),
+      }),
+      env,
+      ctx
+    );
+    expect(registerRes.status).toBe(201);
+    const regData = (await registerRes.json()) as { ok: boolean; domain: any };
+    expect(regData.ok).toBe(true);
+    expect(regData.domain.domain).toBe("tinylink.devs.li");
+    expect(regData.domain.rootRedirect).toBe("https://varshudev.portfolio.example.com/");
+    expect(regData.domain.custom404Html).toBe(custom404);
+
+    // 3. GET /api/domains lists the active custom domains
+    const listRes = await worker.fetch!(makeRequest("/api/domains", { headers: adminHeaders }), env, ctx);
+    expect(listRes.status).toBe(200);
+    const listData = (await listRes.json()) as { ok: boolean; domains: any[] };
+    expect(listData.ok).toBe(true);
+    expect(listData.domains.some((d) => d.domain === "tinylink.devs.li")).toBe(true);
+
+    // 4. Dynamic routing: Root request on custom domain redirects to configured rootRedirect
+    const rootCustomRes = await worker.fetch!(
+      makeRequest("/", {
+        headers: {
+          Host: "tinylink.devs.li",
+        },
+      }),
+      env,
+      ctx
+    );
+    expect(rootCustomRes.status).toBe(302);
+    expect(rootCustomRes.headers.get("Location")).toBe("https://varshudev.portfolio.example.com/");
+
+    // 5. Dynamic routing: Existing short link accessed through custom domain redirects properly
+    await worker.fetch!(
+      makeRequest("/api/shorten", {
+        method: "POST",
+        headers: adminHeaders,
+        body: JSON.stringify({
+          url: "https://myproduct.example.com/special-deal",
+          custom: "special-deal",
+        }),
+      }),
+      env,
+      ctx
+    );
+    const linkCustomRes = await worker.fetch!(
+      makeRequest("/special-deal", {
+        headers: {
+          Host: "tinylink.devs.li",
+        },
+      }),
+      env,
+      ctx
+    );
+    expect(linkCustomRes.status).toBe(302);
+    expect(linkCustomRes.headers.get("Location")).toBe("https://myproduct.example.com/special-deal");
+
+    // 6. Dynamic routing: Missing slug on custom domain renders custom branded 404 page
+    const missingRes = await worker.fetch!(
+      makeRequest("/non-existent-link", {
+        headers: {
+          Host: "tinylink.devs.li",
+        },
+      }),
+      env,
+      ctx
+    );
+    expect(missingRes.status).toBe(404);
+    expect(missingRes.headers.get("Content-Type")).toContain("text/html");
+    expect(missingRes.headers.get("X-Custom-Domain")).toBe("tinylink.devs.li");
+    const missingHtml = await missingRes.text();
+    expect(missingHtml).toContain("Custom Branded 404 for MyBrand");
+
+    // 7. DELETE /api/domains/:domain disconnects the custom domain
+    const deleteRes = await worker.fetch!(
+      makeRequest("/api/domains/tinylink.devs.li", {
+        method: "DELETE",
+        headers: adminHeaders,
+      }),
+      env,
+      ctx
+    );
+    expect(deleteRes.status).toBe(200);
+    const deleteData = (await deleteRes.json()) as { ok: boolean; deleted: string };
+    expect(deleteData.ok).toBe(true);
+    expect(deleteData.deleted).toBe("tinylink.devs.li");
+
+    // 8. Confirm domain is deleted from index
+    const finalListRes = await worker.fetch!(makeRequest("/api/domains", { headers: adminHeaders }), env, ctx);
+    const finalListData = (await finalListRes.json()) as { ok: boolean; domains: any[] };
+    expect(finalListData.domains.some((d) => d.domain === "tinylink.devs.li")).toBe(false);
+
+    // 9. Verify frontend application script includes domain management studio
+    const appJsRes = await worker.fetch!(makeRequest("/assets/app.js"), env, ctx);
+    const appJs = await appJsRes.text();
+    expect(appJs).toContain("openDomainsModal");
+    expect(appJs).toContain("openApiKeysModal");
+  });
 });

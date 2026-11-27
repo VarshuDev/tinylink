@@ -41,6 +41,8 @@ export interface URLData {
   autoFailover?: boolean;
   timeRoutes?: TimeRoute[];
   ctaOverlay?: CtaOverlayConfig | null;
+  // v5.0 Features: Goals & Conversion Telemetry
+  goals?: Record<string, number>;
 }
 
 export interface PixelConfig {
@@ -196,6 +198,8 @@ export interface URLListEntry {
   autoFailover?: boolean;
   timeRoutes?: TimeRoute[];
   ctaOverlay?: CtaOverlayConfig | null;
+  // v5.0 Features: Goals & Conversion Telemetry
+  goals?: Record<string, number>;
 }
 
 export interface TimelineBucket {
@@ -246,6 +250,8 @@ export interface AnalyticsResponse {
   autoFailover?: boolean;
   timeRoutes?: TimeRoute[];
   ctaOverlay?: CtaOverlayConfig | null;
+  // v5.0 Features: Goals & Conversion Telemetry
+  goals?: Record<string, number>;
 }
 
 export interface PixelConfig {
@@ -403,3 +409,56 @@ export interface BioLead {
   subscribedAt: string;
   ipHash?: string;
 }
+
+// ── v5.0 Types: AI Edge Intelligence, Real-time Stream & Goals, Scoped API Keys, Custom Domains ──
+export interface AiSuggestResponse {
+  slugs: string[];
+  tags: string[];
+  title?: string;
+}
+
+export interface AiMetadataResponse {
+  ogTitle: string;
+  ogDescription: string;
+  tags: string[];
+  siteName?: string;
+}
+
+export interface GoalConversionRecord {
+  slug: string;
+  goal: string;
+  count: number;
+  lastConverted: string;
+}
+
+export interface ClickStreamEntry {
+  slug: string;
+  timestamp: string;
+  country: string;
+  device: string;
+  referrer: string;
+  destination: string;
+}
+
+export type ApiKeyScope = "read:links" | "write:links" | "delete:links" | "read:analytics";
+
+export interface ApiKeyRecord {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  keyHash: string;
+  scopes: ApiKeyScope[];
+  rateLimit: number;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+export interface CustomDomainRecord {
+  domain: string;
+  rootRedirect?: string | null;
+  custom404Html?: string | null;
+  status: "active" | "pending";
+  createdAt: string;
+  updatedAt: string;
+}
+

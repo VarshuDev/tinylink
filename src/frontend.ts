@@ -2279,6 +2279,9 @@ export function renderDashboardHtml(authRequired: boolean): string {
         <svg width="15" height="15" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="128" cy="128" r="96"/><line x1="128" y1="80" x2="128" y2="136"/><circle cx="128" cy="172" r="8" fill="currentColor"/></svg>
         <span class="domain-btn-label">Custom Domain</span>
       </button>
+      <button type="button" class="btn btn-ghost btn-icon" id="apiKeysBtn" hidden aria-label="Developer Platform &amp; API Keys" title="Scoped API Keys &amp; OpenAPI Docs">
+        <svg width="17" height="17" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="40" y="88" width="176" height="128" rx="8"/><circle cx="128" cy="152" r="16"/><line x1="128" y1="168" x2="128" y2="188"/></svg>
+      </button>
       <button type="button" class="btn btn-ghost btn-icon" id="webhooksBtn" hidden aria-label="Outgoing Webhooks &amp; Automation" title="Outgoing Webhooks &amp; Automation">
         <svg width="17" height="17" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M48,128a80,80,0,0,1,160,0"/><path d="M76,128a52,52,0,0,1,104,0"/><path d="M104,128a24,24,0,0,1,48,0"/><circle cx="128" cy="184" r="16"/></svg>
       </button>
@@ -2414,6 +2417,10 @@ export function renderDashboardHtml(authRequired: boolean): string {
               maxlength="50"
               autocomplete="off"
             >
+            <button type="button" class="btn btn-ghost btn-sm" id="aiAutoFillBtn" title="AI Auto-Fill: Suggest slug, tags, and social previews" style="margin-left: 6px; padding: 0 10px; height: 36px; white-space: nowrap; display: inline-flex; align-items: center; gap: 5px;">
+              <svg width="14" height="14" viewBox="0 0 256 256" fill="none" stroke="currentColor" stroke-width="18" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M128,24l16,64,64,16-64,16-16,64-16-64L48,104l64-16Z"/><path d="M192,168l8,32,32,8-32,8-8,32-8-32-32-8,32-8Z"/></svg>
+              <span>AI Suggest</span>
+            </button>
           </div>
 
           <div class="expiry-group">
@@ -2993,6 +3000,7 @@ export const DASHBOARD_APP_JS = `(function() {
   var themeIcon = document.getElementById('themeIcon');
   var themeColorMeta = document.getElementById('themeColorMeta');
   var domainHelpBtn = document.getElementById('domainHelpBtn');
+  var apiKeysBtn = document.getElementById('apiKeysBtn');
   var webhooksBtn = document.getElementById('webhooksBtn');
   var shortcutsBtn = document.getElementById('shortcutsBtn');
   var lockBtn = document.getElementById('lockBtn');
@@ -3014,6 +3022,7 @@ export const DASHBOARD_APP_JS = `(function() {
   var copyDupBtn = document.getElementById('copyDupBtn');
   var inspectDupBtn = document.getElementById('inspectDupBtn');
   var customSlugInput = document.getElementById('customSlugInput');
+  var aiAutoFillBtn = document.getElementById('aiAutoFillBtn');
   var slugPrefix = document.getElementById('slugPrefix');
   var expiryPills = document.getElementById('expiryPills');
   var expiresValue = document.getElementById('expiresValue');
@@ -3287,6 +3296,7 @@ export const DASHBOARD_APP_JS = `(function() {
     lockBtn.hidden = true;
     shortcutsBtn.hidden = true;
     webhooksBtn.hidden = true;
+    if (apiKeysBtn) apiKeysBtn.hidden = true;
     authVault.hidden = false;
     if (errorMsg) {
       authErrorText.textContent = errorMsg;
@@ -3356,6 +3366,7 @@ export const DASHBOARD_APP_JS = `(function() {
     lockBtn.hidden = !AUTH_REQUIRED;
     shortcutsBtn.hidden = false;
     webhooksBtn.hidden = false;
+    if (apiKeysBtn) apiKeysBtn.hidden = false;
     if (domainHelpBtn) {
       if (window.location.hostname.endsWith('.workers.dev')) {
         domainHelpBtn.hidden = false;
@@ -4002,6 +4013,69 @@ export const DASHBOARD_APP_JS = `(function() {
       showToast('Press Ctrl+V (or long-press Paste) to insert URL', '');
     }
   });
+
+  if (aiAutoFillBtn) {
+    aiAutoFillBtn.addEventListener('click', async function() {
+      var rawUrl = urlInput.value.trim();
+      if (!rawUrl) {
+        showToast('Please enter a destination URL first.', 'warning');
+        urlInput.focus();
+        return;
+      }
+      var origBtnHtml = aiAutoFillBtn.innerHTML;
+      aiAutoFillBtn.disabled = true;
+      aiAutoFillBtn.innerHTML = '<span>Thinking...</span>';
+
+      try {
+        var results = await Promise.all([
+          authFetch('/api/ai/suggest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: rawUrl, title: customSlugInput ? customSlugInput.value.trim() : '' })
+          }),
+          authFetch('/api/ai/metadata', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: rawUrl })
+          })
+        ]);
+
+        var sugData = results[0].ok ? await results[0].json() : null;
+        var metaData = results[1].ok ? await results[1].json() : null;
+
+        if (sugData && sugData.slugs && sugData.slugs.length > 0) {
+          if (!customSlugInput.value.trim()) {
+            customSlugInput.value = sugData.slugs[0];
+          }
+        }
+        if (tagsInput && sugData && sugData.tags && sugData.tags.length > 0) {
+          if (!tagsInput.value.trim()) {
+            tagsInput.value = sugData.tags.join(', ');
+          }
+        }
+        if (metaData) {
+          if (ogTitleInput && metaData.ogTitle) {
+            ogTitleInput.value = metaData.ogTitle;
+          }
+          if (ogDescInput && metaData.ogDescription) {
+            ogDescInput.value = metaData.ogDescription;
+          }
+          if (advancedPanel.hidden) {
+            toggleAdvanced();
+          }
+          switchAdvTab('general');
+          updateAdvIndicators();
+        }
+
+        showToast('AI suggestions applied to slug, tags, and social previews!', 'success');
+      } catch (err) {
+        showToast('Failed to generate AI suggestions: ' + ((err && err.message) || 'Network error'), 'error');
+      } finally {
+        aiAutoFillBtn.disabled = false;
+        aiAutoFillBtn.innerHTML = origBtnHtml;
+      }
+    });
+  }
 
   shortenForm.addEventListener('submit', async function(e) {
     e.preventDefault();
@@ -5108,6 +5182,80 @@ export const DASHBOARD_APP_JS = `(function() {
     '</div>';
   }
 
+  function buildWorldHeatmapHtml(countries) {
+    var entries = Object.entries(countries || {}).sort(function(a, b) { return b[1] - a[1]; });
+    var total = entries.reduce(function(acc, curr) { return acc + curr[1]; }, 0);
+    if (!entries.length || total === 0) {
+      return '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:0.84rem;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);">No geographic visitor data recorded yet.</div>';
+    }
+
+    var maxClicks = entries[0][1];
+    var regionsSvg =
+      '<svg viewBox="0 0 540 140" width="100%" height="140" style="display:block;border-radius:var(--radius-sm);background:var(--surface-2);border:1px solid var(--border);" aria-label="World visitor distribution map">' +
+        '<rect width="540" height="140" fill="transparent"/>' +
+        '<path d="M40,30 Q60,15 110,25 Q130,40 100,70 Q70,75 50,55 Z" fill="color-mix(in srgb, var(--accent) 20%, var(--surface-3))" stroke="var(--border)" stroke-width="1"/>' +
+        '<path d="M95,80 Q120,85 110,120 Q95,130 85,100 Z" fill="color-mix(in srgb, var(--accent) 18%, var(--surface-3))" stroke="var(--border)" stroke-width="1"/>' +
+        '<path d="M190,25 Q240,20 250,50 Q220,60 185,45 Z" fill="color-mix(in srgb, var(--accent) 25%, var(--surface-3))" stroke="var(--border)" stroke-width="1"/>' +
+        '<path d="M195,65 Q245,65 240,110 Q210,120 185,85 Z" fill="color-mix(in srgb, var(--accent) 18%, var(--surface-3))" stroke="var(--border)" stroke-width="1"/>' +
+        '<path d="M260,25 Q370,15 390,65 Q330,85 270,55 Z" fill="color-mix(in srgb, var(--accent) 30%, var(--surface-3))" stroke="var(--border)" stroke-width="1"/>' +
+        '<path d="M340,95 Q385,90 380,125 Q335,125 330,105 Z" fill="color-mix(in srgb, var(--accent) 22%, var(--surface-3))" stroke="var(--border)" stroke-width="1"/>' +
+        entries.slice(0, 6).map(function(item, idx) {
+          var code = item[0].toUpperCase();
+          var cnt = item[1];
+          var pct = Math.round((cnt / total) * 100);
+          var x = 70 + (idx % 3) * 160 + (idx > 2 ? 30 : 0);
+          var y = idx < 3 ? 45 : 95;
+          var r = Math.min(22, Math.max(12, Math.round((cnt / maxClicks) * 20)));
+          return '<g transform="translate(' + x + ',' + y + ')">' +
+            '<circle r="' + r + '" fill="var(--accent)" opacity="0.3"/>' +
+            '<circle r="' + Math.max(8, r - 4) + '" fill="var(--accent)" opacity="0.85"/>' +
+            '<text text-anchor="middle" dy="4" fill="#052E16" font-size="10" font-weight="700" font-family="IBM Plex Sans, sans-serif">' + escapeHtml(code) + '</text>' +
+            '<text text-anchor="middle" dy="24" fill="var(--text-muted)" font-size="9" font-family="Fira Code, monospace">' + cnt + ' (' + pct + '%)</text>' +
+          '</g>';
+        }).join('') +
+      '</svg>';
+
+    var pillsHtml =
+      '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;">' +
+        entries.slice(0, 8).map(function(item) {
+          var pct = Math.round((item[1] / total) * 100);
+          return '<div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:var(--surface-2);border:1px solid var(--border);border-radius:100px;font-size:0.78rem;">' +
+            '<span style="font-weight:700;color:var(--text);">' + escapeHtml(item[0].toUpperCase()) + '</span>' +
+            '<span style="color:var(--accent);font-family:Fira Code, monospace;">' + item[1] + '</span>' +
+            '<span style="color:var(--text-muted);font-size:0.72rem;">(' + pct + '%)</span>' +
+          '</div>';
+        }).join('') +
+      '</div>';
+
+    return regionsSvg + pillsHtml;
+  }
+
+  function buildGoalsScorecardHtml(goals, totalClicks, slug) {
+    var entries = Object.entries(goals || {});
+    if (!entries.length) {
+      return '<div style="padding:14px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:0.8rem;color:var(--text-muted);">' +
+        '<span>No conversion goals recorded yet. Trigger post-click goals on your destination page with:</span>' +
+        '<pre style="margin-top:8px;padding:8px 10px;background:var(--bg);border-radius:6px;overflow-x:auto;font-size:0.74rem;color:var(--link);font-family:Fira Code, monospace;">fetch("/api/goals/track", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug: "' + escapeHtml(slug) + '", goal: "signup" }) });</pre>' +
+      '</div>';
+    }
+
+    return '<div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:10px;">' +
+      entries.map(function(item) {
+        var gName = item[0];
+        var count = item[1];
+        var convRate = totalClicks > 0 ? ((count / totalClicks) * 100).toFixed(1) + '%' : '0%';
+        return '<div style="padding:10px 12px;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);">' +
+          '<div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;color:var(--text-muted);">' + escapeHtml(gName) + '</div>' +
+          '<div style="display:flex;align-items:baseline;gap:6px;margin-top:4px;">' +
+            '<span class="tabular" style="font-size:1.15rem;font-weight:700;color:var(--accent);">' + count + '</span>' +
+            '<span style="font-size:0.74rem;color:var(--text-muted);">conversions</span>' +
+          '</div>' +
+          '<div style="font-size:0.74rem;margin-top:2px;color:var(--link);font-weight:600;">' + convRate + ' conv. rate</div>' +
+        '</div>';
+      }).join('') +
+    '</div>';
+  }
+
   // ── Accessible Modal Control ──
   function openModalElement() {
     modal.hidden = false;
@@ -5225,50 +5373,312 @@ export const DASHBOARD_APP_JS = `(function() {
     openShortcutsModal();
   });
 
-  // ── Custom Domain & Social Deliverability Guide Modal ──
-  function openDomainGuideModal() {
-    modalLabel.textContent = 'Social Media & Custom Domains';
-    modalSlug.textContent = 'Instagram, TikTok & X Deliverability';
+  // ── Custom Domain Multi-Tenancy Manager & Guide Modal (US-014) ──
+  async function openDomainsModal() {
+    modalLabel.textContent = 'Custom Domains & Multi-Tenancy';
+    modalSlug.textContent = 'Branded Domains & Custom 404s';
     modalSlug.hidden = false;
 
     modalBody.innerHTML =
+      '<div style="text-align:center;padding:24px;color:var(--text-muted);">' +
+        'Loading custom domains...' +
+      '</div>';
+    openModalElement();
+
+    var domains = [];
+    try {
+      var res = await fetchWithAuth('/api/domains');
+      if (res.ok) {
+        var data = await res.json();
+        domains = data.domains || [];
+      }
+    } catch {}
+
+    var domainsListHtml = '';
+    if (domains.length === 0) {
+      domainsListHtml = '<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:0.85rem;">No custom domains connected yet. Connect your personal brand or agency domain below.</div>';
+    } else {
+      domainsListHtml = '<div class="table-wrap" style="margin-top:10px;"><table class="links-table"><thead><tr>' +
+        '<th>Domain</th><th>Status</th><th>Root Redirect</th><th>Custom 404</th><th>Actions</th>' +
+        '</tr></thead><tbody>' +
+        domains.map(function(d) {
+          return '<tr>' +
+            '<td class="mono" style="font-weight:600;color:var(--link);">' + escapeHtml(d.domain) + '</td>' +
+            '<td><span class="badge" style="background:rgba(34,197,94,0.15);color:var(--accent);font-size:0.75rem;">Active</span></td>' +
+            '<td style="font-size:0.8rem;color:var(--text-muted);">' + (d.rootRedirect ? escapeHtml(d.rootRedirect) : '<span style="opacity:0.6;">Dashboard</span>') + '</td>' +
+            '<td style="font-size:0.8rem;color:var(--text-muted);">' + (d.custom404Html ? '<span style="color:var(--accent);">Configured</span>' : '<span style="opacity:0.6;">Default</span>') + '</td>' +
+            '<td><button type="button" class="btn btn-ghost btn-sm delete-domain-btn" data-domain="' + escapeHtml(d.domain) + '" style="color:var(--danger);font-size:0.75rem;padding:2px 8px;">Disconnect</button></td>' +
+            '</tr>';
+        }).join('') +
+        '</tbody></table></div>';
+    }
+
+    modalBody.innerHTML =
       '<div class="tool-card">' +
-        '<div class="tool-title">Why Custom Domains are Required for Social Media</div>' +
-        '<p class="tool-desc">Platforms like <strong>Instagram, Facebook, TikTok, and LinkedIn</strong> maintain automated link filters against multi-tenant developer subdomains. Raw <code>*.workers.dev</code> domains frequently trigger automated <strong>30-day Story Link blocks</strong>. Connecting your own domain gives your short links dedicated reputation and 100% social deliverability.</p>' +
+        '<div class="tool-title">Connected Branded Domains</div>' +
+        '<p class="tool-desc">Route multiple custom domains to this single TinyLink engine with isolated root redirects and custom 404 pages.</p>' +
+        domainsListHtml +
       '</div>' +
 
       '<div class="tool-card">' +
-        '<div class="tool-title">1. Add a Free Custom Domain in Cloudflare</div>' +
-        '<p class="tool-desc">1. Log in to your <a href="https://dash.cloudflare.com/" target="_blank" rel="noopener noreferrer" style="color:var(--link);">Cloudflare Dashboard</a>.<br>' +
-        '2. Navigate to <strong>Compute (Workers &amp; Pages)</strong> &rarr; Click <strong>url-shortener</strong>.<br>' +
-        '3. Go to <strong>Settings</strong> &rarr; <strong>Domains &amp; Routes</strong> &rarr; Click <strong>Add &rarr; Custom Domain</strong>.<br>' +
-        '4. Enter your short domain or subdomain (e.g. <code>link.yourdomain.com</code> or <code>go.yourbrand.com</code>) and click <strong>Add Custom Domain</strong>.<br>' +
-        '5. Cloudflare automatically generates SSL certificates and configures DNS routing in 2 minutes for free.</p>' +
+        '<div class="tool-title">Connect New Custom Domain</div>' +
+        '<form id="addDomainForm" style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">' +
+          '<div class="adv-field">' +
+            '<label for="newDomainInput">Domain Name</label>' +
+            '<input type="text" id="newDomainInput" class="input mono" placeholder="tinylink.devs.li or go.mybrand.com" required>' +
+          '</div>' +
+          '<div class="adv-field">' +
+            '<label for="newDomainRedirect">Root Path Redirect URL (Optional)</label>' +
+            '<input type="url" id="newDomainRedirect" class="input" placeholder="https://myportfolio.com (where / redirects)">' +
+          '</div>' +
+          '<div class="adv-field">' +
+            '<label for="newDomain404">Custom 404 HTML (Optional)</label>' +
+            '<textarea id="newDomain404" class="input mono" rows="2" placeholder="Custom branded 404 HTML error page"></textarea>' +
+          '</div>' +
+          '<button type="submit" class="btn btn-primary btn-sm" id="addDomainBtn" style="align-self:flex-start;margin-top:4px;">' +
+            ICONS.plus + '<span>Connect Domain</span>' +
+          '</button>' +
+        '</form>' +
       '</div>' +
 
       '<div class="tool-card">' +
-        '<div class="tool-title">2. Appeal &amp; Lift an Existing 30-Day Instagram Block</div>' +
-        '<p class="tool-desc">If your Instagram account is currently restricted from sharing links in Stories:<br>' +
-        '&bull; Open the Instagram app &rarr; <strong>Settings and privacy</strong> &rarr; <strong>Help</strong> &rarr; <strong>Report a Problem</strong>.<br>' +
-        '&bull; Submit a brief note: <em>"My link sticker was flagged by mistake when sharing my personal portfolio link. It does not violate Community Guidelines. Please review and restore link permissions."</em><br>' +
-        '&bull; Meta reviews false-positive link blocks and typically restores link permissions within 24&ndash;72 hours.</p>' +
+        '<div class="tool-title">DNS Setup Instructions</div>' +
+        '<p class="tool-desc">1. In your DNS provider (e.g. Cloudflare, Namecheap, Route53), add a <strong>CNAME</strong> record pointing your subdomain (e.g. <code>tinylink</code>) to <code>pages.dev</code> or your Worker address.<br>' +
+        '2. In Cloudflare Workers &amp; Pages, add the custom domain under <strong>Domains &amp; Routes</strong>.<br>' +
+        '3. SSL is automatically provisioned with 100% social deliverability on Instagram, TikTok, and X.</p>' +
+      '</div>';
+
+    var addDomainForm = document.getElementById('addDomainForm');
+    if (addDomainForm) {
+      addDomainForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        var domainVal = document.getElementById('newDomainInput').value.trim();
+        var redirectVal = document.getElementById('newDomainRedirect').value.trim();
+        var c404Val = document.getElementById('newDomain404').value;
+        if (!domainVal) return;
+
+        try {
+          var res = await fetchWithAuth('/api/domains', {
+            method: 'POST',
+            body: JSON.stringify({
+              domain: domainVal,
+              rootRedirect: redirectVal || null,
+              custom404Html: c404Val || null
+            })
+          });
+          if (res.ok) {
+            showToast('Custom domain connected successfully', 'success');
+            openDomainsModal();
+          } else {
+            var errData = await res.json();
+            showToast(errData.error || 'Failed to connect domain', 'error');
+          }
+        } catch {
+          showToast('Network error connecting domain', 'error');
+        }
+      });
+    }
+
+    var delBtns = modalBody.querySelectorAll('.delete-domain-btn');
+    delBtns.forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var domainToDel = btn.getAttribute('data-domain');
+        if (!domainToDel) return;
+        if (!confirm('Disconnect domain ' + domainToDel + '?')) return;
+
+        try {
+          var res = await fetchWithAuth('/api/domains/' + encodeURIComponent(domainToDel), {
+            method: 'DELETE'
+          });
+          if (res.ok) {
+            showToast('Domain disconnected', 'success');
+            openDomainsModal();
+          } else {
+            showToast('Failed to disconnect domain', 'error');
+          }
+        } catch {
+          showToast('Network error disconnecting domain', 'error');
+        }
+      });
+    });
+  }
+
+  // ── Scoped API Keys Management Modal (US-013) ──
+  async function openApiKeysModal() {
+    modalLabel.textContent = 'Developer Platform & API Keys';
+    modalSlug.textContent = 'Scoped Tokens & Rate Limiting';
+    modalSlug.hidden = false;
+
+    modalBody.innerHTML =
+      '<div style="text-align:center;padding:24px;color:var(--text-muted);">' +
+        'Loading API keys...' +
+      '</div>';
+    openModalElement();
+
+    var keys = [];
+    try {
+      var res = await fetchWithAuth('/api/keys');
+      if (res.ok) {
+        var data = await res.json();
+        keys = data.keys || [];
+      }
+    } catch {}
+
+    var keysListHtml = '';
+    if (keys.length === 0) {
+      keysListHtml = '<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:0.85rem;">No active API keys found. Generate a key below for programmatic integration.</div>';
+    } else {
+      keysListHtml = '<div class="table-wrap" style="margin-top:10px;"><table class="links-table"><thead><tr>' +
+        '<th>Key Name</th><th>Key Prefix</th><th>Scopes</th><th>Rate Limit</th><th>Actions</th>' +
+        '</tr></thead><tbody>' +
+        keys.map(function(k) {
+          var scopesBadges = (k.scopes || []).map(function(s) {
+            return '<span class="scope-tag" style="font-size:0.7rem;padding:2px 5px;background:rgba(148,163,184,0.12);border-radius:4px;margin-right:4px;">' + escapeHtml(s) + '</span>';
+          }).join('');
+          return '<tr>' +
+            '<td style="font-weight:600;color:var(--text);">' + escapeHtml(k.name) + '</td>' +
+            '<td class="mono" style="font-size:0.82rem;color:var(--link);">' + escapeHtml(k.keyPrefix) + '</td>' +
+            '<td>' + scopesBadges + '</td>' +
+            '<td style="font-size:0.8rem;color:var(--text-muted);">' + (k.rateLimit || 100) + ' req/m</td>' +
+            '<td><button type="button" class="btn btn-ghost btn-sm revoke-key-btn" data-key-id="' + escapeHtml(k.id) + '" style="color:var(--danger);font-size:0.75rem;padding:2px 8px;">Revoke</button></td>' +
+            '</tr>';
+        }).join('') +
+        '</tbody></table></div>';
+    }
+
+    modalBody.innerHTML =
+      '<div class="tool-card" id="newKeyAlertCard" hidden style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.3);">' +
+        '<div class="tool-title" style="color:var(--accent);">New API Key Generated</div>' +
+        '<p class="tool-desc" style="color:var(--text);">Make sure to copy your API key now. You will not be able to view it again.</p>' +
+        '<div style="display:flex;align-items:center;gap:10px;margin-top:8px;">' +
+          '<input type="text" id="plainTokenInput" class="input mono" readonly style="flex:1;background:var(--bg);font-weight:600;color:var(--accent);">' +
+          '<button type="button" class="btn btn-primary btn-sm" id="copyTokenBtn">Copy Token</button>' +
+        '</div>' +
       '</div>' +
 
       '<div class="tool-card">' +
-        '<div class="tool-title">3. Test in Meta Debugger Before Posting</div>' +
-        '<p class="tool-desc">Always test your short link in Meta&#39;s official tool before posting to Instagram Stories or Facebook to verify that Meta&#39;s crawler sees the destination cleanly:</p>' +
-        '<div style="margin-top:8px;">' +
-          '<a href="https://developers.facebook.com/tools/debug/" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="text-decoration:none;">' + ICONS.external + '<span>Open Meta Sharing Debugger</span></a>' +
+        '<div class="tool-title">Generate Scoped API Key</div>' +
+        '<form id="createKeyForm" style="display:flex;flex-direction:column;gap:12px;margin-top:8px;">' +
+          '<div class="adv-field">' +
+            '<label for="newKeyName">Key Name</label>' +
+            '<input type="text" id="newKeyName" class="input" placeholder="e.g. CI/CD Deployment, Zapier Integration" required>' +
+          '</div>' +
+          '<div class="adv-field">' +
+            '<label>Permissions &amp; Scopes</label>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px;">' +
+              '<label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" id="scopeReadLinks" checked> <span>read:links (View links &amp; lists)</span></label>' +
+              '<label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" id="scopeWriteLinks" checked> <span>write:links (Create &amp; edit)</span></label>' +
+              '<label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" id="scopeDeleteLinks"> <span>delete:links (Revoke &amp; delete)</span></label>' +
+              '<label style="display:flex;align-items:center;gap:6px;font-size:0.82rem;cursor:pointer;"><input type="checkbox" id="scopeReadAnalytics" checked> <span>read:analytics (Stats &amp; streams)</span></label>' +
+            '</div>' +
+          '</div>' +
+          '<div class="adv-field">' +
+            '<label for="newKeyRateLimit">Rate Limit (Requests / minute)</label>' +
+            '<input type="number" id="newKeyRateLimit" class="input" value="100" min="1" max="10000" style="max-width:200px;">' +
+          '</div>' +
+          '<button type="submit" class="btn btn-primary btn-sm" id="generateKeyBtn" style="align-self:flex-start;">' +
+            ICONS.plus + '<span>Generate Key</span>' +
+          '</button>' +
+        '</form>' +
+      '</div>' +
+
+      '<div class="tool-card">' +
+        '<div class="tool-title">Active API Keys</div>' +
+        keysListHtml +
+      '</div>' +
+
+      '<div class="tool-card">' +
+        '<div class="tool-title">Interactive API Playground &amp; OpenAPI Spec</div>' +
+        '<p class="tool-desc">Test all TinyLink API endpoints directly in your browser with OpenAPI 3.1 documentation and response inspection.</p>' +
+        '<div style="margin-top:10px;">' +
+          '<a href="/api/docs" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="text-decoration:none;">' +
+            ICONS.external + '<span>Open Interactive API Documentation</span>' +
+          '</a>' +
         '</div>' +
       '</div>';
 
-    openModalElement();
+    var createKeyForm = document.getElementById('createKeyForm');
+    if (createKeyForm) {
+      createKeyForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        var nameVal = document.getElementById('newKeyName').value.trim();
+        var rateLimitVal = parseInt(document.getElementById('newKeyRateLimit').value, 10) || 100;
+        if (!nameVal) return;
+
+        var scopes = [];
+        if (document.getElementById('scopeReadLinks').checked) scopes.push('read:links');
+        if (document.getElementById('scopeWriteLinks').checked) scopes.push('write:links');
+        if (document.getElementById('scopeDeleteLinks').checked) scopes.push('delete:links');
+        if (document.getElementById('scopeReadAnalytics').checked) scopes.push('read:analytics');
+
+        try {
+          var res = await fetchWithAuth('/api/keys', {
+            method: 'POST',
+            body: JSON.stringify({
+              name: nameVal,
+              scopes: scopes,
+              rateLimit: rateLimitVal
+            })
+          });
+          if (res.ok) {
+            var data = await res.json();
+            showToast('API key generated successfully', 'success');
+            await openApiKeysModal();
+            var alertCard = document.getElementById('newKeyAlertCard');
+            var plainInput = document.getElementById('plainTokenInput');
+            if (alertCard && plainInput) {
+              alertCard.hidden = false;
+              plainInput.value = data.token;
+              document.getElementById('copyTokenBtn').addEventListener('click', async function() {
+                await copyText(data.token);
+                showToast('API key copied to clipboard', 'success');
+              });
+            }
+          } else {
+            var errData = await res.json();
+            showToast(errData.error || 'Failed to generate API key', 'error');
+          }
+        } catch {
+          showToast('Network error generating API key', 'error');
+        }
+      });
+    }
+
+    var revokeBtns = modalBody.querySelectorAll('.revoke-key-btn');
+    revokeBtns.forEach(function(btn) {
+      btn.addEventListener('click', async function() {
+        var keyId = btn.getAttribute('data-key-id');
+        if (!keyId) return;
+        if (!confirm('Revoke this API key? Applications using this token will be immediately blocked.')) return;
+
+        try {
+          var res = await fetchWithAuth('/api/keys/' + encodeURIComponent(keyId), {
+            method: 'DELETE'
+          });
+          if (res.ok) {
+            showToast('API key revoked', 'success');
+            openApiKeysModal();
+          } else {
+            showToast('Failed to revoke API key', 'error');
+          }
+        } catch {
+          showToast('Network error revoking API key', 'error');
+        }
+      });
+    });
   }
 
   if (domainHelpBtn) {
     domainHelpBtn.addEventListener('click', function() {
       lastTriggerEl = domainHelpBtn;
-      openDomainGuideModal();
+      openDomainsModal();
+    });
+  }
+
+  if (apiKeysBtn) {
+    apiKeysBtn.addEventListener('click', function() {
+      lastTriggerEl = apiKeysBtn;
+      openApiKeysModal();
     });
   }
 
@@ -5618,6 +6028,22 @@ export const DASHBOARD_APP_JS = `(function() {
             '<div><div class="section-head"><span>Top Countries</span></div>' + countrySection + '</div>' +
           '</div>' +
 
+          '<div style="margin-top:14px;">' +
+            '<div class="section-head" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">' +
+              '<span>Global Geo Heatmap &amp; Visitor Density</span>' +
+              '<div style="display:flex;gap:6px;">' +
+                '<button type="button" class="btn btn-secondary btn-sm" id="modalExportCsvBtn">' + ICONS.download + '<span>Export CSV</span></button>' +
+                '<button type="button" class="btn btn-secondary btn-sm" id="modalExportJsonBtn">' + ICONS.download + '<span>Export JSON</span></button>' +
+              '</div>' +
+            '</div>' +
+            buildWorldHeatmapHtml(data.countries || {}) +
+          '</div>' +
+
+          '<div style="margin-top:14px;">' +
+            '<div class="section-head"><span>Goal Conversions &amp; Funnel Tracking</span></div>' +
+            buildGoalsScorecardHtml(data.goals || {}, data.clicks || 0, data.slug) +
+          '</div>' +
+
           '<div>' +
             '<div class="section-head"><span>QR Studio</span></div>' +
             '<div class="qr-studio">' +
@@ -5909,6 +6335,18 @@ export const DASHBOARD_APP_JS = `(function() {
       document.getElementById('modalDlPngBtn').addEventListener('click', function() {
         downloadPngFromSvg(safeModalQrSvg, slug + '-qr.png');
       });
+      var modalExportCsvBtn = document.getElementById('modalExportCsvBtn');
+      if (modalExportCsvBtn) {
+        modalExportCsvBtn.addEventListener('click', function() {
+          window.open('/api/analytics/' + encodeURIComponent(data.slug) + '/export?format=csv', '_blank');
+        });
+      }
+      var modalExportJsonBtn = document.getElementById('modalExportJsonBtn');
+      if (modalExportJsonBtn) {
+        modalExportJsonBtn.addEventListener('click', function() {
+          window.open('/api/analytics/' + encodeURIComponent(data.slug) + '/export?format=json', '_blank');
+        });
+      }
       var designQrBtn = document.getElementById('modalDesignQrBtn');
       if (designQrBtn) {
         designQrBtn.addEventListener('click', function() {

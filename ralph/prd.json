@@ -1,154 +1,73 @@
 {
   "project": "TinyLink",
   "branchName": "main",
-  "description": "TinyLink v3.5: 5-Phase Feature Suite & Complete Mobile Responsive UI Polish",
+  "description": "TinyLink v5.0: 4-Phase Enterprise & Edge Intelligence Suite",
   "userStories": [
     {
-      "id": "US-001",
-      "title": "Mobile Responsive UI Polish & Layout Overhaul",
-      "description": "As a mobile user, I want the TinyLink console, modals, drawer, and tables to be completely responsive and touch-optimized without horizontal overflow or cramped touch targets.",
+      "id": "US-011",
+      "title": "AI Edge Intelligence & Threat Shield Studio",
+      "description": "As a creator, I want automated AI slug and tag suggestions, instant social preview metadata extraction, and automated threat and phishing detection before shortening.",
       "acceptanceCriteria": [
-        "All views (Dashboard, Studio, Bio Studio, Modals, Tables, Drawer, KPIs) adapt cleanly down to 320px width",
-        "Interactive buttons and tabs have min-height 44px touch targets with touch-action: manipulation",
-        "Zero horizontal scrolling or viewport overflow across all pages",
-        "Chrome DevTools MCP visual inspection verifies 375x812 and 320x568 viewports",
-        "Typecheck and tests pass with 0 errors"
+        "POST /api/ai/suggest endpoint returns contextual slug recommendations and keyword tags based on target URL and title",
+        "POST /api/ai/metadata endpoint scrapes and summarizes target destination to extract or generate high-converting og:title and og:description",
+        "Pre-shortening threat scanner checks destination domain against suspicious keywords and blocks malicious URLs with a 400 error",
+        "Shorten Studio UI provides an 'AI Auto-Fill' button that populates slug, tags, og:title, and og:description in 1 click",
+        "Typecheck passes",
+        "Tests pass"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Completed: Added overflow-x: hidden to html and body, minmax(280px, 1fr) for bio-grid, responsive breakpoints for 540px, 480px, 420px, and 360px, touch targets min 44px for workspace tabs, mobile-actions, and dialogs. Verified with 20 unit tests."
+      "notes": "Completed: Implemented generateAiSuggestions with POST /api/ai/suggest for contextual slug and tag generation. Built handleAiMetadata with POST /api/ai/metadata for automated OpenGraph title, description, and keywords extraction. Implemented isSuspiciousThreatUrl blocking deceptive and phishing URLs with 400 errors. Added AI Auto-Fill button to console Shorten Studio with automated slug and social preview populating."
     },
     {
-      "id": "US-002",
-      "title": "Branded QR Code Design Studio",
-      "description": "As a creator, I want to customize and brand my short link QR codes with center logos, corner styles, custom colors, and high-resolution exports.",
+      "id": "US-012",
+      "title": "Advanced Real-Time Analytics & Geo Heatmap Studio",
+      "description": "As a marketer, I want an interactive global SVG world heatmap of visitor traffic, a live click stream feed, post-click conversion goal tracking, and one-click executive report exports.",
       "acceptanceCriteria": [
-        "QR Studio modal accessible from link items and Inspector",
-        "Supports center logos with presets (Globe, Instagram, YouTube, Twitter, GitHub, LinkedIn) and custom image URL",
-        "Supports corner shapes (square, rounded, extra-rounded), foreground colors/gradients, and background colors",
-        "Supports error correction levels (L, M, Q, H)",
-        "Exports high-resolution SVG and PNG at 512px, 1024px, 2048px",
-        "Typecheck and tests pass with 0 errors"
+        "Interactive SVG world map renders visitor density across countries with hover tooltips and country click counts",
+        "GET /api/stream/clicks endpoint provides live click stream telemetry with country, device, referrer, and timestamp",
+        "POST /api/goals/track endpoint records conversion events (signup, purchase, download) tied to specific link slugs and calculates conversion rates",
+        "GET /api/analytics/:slug/export endpoint outputs formatted CSV and JSON reports of link performance and timeline telemetry",
+        "Analytics inspector modal displays the interactive world map, conversion rate scorecard, and report export buttons",
+        "Typecheck passes",
+        "Tests pass"
       ],
       "priority": 2,
       "passes": true,
-      "notes": "Completed: Implemented generateBrandedQrSvg engine with center logos (Globe, Instagram, YouTube, Twitter, GitHub, LinkedIn, custom), corner shapes (square, rounded, dots), dual gradients, and error correction levels (L,M,Q,H). Added POST /api/qr and GET /api/qr/:slug endpoints with vector SVG and 512/1024/2048px PNG export. Built QR Studio modal in console."
+      "notes": "Completed: Built interactive SVG world geo heatmap component and country click distribution. Added GET /api/stream/clicks endpoint with real-time click stream telemetry. Implemented POST /api/goals/track conversion goal recorder with conversion rate calculation. Built GET /api/analytics/:slug/export for RFC4180 CSV and JSON reports. Added Export buttons and Goals scorecard to inspector modal."
     },
     {
-      "id": "US-003",
-      "title": "Deep Linking & Smart Mobile App Launchers",
-      "description": "As a marketer, I want short links to automatically open native mobile apps (Instagram, YouTube, Spotify, Twitter, TikTok, Telegram) on iOS/Android with web fallbacks.",
+      "id": "US-013",
+      "title": "Developer Platform & Scoped API Key Studio",
+      "description": "As a developer, I want to generate scoped API keys with granular permissions and per-key rate limits, verify webhooks with HMAC signatures, and explore an interactive API playground.",
       "acceptanceCriteria": [
-        "Schema supports deepLink flag on short links",
-        "Detects app target from URL and generates native mobile URI scheme",
-        "Edge redirect engine serves responsive universal launch bridge for mobile user agents with seamless web fallback",
-        "Toggle in Shorten Studio and Inspector to enable smart deep linking",
-        "Typecheck and tests pass with 0 errors"
+        "Endpoints POST /api/keys, GET /api/keys, and DELETE /api/keys/:id manage scoped API tokens with granular permissions (read:links, write:links, delete:links, read:analytics)",
+        "API key authentication validates key scopes and enforces tiered rate limits with X-RateLimit headers",
+        "Webhooks include HMAC-SHA256 signature in X-TinyLink-Signature header generated using secret signing key",
+        "GET /api/docs endpoint renders interactive OpenAPI documentation and test console with zero external script dependencies",
+        "Console provides API Keys management tab in Settings modal to create, view, copy, and revoke keys",
+        "Typecheck passes",
+        "Tests pass"
       ],
       "priority": 3,
       "passes": true,
-      "notes": "Completed: Implemented detectAppDeepLink for YouTube (vnd.youtube:), Spotify (spotify:), X/Twitter (twitter:), Instagram (instagram:), TikTok (snssdk1233:), and Telegram (tg:). Built responsive edge universal launch bridge with meta refresh fallback and universal app scheme launch button. Added deepLink checkbox in Shorten Studio and Inspector modal. Verified with comprehensive unit tests."
+      "notes": "Completed: Implemented POST /api/keys, GET /api/keys, and DELETE /api/keys/:id for scoped API tokens (tl_live_ prefix with SHA-256 KV storage). Added granular scope validation (read:links, write:links, delete:links, read:analytics) and per-key rate limiting with X-RateLimit-* headers. Built GET /api/docs OpenAPI 3.1 documentation and interactive testing console with zero external scripts. Verified HMAC-SHA256 signatures with X-TinyLink-Signature. Added Developer Platform & API Keys studio modal to console UI."
     },
     {
-      "id": "US-004",
-      "title": "One-Click Multi-Channel Campaign Generator",
-      "description": "As a growth lead, I want to generate tagged short links for Instagram, YouTube, Twitter, LinkedIn, and TikTok in 1 click from a single destination URL.",
+      "id": "US-014",
+      "title": "Custom Domain Multi-Tenancy Manager & Branded 404 Studio",
+      "description": "As an agency owner, I want to manage multiple branded custom domains, configure custom root redirects and branded 404 pages per domain, and inspect domain resolution health.",
       "acceptanceCriteria": [
-        "Campaign Generator modal generates channel variants with automatic UTM parameters in 1 click",
-        "POST /api/campaigns endpoint creates batch links with shared campaign tag in KV",
-        "Dashboard allows filtering by campaign tag and displays aggregate campaign metrics",
-        "Typecheck and tests pass with 0 errors"
+        "Endpoints GET /api/domains, POST /api/domains, and DELETE /api/domains/:domain manage custom branded domains in KV",
+        "Request router dynamically matches Host/X-Forwarded-Host to configured domain settings",
+        "Each domain supports custom rootRedirect URL and custom branded 404 error page",
+        "Console provides Custom Domains manager tab in Settings modal with domain list, DNS status, and route settings",
+        "Typecheck passes",
+        "Tests pass"
       ],
       "priority": 4,
       "passes": true,
-      "notes": "Completed: Added POST /api/campaigns batch creation endpoint with auto UTM tagging (utm_source=<channel>, utm_medium=social, utm_campaign=<campaign>). Built Multi-Channel Campaign Generator modal in console. Added campaign filter dropdown, aggregate campaign metrics summary banner, and campaign tag filtering in links view. Verified with unit tests."
-    },
-    {
-      "id": "US-005",
-      "title": "Smart Expired-Link Actions & Real-Time Countdown Timers",
-      "description": "As an event organizer, I want expired links to auto-redirect to waitlists and scheduled links to display a live real-time countdown timer.",
-      "acceptanceCriteria": [
-        "Schema supports expiredAction ('message' | 'redirect') and expiredUrl",
-        "Expired links with redirect action seamlessly 302-redirect to expiredUrl instead of 410",
-        "Scheduled links with startsAt render a real-time ticking countdown timer that auto-activates when reaching zero",
-        "Typecheck and tests pass with 0 errors"
-      ],
-      "priority": 5,
-      "passes": true,
-      "notes": "Completed: Added expiredAction ('message' | 'redirect') and expiredUrl to URLData schema. Implemented seamless 302 redirect to expiredUrl on expiration when expiredAction is 'redirect'. Built real-time ticking countdown timer with /assets/status.js ticker that auto-activates when reaching zero. Added controls in Shorten Studio and Inspector modal. Verified with unit tests."
-    },
-    {
-      "id": "US-006",
-      "title": "Bio Page Lead Capture & Newsletter Subscription Block",
-      "description": "As a creator, I want an email subscription block on my bio page so visitors can subscribe to my newsletter, and I can export leads.",
-      "acceptanceCriteria": [
-        "BioPageData schema supports leadCapture configuration",
-        "Public /bio/:handle renders responsive email capture form matching active theme",
-        "POST /bio/:handle/subscribe endpoint validates emails, enforces rate limits, and persists leads in KV",
-        "Dashboard Bio Studio displays subscriber count badge, leads modal, and one-click CSV export",
-        "Typecheck and tests pass with 0 errors"
-      ],
-      "priority": 6,
-      "passes": true,
-      "notes": "Completed: Added leadCapture config to BioPageData. Rendered responsive newsletter block on public /bio/:handle with /assets/bio.js AJAX subscription handler. Added POST /bio/:handle/subscribe endpoint with rate limiting, deduplication, and persistence under b:leads:<handle>. Added GET /api/bio/:handle/subscribers with RFC4180 CSV export. Added Leads modal, subscriber count badge, and Lead Capture configuration in Bio Editor with live mobile preview. Verified with unit tests."
-    },
-    {
-      "id": "US-007",
-      "title": "Retargeting Pixels & Conversion Tracking Studio",
-      "description": "As a marketer, I want to attach Meta Pixel, GA4, TikTok, LinkedIn, and Twitter retargeting pixels to short links and bio pages so I can build custom advertising audiences.",
-      "acceptanceCriteria": [
-        "PixelConfig schema supports facebookPixelId, googleAnalyticsId, tiktokPixelId, linkedinPartnerId, twitterPixelId",
-        "Edge serves high-speed pixel bridge interstitial for pixel-enabled short links with automatic forward and meta refresh fallback",
-        "Public bio pages inject active pixels into header matching CSP whitelist",
-        "Console provides Tracking Pixels tab in Shorten Studio, Inspector modal, and Bio Studio",
-        "Typecheck and tests pass with 0 errors"
-      ],
-      "priority": 7,
-      "passes": true,
-      "notes": "Completed: Added PixelConfig schema supporting facebookPixelId, googleAnalyticsId, tiktokPixelId, linkedinPartnerId, and twitterPixelId with shorthand aliases. Built Pixel Bridge interstitial (/assets/pixel-bridge.js) with strict CSP headers (connect.facebook.net, googletagmanager.com, analytics.tiktok.com, snapchat.com, px.ads.linkedin.com, static.ads-twitter.com). Integrated pixel bridge into bio pages and added Tracking Pixels UI to Advanced Studio, Inspector modal, and Bio Studio editor."
-    },
-    {
-      "id": "US-008",
-      "title": "Automated Link Sentinel & Broken URL Auto-Failover",
-      "description": "As an operations manager, I want automatic background health checks of destination URLs with auto-failover to backup URLs when a destination goes down.",
-      "acceptanceCriteria": [
-        "POST /api/sentinel/scan and scheduled cron verify active URLs for HTTP errors and record latency in KV",
-        "Automatically routes traffic to fallbackUrl when primary destination is broken",
-        "Dispatches link.down and link.recovered webhook events",
-        "Console displays Sentinel health status filter and live status indicators",
-        "Typecheck and tests pass with 0 errors"
-      ],
-      "priority": 8,
-      "passes": true,
-      "notes": "Completed: Added checkDestinationHealth and runSentinelScan with scheduled cron and POST /api/sentinel/scan endpoints. Implemented auto-failover routing to fallbackUrl when destination HTTP status >= 400 or network fails. Dispatches link.down and link.recovered webhooks. Built Sentinel Scan button, health chips, and Healthy/Broken/Failover filters in dashboard."
-    },
-    {
-      "id": "US-009",
-      "title": "Smart Time-of-Day & Schedule Routing",
-      "description": "As a business owner, I want short links to route to different URLs based on the visitor's local hour and day of the week.",
-      "acceptanceCriteria": [
-        "TimeRoute schema supports days, startHour, endHour, timezone, and destination URL",
-        "Edge redirect engine determines visitor local time using cf.timezone and matches active time route",
-        "Console provides Time & Schedule Routing rule builder in Advanced Studio and Inspector",
-        "Typecheck and tests pass with 0 errors"
-      ],
-      "priority": 9,
-      "passes": true,
-      "notes": "Completed: Added TimeRoute schema supporting days (0-6), startHour (0-23), endHour (1-24), timezone, and destination URL. Implemented evaluateTimeRoute matching against visitor local time via request timezone / cf.timezone with fallback to UTC. Added Time Routing builder UI in Advanced Studio and Inspector modal with live row additions/removals and validation."
-    },
-    {
-      "id": "US-010",
-      "title": "Interactive Call-to-Action (CTA) Overlay Banners",
-      "description": "As a curator, I want short links sharing external articles to display a sleek branded floating CTA banner with my avatar and newsletter link.",
-      "acceptanceCriteria": [
-        "CtaOverlayConfig schema supports enabled, bannerText, buttonText, buttonUrl, avatarUrl, theme, position",
-        "Edge serves responsive frame overlay displaying external content with floating branded CTA bar and close button",
-        "Console provides CTA Overlay designer with live preview",
-        "Typecheck and tests pass with 0 errors"
-      ],
-      "priority": 10,
-      "passes": true,
-      "notes": "Completed: Added CtaOverlayConfig schema supporting enabled, bannerText, buttonText, buttonUrl, avatarUrl, theme, and position. Implemented renderCtaOverlayHtml rendering responsive iframe with floating branded CTA banner bar, avatar, action button, and dismiss toggle backed by /assets/cta-overlay.js and strict CTA_OVERLAY_CSP. Built CTA Overlay designer panel in Advanced Studio and Inspector modal."
+      "notes": "Completed: Built GET /api/domains, POST /api/domains, and DELETE /api/domains/:domain for custom domain management in KV. Integrated dynamic domain routing matching incoming Host/X-Forwarded-Host to configured domains. Enabled per-domain root redirect (302) and custom branded 404 HTML error page rendering with X-Custom-Domain header. Added Custom Domains Multi-Tenancy Studio modal to console UI."
     }
   ]
 }
